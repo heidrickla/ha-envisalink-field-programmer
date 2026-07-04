@@ -38,6 +38,35 @@ right, check whether it was recently changed from the device's local web
 UI (`http://<envisalink-ip>`), and confirm there's no leading/trailing
 whitespace if you copy-pasted it.
 
+**Finding the password if you don't remember it**: it's whatever you use
+to log into the Envisalink's own local web page. If you've genuinely lost
+it and never changed it from the factory default, check the sticker on
+the device itself or the manual — EyezOn's default is commonly `user`,
+but don't assume that without checking, since a previous
+owner/installer may have changed it.
+
+**Confirming what Home Assistant currently has saved for another
+integration** (e.g. to compare against a working `envisalink_new` setup):
+it's in `/config/.storage/core.config_entries`, under that integration's
+entry, `data.password`. **Treat this file like a secrets file** — it holds
+plain-text credentials for *every* integration configured on this Home
+Assistant instance, not just this one. Never paste its contents anywhere,
+including into a chat with an AI assistant; read only the one field you
+need.
+
+**The gotcha that cost real debugging time during this integration's own
+initial setup**: pulling the password directly from that file and
+confirming it was byte-for-byte correct, but the connection *still*
+failed. If that happens to you, don't keep re-checking the password —
+look at the other two causes on this page first (single-TPI-client limit,
+or check the log for a real traceback rather than just the generic
+"rejected" message). In this integration's case specifically, the
+password was correct the entire time; the actual bug was that the client
+was speaking the wrong wire protocol entirely, unrelated to credentials
+at all — see the "Protocol correction" note in
+[README.md](README.md#whats-verified-vs-what-needs-your-hardware) if
+you're curious how deep that rabbit hole went.
+
 ### Integration shows "Failed to set up" after installing or after a Home Assistant update
 
 Check the log for an `ImportError` or `AttributeError` naming something
@@ -104,6 +133,34 @@ duplicates or appends text. Select all the text in the editor (click
 inside it, Ctrl+A, Delete) and paste the config fresh; if it corrupts
 again, paste one line at a time and press `Escape` to dismiss any
 autocomplete dropdown before moving to the next line.
+
+### I don't know what to put for `alarm_entity` in the card config
+
+It's the `alarm_control_panel` entity this integration created, named
+after your Envisalink's host/IP — go to **Settings → Devices & Services →
+Envisalink Field Programmer → Entities** and copy the entity ID for the
+"Partition" entity (or "Partition N" if you have more than one), e.g.
+`alarm_control_panel.envisalink_field_programmer_10_10_52_6_partition`.
+Developer Tools → States is another way to browse and confirm it, and
+lets you check the entity actually has a real state (not `unavailable`)
+before you wire up the card.
+
+### The card doesn't show my zones, or shows the wrong ones
+
+Zones and the system-trouble sensor are auto-detected by matching a
+`config_entry_id` attribute every entity from this integration carries —
+so this only works if `alarm_entity` and the zone entities came from the
+*same* config entry (i.e. the same Envisalink setup). If you have more
+than one Envisalink configured, or the auto-detection isn't finding what
+you expect, pass the zone list explicitly instead:
+
+```yaml
+type: custom:envisalink-field-programmer-card
+alarm_entity: alarm_control_panel.envisalink_field_programmer_10_10_52_6_partition
+zone_entities:
+  - binary_sensor.envisalink_field_programmer_10_10_52_6_zone_1
+  - binary_sensor.envisalink_field_programmer_10_10_52_6_zone_2
+```
 
 ## Field programming
 
