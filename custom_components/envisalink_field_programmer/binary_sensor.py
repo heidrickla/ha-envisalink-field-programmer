@@ -56,15 +56,20 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
             "zone_number": self._zone_number,
             "partition": zone.partition,
             "config_entry_id": self.coordinator.config_entry.entry_id,
-            "alarm": zone.alarm,
-            "tamper": zone.tamper,
-            "fault": zone.fault,
             "bypassed": zone.bypassed,
+            "seconds_since_fault": zone.seconds_since_fault,
         }
 
 
 class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
-    """Aggregate system trouble condition (AC/battery/bell/FTC/tamper/fire)."""
+    """Aggregate trouble condition across all partitions (AC/battery/system trouble).
+
+    The real protocol only reports these as per-partition icon-LED flags
+    (see state_machine.py), not as distinct system-wide trouble types the
+    way the earlier, incorrect protocol implementation assumed -- so this
+    aggregates across every configured partition instead of tracking
+    separate AC/battery/bell/FTC/tamper conditions.
+    """
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
@@ -74,28 +79,24 @@ class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        system = self.coordinator.data.system
+        if self.coordinator.data.system.installers_mode:
+            return True
         return any(
-            (
-                system.ac_trouble,
-                system.battery_trouble,
-                system.bell_trouble,
-                system.ftc_trouble,
-                system.fire_trouble,
-                system.general_tamper,
-                system.installers_mode,
-            )
+            partition.trouble or partition.low_battery or not partition.ac_present
+            for partition in self.coordinator.data.partitions.values()
         )
 
     @property
     def extra_state_attributes(self) -> dict:
         system = self.coordinator.data.system
         return {
-            "ac_trouble": system.ac_trouble,
-            "battery_trouble": system.battery_trouble,
-            "bell_trouble": system.bell_trouble,
-            "ftc_trouble": system.ftc_trouble,
-            "fire_trouble": system.fire_trouble,
-            "general_tamper": system.general_tamper,
             "installers_mode": system.installers_mode,
+            "partitions": {
+                number: {
+                    "trouble": partition.trouble,
+                    "low_battery": partition.low_battery,
+                    "ac_present": partition.ac_present,
+                }
+                for number, partition in self.coordinator.data.partitions.items()
+            },
         }

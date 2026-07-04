@@ -1,14 +1,13 @@
-"""Shared test helpers: a minimal fake Envisalink TPI server."""
+"""Shared test helpers: a minimal fake Envisalink TPI server.
+
+Implements the real protocol (see client.py's module docstring for the
+correction history): a plain-text ``Login:``/``OK``/``FAILED`` handshake,
+then ``%CODE,DATA$`` (server -> client) / ``^CODE,DATA$`` (client -> server)
+framing with no checksum.
+"""
 from __future__ import annotations
 
 import asyncio
-
-from custom_components.envisalink_field_programmer.client import compute_checksum
-
-
-def frame(code: str, data: str = "") -> bytes:
-    payload = f"{code}{data}"
-    return f"{payload}{compute_checksum(payload)}\r\n".encode("ascii")
 
 
 class FakeEnvisalinkServer:
@@ -16,6 +15,8 @@ class FakeEnvisalinkServer:
 
     def __init__(self, password: str = "user") -> None:
         self.password = password
+        # (code, data) pairs received from the client, code without its "^"
+        # sentinel, e.g. ("03", "1,4") for a keypress of "4" to partition 1.
         self.received: list[tuple[str, str]] = []
         self._server: asyncio.AbstractServer | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -40,37 +41,51 @@ class FakeEnvisalinkServer:
             # close() alone guarantees.
 
     async def push(self, code: str, data: str = "") -> None:
+        """Send a "%CODE,DATA$" frame to the connected client."""
         assert self._writer is not None
-        self._writer.write(frame(code, data))
+        self._writer.write(f"%{code},{data}$".encode("ascii"))
         await self._writer.drain()
 
     async def _handle(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         self._writer = writer
-        writer.write(frame("505", "3"))
+        writer.write(b"Login:\r\n")
         await writer.drain()
         try:
             raw = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=5)
         except (TimeoutError, asyncio.IncompleteReadError):
             return
-        line = raw.decode("ascii").strip("\r\n")
-        payload, _checksum = line[:-2], line[-2:]
-        code, data = payload[:3], payload[3:]
-        self.received.append((code, data))
-        if code == "005" and data == self.password:
-            writer.write(frame("505", "1"))
+        password = raw.decode("ascii", errors="ignore").strip("\r\n")
+
+        if password == self.password:
+            writer.write(b"OK\r\n")
         else:
-            writer.write(frame("505", "0"))
+            writer.write(b"FAILED\r\n")
         await writer.drain()
-        if code == "005" and data != self.password:
+        if password != self.password:
             writer.close()
             return
+
+        buffer = ""
         try:
             while True:
-                raw = await reader.readuntil(b"\r\n")
-                line = raw.decode("ascii").strip("\r\n")
-                payload, _checksum = line[:-2], line[-2:]
-                self.received.append((payload[:3], payload[3:]))
+                chunk = await reader.read(512)
+                if not chunk:
+                    break
+                buffer += chunk.decode("ascii", errors="ignore")
+                frames = buffer.split("$")
+                buffer = frames.pop()
+                for raw_frame in frames:
+                    self._record_frame(raw_frame)
         except (asyncio.IncompleteReadError, ConnectionResetError):
             pass
+
+    def _record_frame(self, raw_frame: str) -> None:
+        frame = raw_frame
+        for idx, char in enumerate(raw_frame):
+            if char in "%^":
+                frame = raw_frame[idx:]
+                break
+        if len(frame) >= 4 and frame[3] == ",":
+            self.received.append((frame[1:3], frame[4:]))

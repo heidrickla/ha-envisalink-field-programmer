@@ -34,7 +34,8 @@ point.
 - One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities
   for bypass (disabled by default in the entity registry — enable the ones
   you want)
-- A system trouble `binary_sensor` (AC/battery/bell/FTC/fire/tamper/installer-mode)
+- A system trouble `binary_sensor` (AC power / low battery / general trouble
+  per partition, plus installer-mode)
 - Diagnostic sensors (last raw panel event, last user to arm/disarm each partition)
 - **Guided field-programming services** — `program_zone`, `set_system_timing`,
   `program_function_key` — plus the lower-level `send_keystrokes` and
@@ -163,11 +164,11 @@ experiment with field programming.
 
 **What it cannot capture: the panel's actual installer field programming**
 (zone types, entry/exit delays, alpha descriptors, output/relay
-assignments, communicator settings, etc.). The TPI protocol has no command
-that reads that data back — section 3 of the EnvisaLink TPI spec only
-exposes live status events and keypad LED state, never the underlying
-`*56`/`*58`/`*79`/`*80`/`*82`-style configuration fields. To actually back
-up your panel's programming, you need to either:
+assignments, communicator settings, etc.). The real TPI protocol has no
+command that reads that data back — it only exposes live status events
+(icon-LED keypad state, realtime CID events, the zone timer dump), never the
+underlying `*56`/`*58`/`*79`/`*80`/`*82`-style configuration fields. To
+actually back up your panel's programming, you need to either:
 
 - Walk each installer menu field at the keypad and record it by hand, or
 - Use a Honeywell-side tool (Compass Downloader, Total Connect installer
@@ -238,17 +239,38 @@ npm run build
 
 ## What's verified vs. what needs your hardware
 
-This was built and tested without access to a live Envisalink or VISTA
-panel. What's actually exercised by the automated test suite (`pytest tests/`,
-62 tests):
+**Protocol correction (2026-07-04):** an earlier version of this integration
+implemented the wrong wire protocol entirely — the "EnvisaLink TPI
+Programmer's Document v1.08" PDF this was originally built from (checksum
+framing, 3-digit numeric command codes) does not match what a real EVL-4 +
+VISTA-21iP actually speaks. This was caught during real-hardware testing
+(a `checksum mismatch for 'Login:'` error in the HA core logs) and confirmed
+by reading raw socket traffic and the actively maintained `pyenvisalink`
+library (used by the confirmed-working `envisalink_new` integration). The
+whole client/state-machine layer was rewritten against the real protocol:
+a plain-text `Login:`/`OK`/`FAILED` handshake, then `%CODE,DATA$` /
+`^CODE,DATA$` framing with **no checksum**, one-keystroke-per-frame
+transmission, and arm/disarm done by typing the user code plus a mode digit
+(exactly like a physical keypad) rather than a dedicated command. See
+`client.py`'s and `state_machine.py`'s module docstrings, and
+DEVELOPMENT.md, for the full details. The Vista `*56`/`*57` field-programming
+*keystroke* language itself (as opposed to how those keystrokes get sent
+over the wire) was unaffected by this correction.
 
-- **TPI wire protocol**: checksum math, frame parsing, event field decoding
-  — against the exact worked example in the EnvisaLink TPI spec.
-- **Login handshake, keepalive, disconnect/reconnect, keystroke chunking**
-  — against a real asyncio TCP server standing in for the Envisalink
-  (`tests/helpers.py::FakeEnvisalinkServer`), not a mocked transport.
-- **State machine**: every event code this integration understands, folded
-  into partition/zone/system state.
+What's actually exercised by the automated test suite (`pytest tests/`,
+70 tests):
+
+- **TPI wire protocol**: sentinel-stripping, frame parsing, and per-event
+  field tokenizing (`%00` keypad updates, `%03` realtime CID events, `%FF`
+  zone timer dumps) against hand-built frames matching the real format.
+- **Login handshake, keepalive, disconnect/reconnect, one-keystroke-per-frame
+  transmission** — against a real asyncio TCP server standing in for the
+  Envisalink (`tests/helpers.py::FakeEnvisalinkServer`, itself implementing
+  the real protocol), not a mocked transport.
+- **State machine**: icon-LED flag decoding into partition state (ready,
+  armed mode, alarm, trouble, AC/battery), zone open/closed detection from
+  the periodic zone timer dump, and CID-event-based installer-mode and
+  last-armed/disarmed-user tracking.
 - **Keystroke safety guard**: every branch (valid chars, Program Mode
   detection with and without a known installer code, confirmation override).
 - **Field-programming keystroke translation**: every builder function
@@ -263,23 +285,29 @@ panel. What's actually exercised by the automated test suite (`pytest tests/`,
   still driven by the fake TPI server.
 
 **Confirmed against real hardware (2026-07-04):** the config flow's login
-handshake, error handling, and HACS installation/setup all work correctly
-end-to-end against a live Envisalink EVL-4 + VISTA-21iP. Also confirmed:
-the Envisalink's TPI server only accepts one client connection at a time —
-see "The Envisalink only accepts one TPI client at a time" above. This
-was the actual cause of an initial "Could not connect" error during
-real-hardware testing, not a bug in the connection logic.
+handshake (once corrected to the real protocol), error handling, and HACS
+installation/setup all work correctly end-to-end against a live Envisalink
+EVL-4 + VISTA-21iP. Also confirmed: the Envisalink's TPI server only accepts
+one client connection at a time — see "The Envisalink only accepts one TPI
+client at a time" above.
 
 **What still needs your real Envisalink/panel to confirm:**
-- The exact login password/firewall behavior of your specific EVL
-  firmware version (see the "Envisalink Application Firewall" note in the
-  TPI spec — changing the default `user` password may be required for TPI
-  access depending on your firmware).
+- Arm/disarm via keystrokes (user code + mode digit) end-to-end against a
+  live partition — the wire mechanism is confirmed correct against the real
+  protocol, but hasn't yet been exercised against a real panel while armed.
 - Whether your Vista panel accepts the zone-bypass keystroke sequence
   (`*1zz#`) exactly as documented — this is standard Vista/Ademco keypad
   behavior but hasn't been confirmed against your specific panel revision.
-- Timing/arm-mode mapping for `032` (zero entry) if your installer has
-  changed default arming behavior.
+- Zone open/closed detection via the periodic zone timer dump (`%FF`) — the
+  decode logic matches the reference `pyenvisalink` implementation exactly,
+  but hasn't yet been cross-checked against a real open/closed zone on this
+  hardware.
+- Exit-delay detection, which relies on a simple substring check
+  ("You may exit now" / "May Exit Now") against the keypad's free-text
+  display — this integration deliberately does not attempt fuller alpha-text
+  parsing (see `state_machine.py`'s module docstring), so entry-delay
+  ("pending") state is not represented at all, matching a known limitation
+  in the reference implementation too.
 - **The entire field-programming keystroke sequences** (`*56` zone
   programming prompt order, `*57` function key A/B/C/D-to-digit mapping,
   numbered data field entry) — built strictly from the programming guide's

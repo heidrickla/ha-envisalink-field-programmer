@@ -74,7 +74,7 @@ these two gotchas can both cause indirectly.
 ## Running tests and lint
 
 ```bash
-pytest tests/ -v            # 62 tests as of this writing, ~8s
+pytest tests/ -v            # 70 tests as of this writing, ~9s
 ruff check custom_components tests
 ```
 
@@ -138,6 +138,74 @@ field in `.storage/core.config_entries` (or just check the UI) before
 assuming the new integration's host/port/password are wrong -- if that
 other entry isn't disabled, that's almost certainly the actual cause, and
 no amount of double-checking credentials will fix it.
+
+## Protocol correction: the original TPI research was wrong
+
+The client (`client.py`), state machine (`state_machine.py`), and the
+relevant parts of `const.py` were originally built from the "EnvisaLink TPI
+Programmer's Document v1.08" (2017-02-10) PDF, which describes a hex-ASCII,
+checksum-framed protocol with 3-digit numeric command codes and a
+`005`/`505`-style login handshake.
+
+That does not match what a real EVL-4 + VISTA-21iP actually speaks. This
+was discovered during live-hardware testing (2026-07-04): after the config
+flow failed with "Could not connect", Home Assistant's core log showed
+
+```
+TPIProtocolError: checksum mismatch for 'Login:': got n:, expected 8B
+```
+
+i.e. the device was sending the literal text `Login:` rather than the
+framed/checksummed handshake the client expected. Direct raw-socket testing
+(via SSH into the HA host and a short Python script) confirmed the real
+sequence: the EVL sends `Login:\r\n`, expects just the plain-text password
+in response (no framing, no checksum), then replies `OK\r\n` / `FAILED\r\n`
+/ `Timed Out!\r\n`. Every message after that is `%CODE,DATA$` (EVL ->
+client) or `^CODE,DATA$` (client -> EVL), terminated by `$`, with no
+checksum at all -- and keystrokes go one character per frame
+(`^03,<partition>,<char>$`), not chunked.
+
+This was cross-checked against the actively maintained `pyenvisalink`
+library (the library behind `ufodone/envisalink_new`, a HACS integration
+confirmed working against this exact hardware). Reference copies of its
+`envisalink_base_client.py`, `honeywell_client.py`, and
+`honeywell_envisalinkdefs.py` (GPL v3) were downloaded from
+`https://github.com/ufodone/envisalink_new` purely to read the real field
+layouts (icon-LED bitfield, CID event parsing, zone timer dump math) --
+same handling as the Vista Programming Guide PDF: read for reference, then
+**deleted, not committed** (`_scratch_honeywell_client.py`,
+`_scratch_honeywell_envisalinkdefs.py`, `_scratch_envisalink_base_client.py`
+in the repo root during this work). Every module this integration ships
+paraphrases the protocol's *meaning* in its own words and implementation,
+it does not contain copied `pyenvisalink` source.
+
+What carried over unchanged from the incorrect version: the Vista
+`*56`/`*57`/`*99` field-programming **keystroke language** itself
+(`field_programming.py`, `programming.py`'s Program Mode guard) -- that
+part was always just a string of keystrokes to type at a keypad, and is
+independent of how those keystrokes get framed on the wire.
+
+What changed as a result, in one place, for anyone debugging against this
+history:
+- `client.py`: full rewrite of the login handshake and frame parsing/building.
+- `const.py`: the `COMMAND_SCHEMA`/`COMMAND_NAMES` 3-digit numeric event
+  codes were replaced with the real `%00`/`%01`/`%02`/`%03`/`%20`/`%FF`
+  event codes and `^00`-`^03` command codes.
+- `state_machine.py`: rewritten around icon-LED bitfield decoding (`%00`)
+  and the zone timer dump (`%FF`) as the only two real data sources for a
+  Honeywell panel, instead of the ~30 distinct numeric event codes the old
+  (wrong) protocol claimed to have.
+- `coordinator.py`/`alarm_control_panel.py`: arm/disarm/arm-stay/arm-night
+  now all send the user code plus a mode digit as keystrokes (matching a
+  real keypad) instead of calling dedicated arm/disarm commands that don't
+  exist on the wire; all four now require a code, not just disarm.
+- `models.py`: several fields tied to event codes the real protocol doesn't
+  have (`force_arm_enabled`, `busy`, `keypad_lockout`, `failed_to_arm`,
+  distinct AC/battery/bell/FTC/tamper system trouble types, entry delay,
+  per-zone alarm/tamper/fault) were dropped rather than faked; per-zone
+  bypass tracking became a best-effort local flag (see the module
+  docstring) since the real protocol has no per-zone bypass event without
+  alpha-text parsing this integration deliberately avoids.
 
 ## Where the Vista programming-guide research came from
 

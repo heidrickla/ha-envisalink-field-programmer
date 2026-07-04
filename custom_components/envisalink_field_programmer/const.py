@@ -21,172 +21,113 @@ DEFAULT_PORT: Final = 4025
 DEFAULT_NUM_PARTITIONS: Final = 1
 DEFAULT_NUM_ZONES: Final = 8
 DEFAULT_KEEPALIVE_INTERVAL: Final = 30
+# How often to re-request the %FF zone timer dump -- the only authoritative
+# source of zone open/closed state over this protocol (see state_machine.py).
+ZONE_TIMER_DUMP_INTERVAL: Final = 30
 LOGIN_TIMEOUT: Final = 10
 COMMAND_ACK_TIMEOUT: Final = 5
 RECONNECT_BACKOFF_MIN: Final = 5
 RECONNECT_BACKOFF_MAX: Final = 300
 
 # ---------------------------------------------------------------------------
-# TPI wire protocol
+# TPI wire protocol -- Honeywell/Ademco Envisalink (EVL-3/EVL-4)
 # ---------------------------------------------------------------------------
-# Field schema for every command/event the panel/EVL can *send to us*.
-# Maps a 3-digit command code to an ordered list of (field_name, length)
-# tuples describing how to slice the data portion of the frame.
-# Source: EnvisaLink TPI Programmer's Document v1.08 (2017-02-10), section 3.3.
-COMMAND_SCHEMA: Final[dict[str, list[tuple[str, int]]]] = {
-    "500": [("ack_code", 3)],
-    "501": [],
-    "502": [("error_code", 3)],
-    "505": [("status", 1)],
-    "510": [("led_state", 2)],
-    "511": [("led_flash_state", 2)],
-    "550": [("time", 10)],
-    "560": [],
-    "561": [("thermostat", 1), ("temperature", 3)],
-    "562": [("thermostat", 1), ("temperature", 3)],
-    "601": [("partition", 1), ("zone", 3)],
-    "602": [("partition", 1), ("zone", 3)],
-    "603": [("partition", 1), ("zone", 3)],
-    "604": [("partition", 1), ("zone", 3)],
-    "605": [("zone", 3)],
-    "606": [("zone", 3)],
-    "609": [("zone", 3)],
-    "610": [("zone", 3)],
-    "615": [("zone_timers", 256)],
-    "616": [("bypass_bitfield", 16)],
-    "620": [("reserved", 4)],
-    "621": [], "622": [], "623": [], "624": [], "625": [], "626": [],
-    "631": [], "632": [],
-    "650": [("partition", 1)],
-    "651": [("partition", 1)],
-    "652": [("partition", 1), ("mode", 1)],
-    "653": [("partition", 1)],
-    "654": [("partition", 1)],
-    "655": [("partition", 1)],
-    "656": [("partition", 1)],
-    "657": [("partition", 1)],
-    "658": [("partition", 1)],
-    "659": [("partition", 1)],
-    "660": [("partition", 1)],
-    "663": [("partition", 1)],
-    "664": [("partition", 1)],
-    "670": [("partition", 1)],
-    "671": [("partition", 1)],
-    "672": [("partition", 1)],
-    "673": [("partition", 1)],
-    "674": [("partition", 1)],
-    "680": [],
-    "700": [("partition", 1), ("user", 4)],
-    "701": [("partition", 1)],
-    "702": [("partition", 1)],
-    "750": [("partition", 1), ("user", 4)],
-    "751": [("partition", 1)],
-    "800": [], "801": [], "802": [], "803": [],
-    "806": [], "807": [],
-    "814": [], "815": [], "816": [],
-    "829": [], "830": [],
-    "840": [("partition", 1)],
-    "841": [("partition", 1)],
-    "842": [], "843": [],
-    "849": [("trouble_bits", 2)],
-    "900": [],
-    "912": [("partition", 1), ("command", 1)],
-    "921": [],
-    "922": [],
-}
+# CORRECTNESS NOTE: an earlier version of this file was built from the
+# "EnvisaLink TPI Programmer's Document v1.08" PDF, which describes a
+# hex-ASCII, checksum-framed protocol with 3-digit numeric command codes.
+# That does not match what a real EVL-4 + VISTA-21iP actually speaks --
+# confirmed directly against live hardware (see DEVELOPMENT.md). The real
+# protocol, verified against both the live device and the actively
+# maintained `pyenvisalink` library (bundled with the `envisalink_new` HACS
+# integration, which is confirmed working against this exact hardware), is:
+#
+#   1. Login is plain text, not a framed command: the EVL sends the literal
+#      string "Login:", the client replies with just the password (no
+#      username), and the EVL replies "OK", "FAILED", or "Timed Out!".
+#   2. Every message after that is framed as "%CODE,DATA$" (EVL -> client)
+#      or "^CODE,DATA$" (client -> EVL), terminated by "$" -- there is no
+#      checksum at all.
+#   3. Keystrokes are sent one character at a time via "^03,<partition>,
+#      <char>$", not bundled into multi-character frames.
+#   4. Arming/disarming is done by sending the user code followed by a mode
+#      digit as keystrokes (e.g. code + "2" for away), not a dedicated
+#      command code -- matching how a physical keypad works.
+LOGIN_PROMPT: Final = "Login:"
+LOGIN_SUCCESS: Final = "OK"
+LOGIN_FAILURE: Final = "FAILED"
+LOGIN_TIMEOUT_MESSAGE: Final = "Timed Out!"
 
-# Human-readable names for logging/diagnostics/entity attributes.
+FRAME_SENTINELS: Final = "%^"
+FRAME_TERMINATOR: Final = "$"
+
+# Outbound command codes (sent as "^<code>,<data>$").
+CMD_POLL: Final = "00"
+CMD_CHANGE_DEFAULT_PARTITION: Final = "01"
+CMD_DUMP_ZONE_TIMERS: Final = "02"
+CMD_KEYPRESS: Final = "03"
+
+# Inbound event codes (sent as "%<code>,<data>$" for panel-initiated
+# updates, or "^<code>,<data>$" as an acknowledgement of a command we sent
+# with that same code).
+EVT_KEYPAD_UPDATE: Final = "%00"
+EVT_ZONE_STATE_CHANGE: Final = "%01"
+EVT_PARTITION_STATE_CHANGE: Final = "%02"
+EVT_REALTIME_CID_EVENT: Final = "%03"
+EVT_DEBUG_MESSAGE: Final = "%20"
+EVT_ZONE_TIMER_DUMP: Final = "%FF"
+
 COMMAND_NAMES: Final[dict[str, str]] = {
-    "500": "command_acknowledge",
-    "501": "command_error",
-    "502": "system_error",
-    "505": "login_interaction",
-    "510": "keypad_led_state",
-    "511": "keypad_led_flash_state",
-    "550": "time_date_broadcast",
-    "560": "ring_detected",
-    "561": "indoor_temperature",
-    "562": "outdoor_temperature",
-    "601": "zone_alarm",
-    "602": "zone_alarm_restore",
-    "603": "zone_tamper",
-    "604": "zone_tamper_restore",
-    "605": "zone_fault",
-    "606": "zone_fault_restore",
-    "609": "zone_open",
-    "610": "zone_restored",
-    "615": "zone_timer_dump",
-    "616": "bypassed_zones_bitfield",
-    "620": "duress_alarm",
-    "621": "fire_key_alarm",
-    "622": "fire_key_restore",
-    "623": "aux_key_alarm",
-    "624": "aux_key_restore",
-    "625": "panic_key_alarm",
-    "626": "panic_key_restore",
-    "631": "two_wire_smoke_alarm",
-    "632": "two_wire_smoke_restore",
-    "650": "partition_ready",
-    "651": "partition_not_ready",
-    "652": "partition_armed",
-    "653": "partition_ready_force_arm",
-    "654": "partition_in_alarm",
-    "655": "partition_disarmed",
-    "656": "exit_delay_in_progress",
-    "657": "entry_delay_in_progress",
-    "658": "keypad_lockout",
-    "659": "partition_failed_to_arm",
-    "660": "pgm_output_in_progress",
-    "663": "chime_enabled",
-    "664": "chime_disabled",
-    "670": "invalid_access_code",
-    "671": "function_not_available",
-    "672": "failure_to_arm",
-    "673": "partition_busy",
-    "674": "system_arming_in_progress",
-    "680": "system_in_installers_mode",
-    "700": "user_closing",
-    "701": "special_closing",
-    "702": "partial_closing",
-    "750": "user_opening",
-    "751": "special_opening",
-    "800": "panel_battery_trouble",
-    "801": "panel_battery_trouble_restore",
-    "802": "panel_ac_trouble",
-    "803": "panel_ac_restore",
-    "806": "system_bell_trouble",
-    "807": "system_bell_trouble_restore",
-    "814": "ftc_trouble",
-    "815": "ftc_trouble_restore",
-    "816": "buffer_near_full",
-    "829": "general_system_tamper",
-    "830": "general_system_tamper_restore",
-    "840": "trouble_led_on",
-    "841": "trouble_led_off",
-    "842": "fire_trouble_alarm",
-    "843": "fire_trouble_alarm_restore",
-    "849": "verbose_trouble_status",
-    "900": "code_required",
-    "912": "command_output_pressed",
-    "921": "master_code_required",
-    "922": "installers_code_required",
+    EVT_KEYPAD_UPDATE: "keypad_update",
+    EVT_ZONE_STATE_CHANGE: "zone_state_change",
+    EVT_PARTITION_STATE_CHANGE: "partition_state_change",
+    EVT_REALTIME_CID_EVENT: "realtime_cid_event",
+    EVT_DEBUG_MESSAGE: "debug_message",
+    EVT_ZONE_TIMER_DUMP: "zone_timer_dump",
+    "^00": "poll_ack",
+    "^01": "change_default_partition_ack",
+    "^02": "dump_zone_timers_ack",
+    "^03": "keypress_ack",
+    "^0C": "invalid_command_ack",
 }
 
-# Arm mode reported in command 652's "mode" field.
-ARM_MODE_AWAY = "0"
-ARM_MODE_STAY = "1"
-ARM_MODE_ZERO_ENTRY_AWAY = "2"
-ARM_MODE_ZERO_ENTRY_STAY = "3"
-
-# 502 System Error codes worth surfacing distinctly.
-ERROR_KEYBUS_BUSY_INSTALLERS_MODE = "17"
+# Icon-LED bit flags carried in the %00 keypad update's second data field
+# (a 16-bit value, sent as up to 4 hex digits). Order matches the real
+# device's bit layout (verified against pyenvisalink's IconLED_Bitfield),
+# not the EnvisaLink TPI PDF's unrelated LED-state command.
+ICON_LED_BITS: Final[dict[str, int]] = {
+    "alarm": 0,
+    "alarm_in_memory": 1,
+    "armed_away": 2,
+    "ac_present": 3,
+    "bypass": 4,
+    "chime": 5,
+    "armed_zero_entry_delay": 7,
+    "alarm_fire_zone": 8,
+    "system_trouble": 9,
+    "ready": 12,
+    "fire": 13,
+    "low_battery": 14,
+    "armed_stay": 15,
+}
 
 # Zone/partition/system events that mean "this partition entered installer's
-# programming mode" -- the single most important safety signal in this whole
-# integration. See section 3.6 of the TPI doc: getting stuck here may require
-# a physical power cycle of the panel, and while in this mode most commands,
-# including disarm, are locked out.
-INSTALLERS_MODE_EVENT_CODES: Final = {"680"}
+# programming mode". While in this mode most commands, including disarm,
+# are locked out, and getting stuck may require a physical power cycle.
+# This protocol has no dedicated event for it (unlike the incorrect PDF's
+# "680" code); it shows up as CID event 627 ("Program Mode Entry") via
+# EVT_REALTIME_CID_EVENT, which is how the coordinator detects it.
+INSTALLERS_MODE_CID_EVENT: Final = 627
+INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
+
+# CID "qualifier" digit (the first data field of a %03 event): 1 means a new
+# event/opening (e.g. a disarm), 3 means a new restore/closing (e.g. an
+# arm). 6 means "condition still present" and isn't a state transition.
+CID_QUALIFIER_OPENING: Final = "1"
+CID_QUALIFIER_CLOSING: Final = "3"
+
+# CID event codes that represent an arm or disarm action by a user (used to
+# decide whether to update last_armed_by_user/last_disarmed_by_user).
+ARM_DISARM_CID_EVENTS: Final = {401, 403, 407, 408, 409, 441, 442}
 
 # ---------------------------------------------------------------------------
 # Vista field-programming ("*56" etc.) keystroke conventions

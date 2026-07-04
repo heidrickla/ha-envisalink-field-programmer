@@ -7,12 +7,7 @@ from homeassistant.components.alarm_control_panel import (
     CodeFormat,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    STATE_ALARM_ARMING,
-    STATE_ALARM_DISARMED,
-    STATE_ALARM_PENDING,
-    STATE_ALARM_TRIGGERED,
-)
+from homeassistant.const import STATE_ALARM_ARMING, STATE_ALARM_DISARMED, STATE_ALARM_TRIGGERED
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -53,7 +48,12 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
             if len(coordinator.data.partitions) == 1
             else f"Partition {partition_number}"
         )
-        self._attr_code_arm_required = False
+        # A real Vista panel arms/disarms by typing the user code followed
+        # by a mode digit -- there is no code-free arm command over this
+        # protocol, unlike some other panel families. So a code is always
+        # required, sourced from either the service call or this entry's
+        # configured default user code.
+        self._attr_code_arm_required = default_code == ""
         self._attr_code_format = CodeFormat.NUMBER if default_code == "" else None
 
     @property
@@ -62,11 +62,13 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
 
     @property
     def alarm_state(self) -> str | None:
+        # Note: there is no "pending" (entry delay) state here -- this
+        # protocol's alpha-text parsing for entry delay isn't reliable
+        # enough to port (see state_machine.py's module docstring; even the
+        # reference `pyenvisalink` implementation leaves it unhandled).
         partition = self._partition
         if partition.alarm:
             return STATE_ALARM_TRIGGERED
-        if partition.entry_delay:
-            return STATE_ALARM_PENDING
         if partition.exit_delay:
             return STATE_ALARM_ARMING
         if partition.armed:
@@ -80,29 +82,32 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
             "partition_number": self._partition_number,
             "config_entry_id": self.coordinator.config_entry.entry_id,
             "ready": partition.ready,
-            "force_arm_enabled": partition.force_arm_enabled,
             "chime_enabled": partition.chime_enabled,
             "trouble": partition.trouble,
-            "busy": partition.busy,
-            "keypad_lockout": partition.keypad_lockout,
-            "failed_to_arm": partition.failed_to_arm,
+            "ac_present": partition.ac_present,
+            "low_battery": partition.low_battery,
+            "bypass_active": partition.bypass_active,
             "last_user": partition.last_user,
         }
 
-    async def async_alarm_arm_away(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_away(self._partition_number)
-
-    async def async_alarm_arm_home(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_stay(self._partition_number)
-
-    async def async_alarm_arm_night(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_night(self._partition_number)
-
-    async def async_alarm_disarm(self, code: str | None = None) -> None:
+    def _require_code(self, code: str | None) -> str:
         use_code = code or self._default_code
         if not use_code:
             raise HomeAssistantError(
-                "No disarm code provided and no default user code configured for"
-                " this integration's entry."
+                "No user code provided and no default user code configured for"
+                " this integration's entry. A real Vista panel has no"
+                " code-free way to arm or disarm."
             )
-        await self.coordinator.async_disarm(self._partition_number, use_code)
+        return use_code
+
+    async def async_alarm_arm_away(self, code: str | None = None) -> None:
+        await self.coordinator.async_arm_away(self._partition_number, self._require_code(code))
+
+    async def async_alarm_arm_home(self, code: str | None = None) -> None:
+        await self.coordinator.async_arm_stay(self._partition_number, self._require_code(code))
+
+    async def async_alarm_arm_night(self, code: str | None = None) -> None:
+        await self.coordinator.async_arm_night(self._partition_number, self._require_code(code))
+
+    async def async_alarm_disarm(self, code: str | None = None) -> None:
+        await self.coordinator.async_disarm(self._partition_number, self._require_code(code))

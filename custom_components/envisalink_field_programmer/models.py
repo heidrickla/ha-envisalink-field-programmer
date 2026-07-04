@@ -3,79 +3,85 @@
 These are intentionally framework-free (no Home Assistant imports) so they
 can be constructed and asserted against in unit tests without spinning up
 any part of Home Assistant.
+
+Field selection here reflects what the real Envisalink TPI protocol
+actually exposes for a Honeywell/Ademco panel (see client.py's module
+docstring): per-partition icon-LED flags from ``%00`` keypad updates, plus
+the ``%FF`` zone timer dump for zone open/closed state. Notably, this
+protocol has no per-zone alarm/tamper/fault reporting and no per-zone
+bypass reporting without parsing the keypad's free-text "alpha" display,
+which this integration deliberately does not attempt to parse (it's a
+fragile, panel-firmware-dependent heuristic in the reference
+implementation). Zone bypass is therefore tracked as a best-effort local flag: set
+optimistically when this integration itself sends the bypass toggle
+keystrokes for a zone, and cleared for every zone in a partition once that
+partition's ``bypass`` icon flag reports no bypass active (e.g. after a
+disarm/rearm cycle). It will not reflect a bypass toggled from the
+physical keypad rather than through this integration.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .const import (
-    ARM_MODE_AWAY,
-    ARM_MODE_STAY,
-    ARM_MODE_ZERO_ENTRY_AWAY,
-    ARM_MODE_ZERO_ENTRY_STAY,
-)
-
-ARM_MODE_TO_STATE = {
-    ARM_MODE_AWAY: "armed_away",
-    ARM_MODE_STAY: "armed_home",
-    ARM_MODE_ZERO_ENTRY_AWAY: "armed_away",
-    ARM_MODE_ZERO_ENTRY_STAY: "armed_night",
-}
-
 
 @dataclass
 class ZoneState:
-    """State of a single Vista zone as reported over the keybus.
+    """State of a single Vista zone.
 
-    ``partition`` defaults to 1 because several zone events (605/606/609/610)
-    do not carry partition information on the wire. It is refined to the
-    correct value whenever a 601-604 event (which does carry a partition)
-    is observed for this zone. For single-partition installs (the common
-    residential case) this default is always correct.
+    ``open`` is derived from the periodic zone timer dump (``%FF``): a zone
+    is considered open if its timer is within a few ticks of full (see
+    state_machine.py), matching how the reference `pyenvisalink`
+    implementation interprets this same data.
+
+    ``partition`` defaults to 1 and is never refined from wire data -- the
+    real protocol's zone timer dump has no per-zone partition tagging, and
+    per-zone reporting in ``%00`` keypad updates would need the same
+    alpha-text heuristic parsing this integration avoids (see the module
+    docstring). Correct for single-partition installs, the common
+    residential case.
     """
 
     number: int
     name: str | None = None
     partition: int = 1
     open: bool = False
-    alarm: bool = False
-    tamper: bool = False
-    fault: bool = False
     bypassed: bool = False
+    seconds_since_fault: float | None = None
 
 
 @dataclass
 class PartitionState:
-    """State of a single Vista partition."""
+    """State of a single Vista partition, as reported by its keypad's icon LEDs."""
 
     number: int
     ready: bool = False
-    force_arm_enabled: bool = False
     armed: bool = False
     arm_state: str = "disarmed"
     alarm: bool = False
+    alarm_in_memory: bool = False
+    alarm_fire_zone: bool = False
+    fire: bool = False
     exit_delay: bool = False
-    entry_delay: bool = False
     chime_enabled: bool = False
+    ac_present: bool = True
+    low_battery: bool = False
     trouble: bool = False
-    busy: bool = False
-    failed_to_arm: bool = False
-    keypad_lockout: bool = False
-    last_user: str | None = None
+    bypass_active: bool = False
+    last_armed_by_user: str | None = None
+    last_disarmed_by_user: str | None = None
+
+    @property
+    def last_user(self) -> str | None:
+        """Most recent of last_armed_by_user/last_disarmed_by_user, for display."""
+        return self.last_disarmed_by_user or self.last_armed_by_user
 
 
 @dataclass
 class SystemState:
     """Whole-system, non-partition-specific state."""
 
-    installers_mode: bool = False
-    ac_trouble: bool = False
-    battery_trouble: bool = False
-    bell_trouble: bool = False
-    ftc_trouble: bool = False
-    fire_trouble: bool = False
-    general_tamper: bool = False
     connected: bool = False
+    installers_mode: bool = False
 
 
 @dataclass
