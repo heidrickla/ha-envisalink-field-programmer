@@ -171,14 +171,14 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
             ${this._renderActions(armState)}
           </div>
 
+          ${this._config.show_programming_console
+            ? this._renderFieldProgrammingSection()
+            : nothing}
+
           ${zones.length
             ? html`<div class="zones">
                 ${zones.map((z) => this._renderZone(z))}
               </div>`
-            : nothing}
-
-          ${this._config.show_programming_console
-            ? this._renderFieldProgrammingSection()
             : nothing}
         </div>
       </ha-card>
