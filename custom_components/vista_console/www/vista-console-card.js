@@ -1,71 +1,274 @@
-var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e,s)=>{for(var r=s>1?void 0:s?xt(t,e):t,n=i.length-1,o;n>=0;n--)(o=i[n])&&(r=(s?o(t,e,r):o(r))||r);return s&&r&&At(t,e,r),r};var N=globalThis,I=N.ShadowRoot&&(N.ShadyCSS===void 0||N.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,K=Symbol(),rt=new WeakMap,P=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==K)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o,e=this.t;if(I&&t===void 0){let s=e!==void 0&&e.length===1;s&&(t=rt.get(e)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&rt.set(e,t))}return t}toString(){return this.cssText}},it=i=>new P(typeof i=="string"?i:i+"",void 0,K),W=(i,...t)=>{let e=i.length===1?i[0]:t.reduce((s,r,n)=>s+(o=>{if(o._$cssResult$===!0)return o.cssText;if(typeof o=="number")return o;throw Error("Value passed to 'css' function must be a 'css' function result: "+o+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(r)+i[n+1],i[0]);return new P(e,i,K)},nt=(i,t)=>{if(I)i.adoptedStyleSheets=t.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(let e of t){let s=document.createElement("style"),r=N.litNonce;r!==void 0&&s.setAttribute("nonce",r),s.textContent=e.cssText,i.appendChild(s)}},V=I?i=>i:i=>i instanceof CSSStyleSheet?(t=>{let e="";for(let s of t.cssRules)e+=s.cssText;return it(e)})(i):i;var{is:wt,defineProperty:Et,getOwnPropertyDescriptor:St,getOwnPropertyNames:Ct,getOwnPropertySymbols:Pt,getPrototypeOf:kt}=Object,L=globalThis,ot=L.trustedTypes,Ut=ot?ot.emptyScript:"",Ht=L.reactiveElementPolyfillSupport,k=(i,t)=>i,U={toAttribute(i,t){switch(t){case Boolean:i=i?Ut:null;break;case Object:case Array:i=i==null?i:JSON.stringify(i)}return i},fromAttribute(i,t){let e=i;switch(t){case Boolean:e=i!==null;break;case Number:e=i===null?null:Number(i);break;case Object:case Array:try{e=JSON.parse(i)}catch{e=null}}return e}},j=(i,t)=>!wt(i,t),at={attribute:!0,type:String,converter:U,reflect:!1,useDefault:!1,hasChanged:j};Symbol.metadata??=Symbol("metadata"),L.litPropertyMetadata??=new WeakMap;var _=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=at){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){let s=Symbol(),r=this.getPropertyDescriptor(t,s,e);r!==void 0&&Et(this.prototype,t,r)}}static getPropertyDescriptor(t,e,s){let{get:r,set:n}=St(this.prototype,t)??{get(){return this[e]},set(o){this[e]=o}};return{get:r,set(o){let l=r?.call(this);n?.call(this,o),this.requestUpdate(t,l,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??at}static _$Ei(){if(this.hasOwnProperty(k("elementProperties")))return;let t=kt(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(k("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(k("properties"))){let e=this.properties,s=[...Ct(e),...Pt(e)];for(let r of s)this.createProperty(r,e[r])}let t=this[Symbol.metadata];if(t!==null){let e=litPropertyMetadata.get(t);if(e!==void 0)for(let[s,r]of e)this.elementProperties.set(s,r)}this._$Eh=new Map;for(let[e,s]of this.elementProperties){let r=this._$Eu(e,s);r!==void 0&&this._$Eh.set(r,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){let e=[];if(Array.isArray(t)){let s=new Set(t.flat(1/0).reverse());for(let r of s)e.unshift(V(r))}else t!==void 0&&e.push(V(t));return e}static _$Eu(t,e){let s=e.attribute;return s===!1?void 0:typeof s=="string"?s:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){let t=new Map,e=this.constructor.elementProperties;for(let s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){let t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return nt(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){let s=this.constructor.elementProperties.get(t),r=this.constructor._$Eu(t,s);if(r!==void 0&&s.reflect===!0){let n=(s.converter?.toAttribute!==void 0?s.converter:U).toAttribute(e,s.type);this._$Em=t,n==null?this.removeAttribute(r):this.setAttribute(r,n),this._$Em=null}}_$AK(t,e){let s=this.constructor,r=s._$Eh.get(t);if(r!==void 0&&this._$Em!==r){let n=s.getPropertyOptions(r),o=typeof n.converter=="function"?{fromAttribute:n.converter}:n.converter?.fromAttribute!==void 0?n.converter:U;this._$Em=r;let l=o.fromAttribute(e,n.type);this[r]=l??this._$Ej?.get(r)??l,this._$Em=null}}requestUpdate(t,e,s,r=!1,n){if(t!==void 0){let o=this.constructor;if(r===!1&&(n=this[t]),s??=o.getPropertyOptions(t),!((s.hasChanged??j)(n,e)||s.useDefault&&s.reflect&&n===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,s))))return;this.C(t,e,s)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:r,wrapped:n},o){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??e??this[t]),n!==!0||o!==void 0)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),r===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}let t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[r,n]of this._$Ep)this[r]=n;this._$Ep=void 0}let s=this.constructor.elementProperties;if(s.size>0)for(let[r,n]of s){let{wrapped:o}=n,l=this[r];o!==!0||this._$AL.has(r)||l===void 0||this.C(r,void 0,n,l)}}let t=!1,e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(s=>s.hostUpdate?.()),this.update(e)):this._$EM()}catch(s){throw t=!1,this._$EM(),s}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(t){}firstUpdated(t){}};_.elementStyles=[],_.shadowRootOptions={mode:"open"},_[k("elementProperties")]=new Map,_[k("finalized")]=new Map,Ht?.({ReactiveElement:_}),(L.reactiveElementVersions??=[]).push("2.1.2");var X=globalThis,lt=i=>i,D=X.trustedTypes,ct=D?D.createPolicy("lit-html",{createHTML:i=>i}):void 0,gt="$lit$",b=`lit$${Math.random().toFixed(9).slice(2)}$`,ft="?"+b,Rt=`<${ft}>`,w=document,R=()=>w.createComment(""),T=i=>i===null||typeof i!="object"&&typeof i!="function",tt=Array.isArray,Tt=i=>tt(i)||typeof i?.[Symbol.iterator]=="function",F=`[ 	
-\f\r]`,H=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,dt=/-->/g,ht=/>/g,A=RegExp(`>|${F}(?:([^\\s"'>=/]+)(${F}*=${F}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`,"g"),pt=/'/g,ut=/"/g,_t=/^(?:script|style|textarea|title)$/i,et=i=>(t,...e)=>({_$litType$:i,strings:t,values:e}),u=et(1),Kt=et(2),Wt=et(3),E=Symbol.for("lit-noChange"),d=Symbol.for("lit-nothing"),mt=new WeakMap,x=w.createTreeWalker(w,129);function vt(i,t){if(!tt(i)||!i.hasOwnProperty("raw"))throw Error("invalid template strings array");return ct!==void 0?ct.createHTML(t):t}var Mt=(i,t)=>{let e=i.length-1,s=[],r,n=t===2?"<svg>":t===3?"<math>":"",o=H;for(let l=0;l<e;l++){let a=i[l],h,p,c=-1,f=0;for(;f<a.length&&(o.lastIndex=f,p=o.exec(a),p!==null);)f=o.lastIndex,o===H?p[1]==="!--"?o=dt:p[1]!==void 0?o=ht:p[2]!==void 0?(_t.test(p[2])&&(r=RegExp("</"+p[2],"g")),o=A):p[3]!==void 0&&(o=A):o===A?p[0]===">"?(o=r??H,c=-1):p[1]===void 0?c=-2:(c=o.lastIndex-p[2].length,h=p[1],o=p[3]===void 0?A:p[3]==='"'?ut:pt):o===ut||o===pt?o=A:o===dt||o===ht?o=H:(o=A,r=void 0);let y=o===A&&i[l+1].startsWith("/>")?" ":"";n+=o===H?a+Rt:c>=0?(s.push(h),a.slice(0,c)+gt+a.slice(c)+b+y):a+b+(c===-2?l:y)}return[vt(i,n+(i[e]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),s]},M=class i{constructor({strings:t,_$litType$:e},s){let r;this.parts=[];let n=0,o=0,l=t.length-1,a=this.parts,[h,p]=Mt(t,e);if(this.el=i.createElement(h,s),x.currentNode=this.el.content,e===2||e===3){let c=this.el.content.firstChild;c.replaceWith(...c.childNodes)}for(;(r=x.nextNode())!==null&&a.length<l;){if(r.nodeType===1){if(r.hasAttributes())for(let c of r.getAttributeNames())if(c.endsWith(gt)){let f=p[o++],y=r.getAttribute(c).split(b),z=/([.?@])?(.*)/.exec(f);a.push({type:1,index:n,name:z[2],strings:y,ctor:z[1]==="."?J:z[1]==="?"?Y:z[1]==="@"?G:C}),r.removeAttribute(c)}else c.startsWith(b)&&(a.push({type:6,index:n}),r.removeAttribute(c));if(_t.test(r.tagName)){let c=r.textContent.split(b),f=c.length-1;if(f>0){r.textContent=D?D.emptyScript:"";for(let y=0;y<f;y++)r.append(c[y],R()),x.nextNode(),a.push({type:2,index:++n});r.append(c[f],R())}}}else if(r.nodeType===8)if(r.data===ft)a.push({type:2,index:n});else{let c=-1;for(;(c=r.data.indexOf(b,c+1))!==-1;)a.push({type:7,index:n}),c+=b.length-1}n++}}static createElement(t,e){let s=w.createElement("template");return s.innerHTML=t,s}};function S(i,t,e=i,s){if(t===E)return t;let r=s!==void 0?e._$Co?.[s]:e._$Cl,n=T(t)?void 0:t._$litDirective$;return r?.constructor!==n&&(r?._$AO?.(!1),n===void 0?r=void 0:(r=new n(i),r._$AT(i,e,s)),s!==void 0?(e._$Co??=[])[s]=r:e._$Cl=r),r!==void 0&&(t=S(i,r._$AS(i,t.values),r,s)),t}var Z=class{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){let{el:{content:e},parts:s}=this._$AD,r=(t?.creationScope??w).importNode(e,!0);x.currentNode=r;let n=x.nextNode(),o=0,l=0,a=s[0];for(;a!==void 0;){if(o===a.index){let h;a.type===2?h=new O(n,n.nextSibling,this,t):a.type===1?h=new a.ctor(n,a.name,a.strings,this,t):a.type===6&&(h=new Q(n,this,t)),this._$AV.push(h),a=s[++l]}o!==a?.index&&(n=x.nextNode(),o++)}return x.currentNode=w,r}p(t){let e=0;for(let s of this._$AV)s!==void 0&&(s.strings!==void 0?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}},O=class i{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,r){this.type=2,this._$AH=d,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=r,this._$Cv=r?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode,e=this._$AM;return e!==void 0&&t?.nodeType===11&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=S(this,t,e),T(t)?t===d||t==null||t===""?(this._$AH!==d&&this._$AR(),this._$AH=d):t!==this._$AH&&t!==E&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):Tt(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==d&&T(this._$AH)?this._$AA.nextSibling.data=t:this.T(w.createTextNode(t)),this._$AH=t}$(t){let{values:e,_$litType$:s}=t,r=typeof s=="number"?this._$AC(t):(s.el===void 0&&(s.el=M.createElement(vt(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===r)this._$AH.p(e);else{let n=new Z(r,this),o=n.u(this.options);n.p(e),this.T(o),this._$AH=n}}_$AC(t){let e=mt.get(t.strings);return e===void 0&&mt.set(t.strings,e=new M(t)),e}k(t){tt(this._$AH)||(this._$AH=[],this._$AR());let e=this._$AH,s,r=0;for(let n of t)r===e.length?e.push(s=new i(this.O(R()),this.O(R()),this,this.options)):s=e[r],s._$AI(n),r++;r<e.length&&(this._$AR(s&&s._$AB.nextSibling,r),e.length=r)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){let s=lt(t).nextSibling;lt(t).remove(),t=s}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}},C=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,r,n){this.type=1,this._$AH=d,this._$AN=void 0,this.element=t,this.name=e,this._$AM=r,this.options=n,s.length>2||s[0]!==""||s[1]!==""?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=d}_$AI(t,e=this,s,r){let n=this.strings,o=!1;if(n===void 0)t=S(this,t,e,0),o=!T(t)||t!==this._$AH&&t!==E,o&&(this._$AH=t);else{let l=t,a,h;for(t=n[0],a=0;a<n.length-1;a++)h=S(this,l[s+a],e,a),h===E&&(h=this._$AH[a]),o||=!T(h)||h!==this._$AH[a],h===d?t=d:t!==d&&(t+=(h??"")+n[a+1]),this._$AH[a]=h}o&&!r&&this.j(t)}j(t){t===d?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}},J=class extends C{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===d?void 0:t}},Y=class extends C{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==d)}},G=class extends C{constructor(t,e,s,r,n){super(t,e,s,r,n),this.type=5}_$AI(t,e=this){if((t=S(this,t,e,0)??d)===E)return;let s=this._$AH,r=t===d&&s!==d||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,n=t!==d&&(s===d||r);r&&this.element.removeEventListener(this.name,this,s),n&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}},Q=class{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){S(this,t)}};var Ot=X.litHtmlPolyfillSupport;Ot?.(M,O),(X.litHtmlVersions??=[]).push("3.3.3");var yt=(i,t,e)=>{let s=e?.renderBefore??t,r=s._$litPart$;if(r===void 0){let n=e?.renderBefore??null;s._$litPart$=r=new O(t.insertBefore(R(),n),n,void 0,e??{})}return r._$AI(i),r};var st=globalThis,$=class extends _{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){let e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=yt(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return E}};$._$litElement$=!0,$.finalized=!0,st.litElementHydrateSupport?.({LitElement:$});var zt=st.litElementPolyfillSupport;zt?.({LitElement:$});(st.litElementVersions??=[]).push("4.2.2");var bt=i=>(t,e)=>{e!==void 0?e.addInitializer(()=>{customElements.define(i,t)}):customElements.define(i,t)};var Nt={attribute:!0,type:String,converter:U,reflect:!1,hasChanged:j},It=(i=Nt,t,e)=>{let{kind:s,metadata:r}=e,n=globalThis.litPropertyMetadata.get(r);if(n===void 0&&globalThis.litPropertyMetadata.set(r,n=new Map),s==="setter"&&((i=Object.create(i)).wrapped=!0),n.set(e.name,i),s==="accessor"){let{name:o}=e;return{set(l){let a=t.get.call(this);t.set.call(this,l),this.requestUpdate(o,a,i,!0,l)},init(l){return l!==void 0&&this.C(o,void 0,i,l),l}}}if(s==="setter"){let{name:o}=e;return function(l){let a=this[o];t.call(this,l),this.requestUpdate(o,a,i,!0,l)}}throw Error("Unsupported decorator location: "+s)};function q(i){return(t,e)=>typeof e=="object"?It(i,t,e):((s,r,n)=>{let o=r.hasOwnProperty(n);return r.constructor.createProperty(n,s),o?Object.getOwnPropertyDescriptor(r,n):void 0})(i,t,e)}function v(i){return q({...i,state:!0,attribute:!1})}var $t={disarmed:"Disarmed",armed_away:"Armed \xB7 Away",armed_home:"Armed \xB7 Home",armed_night:"Armed \xB7 Night",arming:"Arming\u2026",pending:"Entry Delay\u2026",triggered:"ALARM",unavailable:"Unavailable",unknown:"Unknown"},m=class extends ${constructor(){super(...arguments);this._showProgramming=!1;this._showDisarmInput=!1;this._disarmCode="";this._progPartition="1";this._progKeys="";this._progConfirm=!1;this._progError=null}setConfig(e){if(!e.alarm_entity)throw new Error("vista-console-card: `alarm_entity` is required");this._config={show_programming_console:!0,...e}}getCardSize(){return 6}static getStubConfig(){return{alarm_entity:"alarm_control_panel.partition"}}get _entryId(){let e=this.hass?.states[this._config.alarm_entity];return this._config.entry_id??e?.attributes?.config_entry_id}_zoneEntities(){if(!this.hass)return[];if(this._config.zone_entities?.length)return this._config.zone_entities.map(s=>this.hass.states[s]).filter(s=>!!s);let e=this._entryId;return Object.values(this.hass.states).filter(s=>s.entity_id.startsWith("binary_sensor.")&&s.attributes.config_entry_id===e&&s.attributes.zone_number!==void 0)}_troubleEntity(){let e=this._entryId;return Object.values(this.hass.states).find(s=>s.entity_id.startsWith("binary_sensor.")&&s.attributes.config_entry_id===e&&s.attributes.zone_number===void 0)}render(){if(!this.hass||!this._config)return u``;let e=this.hass.states[this._config.alarm_entity];if(!e)return u`<ha-card>
+var Pe=Object.defineProperty;var Te=Object.getOwnPropertyDescriptor;var h=(s,e,t,i)=>{for(var r=i>1?void 0:i?Te(e,t):e,o=s.length-1,n;o>=0;o--)(n=s[o])&&(r=(i?n(e,t,r):n(r))||r);return i&&r&&Pe(e,t,r),r};var L=globalThis,U=L.ShadowRoot&&(L.ShadyCSS===void 0||L.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,Z=Symbol(),ne=new WeakMap,P=class{constructor(e,t,i){if(this._$cssResult$=!0,i!==Z)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=t}get styleSheet(){let e=this.o,t=this.t;if(U&&e===void 0){let i=t!==void 0&&t.length===1;i&&(e=ne.get(t)),e===void 0&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),i&&ne.set(t,e))}return e}toString(){return this.cssText}},oe=s=>new P(typeof s=="string"?s:s+"",void 0,Z),q=(s,...e)=>{let t=s.length===1?s[0]:e.reduce((i,r,o)=>i+(n=>{if(n._$cssResult$===!0)return n.cssText;if(typeof n=="number")return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(r)+s[o+1],s[0]);return new P(t,s,Z)},ae=(s,e)=>{if(U)s.adoptedStyleSheets=e.map(t=>t instanceof CSSStyleSheet?t:t.styleSheet);else for(let t of e){let i=document.createElement("style"),r=L.litNonce;r!==void 0&&i.setAttribute("nonce",r),i.textContent=t.cssText,s.appendChild(i)}},Y=U?s=>s:s=>s instanceof CSSStyleSheet?(e=>{let t="";for(let i of e.cssRules)t+=i.cssText;return oe(t)})(s):s;var{is:ze,defineProperty:Ie,getOwnPropertyDescriptor:Ce,getOwnPropertyNames:Re,getOwnPropertySymbols:He,getPrototypeOf:Me}=Object,F=globalThis,le=F.trustedTypes,Ne=le?le.emptyScript:"",Oe=F.reactiveElementPolyfillSupport,T=(s,e)=>s,z={toAttribute(s,e){switch(e){case Boolean:s=s?Ne:null;break;case Object:case Array:s=s==null?s:JSON.stringify(s)}return s},fromAttribute(s,e){let t=s;switch(e){case Boolean:t=s!==null;break;case Number:t=s===null?null:Number(s);break;case Object:case Array:try{t=JSON.parse(s)}catch{t=null}}return t}},D=(s,e)=>!ze(s,e),ce={attribute:!0,type:String,converter:z,reflect:!1,useDefault:!1,hasChanged:D};Symbol.metadata??=Symbol("metadata"),F.litPropertyMetadata??=new WeakMap;var _=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,t=ce){if(t.state&&(t.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((t=Object.create(t)).wrapped=!0),this.elementProperties.set(e,t),!t.noAccessor){let i=Symbol(),r=this.getPropertyDescriptor(e,i,t);r!==void 0&&Ie(this.prototype,e,r)}}static getPropertyDescriptor(e,t,i){let{get:r,set:o}=Ce(this.prototype,e)??{get(){return this[t]},set(n){this[t]=n}};return{get:r,set(n){let c=r?.call(this);o?.call(this,n),this.requestUpdate(e,c,i)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??ce}static _$Ei(){if(this.hasOwnProperty(T("elementProperties")))return;let e=Me(this);e.finalize(),e.l!==void 0&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(T("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(T("properties"))){let t=this.properties,i=[...Re(t),...He(t)];for(let r of i)this.createProperty(r,t[r])}let e=this[Symbol.metadata];if(e!==null){let t=litPropertyMetadata.get(e);if(t!==void 0)for(let[i,r]of t)this.elementProperties.set(i,r)}this._$Eh=new Map;for(let[t,i]of this.elementProperties){let r=this._$Eu(t,i);r!==void 0&&this._$Eh.set(r,t)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){let t=[];if(Array.isArray(e)){let i=new Set(e.flat(1/0).reverse());for(let r of i)t.unshift(Y(r))}else e!==void 0&&t.push(Y(e));return t}static _$Eu(e,t){let i=t.attribute;return i===!1?void 0:typeof i=="string"?i:typeof e=="string"?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),this.renderRoot!==void 0&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){let e=new Map,t=this.constructor.elementProperties;for(let i of t.keys())this.hasOwnProperty(i)&&(e.set(i,this[i]),delete this[i]);e.size>0&&(this._$Ep=e)}createRenderRoot(){let e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return ae(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,t,i){this._$AK(e,i)}_$ET(e,t){let i=this.constructor.elementProperties.get(e),r=this.constructor._$Eu(e,i);if(r!==void 0&&i.reflect===!0){let o=(i.converter?.toAttribute!==void 0?i.converter:z).toAttribute(t,i.type);this._$Em=e,o==null?this.removeAttribute(r):this.setAttribute(r,o),this._$Em=null}}_$AK(e,t){let i=this.constructor,r=i._$Eh.get(e);if(r!==void 0&&this._$Em!==r){let o=i.getPropertyOptions(r),n=typeof o.converter=="function"?{fromAttribute:o.converter}:o.converter?.fromAttribute!==void 0?o.converter:z;this._$Em=r;let c=n.fromAttribute(t,o.type);this[r]=c??this._$Ej?.get(r)??c,this._$Em=null}}requestUpdate(e,t,i,r=!1,o){if(e!==void 0){let n=this.constructor;if(r===!1&&(o=this[e]),i??=n.getPropertyOptions(e),!((i.hasChanged??D)(o,t)||i.useDefault&&i.reflect&&o===this._$Ej?.get(e)&&!this.hasAttribute(n._$Eu(e,i))))return;this.C(e,t,i)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(e,t,{useDefault:i,reflect:r,wrapped:o},n){i&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,n??t??this[e]),o!==!0||n!==void 0)||(this._$AL.has(e)||(this.hasUpdated||i||(t=void 0),this._$AL.set(e,t)),r===!0&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(t){Promise.reject(t)}let e=this.scheduleUpdate();return e!=null&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[r,o]of this._$Ep)this[r]=o;this._$Ep=void 0}let i=this.constructor.elementProperties;if(i.size>0)for(let[r,o]of i){let{wrapped:n}=o,c=this[r];n!==!0||this._$AL.has(r)||c===void 0||this.C(r,void 0,o,c)}}let e=!1,t=this._$AL;try{e=this.shouldUpdate(t),e?(this.willUpdate(t),this._$EO?.forEach(i=>i.hostUpdate?.()),this.update(t)):this._$EM()}catch(i){throw e=!1,this._$EM(),i}e&&this._$AE(t)}willUpdate(e){}_$AE(e){this._$EO?.forEach(t=>t.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(t=>this._$ET(t,this[t])),this._$EM()}updated(e){}firstUpdated(e){}};_.elementStyles=[],_.shadowRootOptions={mode:"open"},_[T("elementProperties")]=new Map,_[T("finalized")]=new Map,Oe?.({ReactiveElement:_}),(F.reactiveElementVersions??=[]).push("2.1.2");var ee=globalThis,de=s=>s,B=ee.trustedTypes,pe=B?B.createPolicy("lit-html",{createHTML:s=>s}):void 0,ye="$lit$",v=`lit$${Math.random().toFixed(9).slice(2)}$`,_e="?"+v,Le=`<${_e}>`,x=document,C=()=>x.createComment(""),R=s=>s===null||typeof s!="object"&&typeof s!="function",te=Array.isArray,Ue=s=>te(s)||typeof s?.[Symbol.iterator]=="function",W=`[ 	
+\f\r]`,I=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,he=/-->/g,ue=/>/g,w=RegExp(`>|${W}(?:([^\\s"'>=/]+)(${W}*=${W}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`,"g"),me=/'/g,ge=/"/g,be=/^(?:script|style|textarea|title)$/i,ie=s=>(e,...t)=>({_$litType$:s,strings:e,values:t}),l=ie(1),Je=ie(2),Qe=ie(3),S=Symbol.for("lit-noChange"),d=Symbol.for("lit-nothing"),fe=new WeakMap,E=x.createTreeWalker(x,129);function ve(s,e){if(!te(s)||!s.hasOwnProperty("raw"))throw Error("invalid template strings array");return pe!==void 0?pe.createHTML(e):e}var Fe=(s,e)=>{let t=s.length-1,i=[],r,o=e===2?"<svg>":e===3?"<math>":"",n=I;for(let c=0;c<t;c++){let a=s[c],g,f,m=-1,y=0;for(;y<a.length&&(n.lastIndex=y,f=n.exec(a),f!==null);)y=n.lastIndex,n===I?f[1]==="!--"?n=he:f[1]!==void 0?n=ue:f[2]!==void 0?(be.test(f[2])&&(r=RegExp("</"+f[2],"g")),n=w):f[3]!==void 0&&(n=w):n===w?f[0]===">"?(n=r??I,m=-1):f[1]===void 0?m=-2:(m=n.lastIndex-f[2].length,g=f[1],n=f[3]===void 0?w:f[3]==='"'?ge:me):n===ge||n===me?n=w:n===he||n===ue?n=I:(n=w,r=void 0);let b=n===w&&s[c+1].startsWith("/>")?" ":"";o+=n===I?a+Le:m>=0?(i.push(g),a.slice(0,m)+ye+a.slice(m)+v+b):a+v+(m===-2?c:b)}return[ve(s,o+(s[t]||"<?>")+(e===2?"</svg>":e===3?"</math>":"")),i]},H=class s{constructor({strings:e,_$litType$:t},i){let r;this.parts=[];let o=0,n=0,c=e.length-1,a=this.parts,[g,f]=Fe(e,t);if(this.el=s.createElement(g,i),E.currentNode=this.el.content,t===2||t===3){let m=this.el.content.firstChild;m.replaceWith(...m.childNodes)}for(;(r=E.nextNode())!==null&&a.length<c;){if(r.nodeType===1){if(r.hasAttributes())for(let m of r.getAttributeNames())if(m.endsWith(ye)){let y=f[n++],b=r.getAttribute(m).split(v),O=/([.?@])?(.*)/.exec(y);a.push({type:1,index:o,name:O[2],strings:b,ctor:O[1]==="."?J:O[1]==="?"?Q:O[1]==="@"?X:k}),r.removeAttribute(m)}else m.startsWith(v)&&(a.push({type:6,index:o}),r.removeAttribute(m));if(be.test(r.tagName)){let m=r.textContent.split(v),y=m.length-1;if(y>0){r.textContent=B?B.emptyScript:"";for(let b=0;b<y;b++)r.append(m[b],C()),E.nextNode(),a.push({type:2,index:++o});r.append(m[y],C())}}}else if(r.nodeType===8)if(r.data===_e)a.push({type:2,index:o});else{let m=-1;for(;(m=r.data.indexOf(v,m+1))!==-1;)a.push({type:7,index:o}),m+=v.length-1}o++}}static createElement(e,t){let i=x.createElement("template");return i.innerHTML=e,i}};function A(s,e,t=s,i){if(e===S)return e;let r=i!==void 0?t._$Co?.[i]:t._$Cl,o=R(e)?void 0:e._$litDirective$;return r?.constructor!==o&&(r?._$AO?.(!1),o===void 0?r=void 0:(r=new o(s),r._$AT(s,t,i)),i!==void 0?(t._$Co??=[])[i]=r:t._$Cl=r),r!==void 0&&(e=A(s,r._$AS(s,e.values),r,i)),e}var G=class{constructor(e,t){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=t}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){let{el:{content:t},parts:i}=this._$AD,r=(e?.creationScope??x).importNode(t,!0);E.currentNode=r;let o=E.nextNode(),n=0,c=0,a=i[0];for(;a!==void 0;){if(n===a.index){let g;a.type===2?g=new M(o,o.nextSibling,this,e):a.type===1?g=new a.ctor(o,a.name,a.strings,this,e):a.type===6&&(g=new V(o,this,e)),this._$AV.push(g),a=i[++c]}n!==a?.index&&(o=E.nextNode(),n++)}return E.currentNode=x,r}p(e){let t=0;for(let i of this._$AV)i!==void 0&&(i.strings!==void 0?(i._$AI(e,i,t),t+=i.strings.length-2):i._$AI(e[t])),t++}},M=class s{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,t,i,r){this.type=2,this._$AH=d,this._$AN=void 0,this._$AA=e,this._$AB=t,this._$AM=i,this.options=r,this._$Cv=r?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode,t=this._$AM;return t!==void 0&&e?.nodeType===11&&(e=t.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,t=this){e=A(this,e,t),R(e)?e===d||e==null||e===""?(this._$AH!==d&&this._$AR(),this._$AH=d):e!==this._$AH&&e!==S&&this._(e):e._$litType$!==void 0?this.$(e):e.nodeType!==void 0?this.T(e):Ue(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==d&&R(this._$AH)?this._$AA.nextSibling.data=e:this.T(x.createTextNode(e)),this._$AH=e}$(e){let{values:t,_$litType$:i}=e,r=typeof i=="number"?this._$AC(e):(i.el===void 0&&(i.el=H.createElement(ve(i.h,i.h[0]),this.options)),i);if(this._$AH?._$AD===r)this._$AH.p(t);else{let o=new G(r,this),n=o.u(this.options);o.p(t),this.T(n),this._$AH=o}}_$AC(e){let t=fe.get(e.strings);return t===void 0&&fe.set(e.strings,t=new H(e)),t}k(e){te(this._$AH)||(this._$AH=[],this._$AR());let t=this._$AH,i,r=0;for(let o of e)r===t.length?t.push(i=new s(this.O(C()),this.O(C()),this,this.options)):i=t[r],i._$AI(o),r++;r<t.length&&(this._$AR(i&&i._$AB.nextSibling,r),t.length=r)}_$AR(e=this._$AA.nextSibling,t){for(this._$AP?.(!1,!0,t);e!==this._$AB;){let i=de(e).nextSibling;de(e).remove(),e=i}}setConnected(e){this._$AM===void 0&&(this._$Cv=e,this._$AP?.(e))}},k=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,t,i,r,o){this.type=1,this._$AH=d,this._$AN=void 0,this.element=e,this.name=t,this._$AM=r,this.options=o,i.length>2||i[0]!==""||i[1]!==""?(this._$AH=Array(i.length-1).fill(new String),this.strings=i):this._$AH=d}_$AI(e,t=this,i,r){let o=this.strings,n=!1;if(o===void 0)e=A(this,e,t,0),n=!R(e)||e!==this._$AH&&e!==S,n&&(this._$AH=e);else{let c=e,a,g;for(e=o[0],a=0;a<o.length-1;a++)g=A(this,c[i+a],t,a),g===S&&(g=this._$AH[a]),n||=!R(g)||g!==this._$AH[a],g===d?e=d:e!==d&&(e+=(g??"")+o[a+1]),this._$AH[a]=g}n&&!r&&this.j(e)}j(e){e===d?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}},J=class extends k{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===d?void 0:e}},Q=class extends k{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==d)}},X=class extends k{constructor(e,t,i,r,o){super(e,t,i,r,o),this.type=5}_$AI(e,t=this){if((e=A(this,e,t,0)??d)===S)return;let i=this._$AH,r=e===d&&i!==d||e.capture!==i.capture||e.once!==i.once||e.passive!==i.passive,o=e!==d&&(i===d||r);r&&this.element.removeEventListener(this.name,this,i),o&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}},V=class{constructor(e,t,i){this.element=e,this.type=6,this._$AN=void 0,this._$AM=t,this.options=i}get _$AU(){return this._$AM._$AU}_$AI(e){A(this,e)}};var De=ee.litHtmlPolyfillSupport;De?.(H,M),(ee.litHtmlVersions??=[]).push("3.3.3");var $e=(s,e,t)=>{let i=t?.renderBefore??e,r=i._$litPart$;if(r===void 0){let o=t?.renderBefore??null;i._$litPart$=r=new M(e.insertBefore(C(),o),o,void 0,t??{})}return r._$AI(s),r};var re=globalThis,$=class extends _{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){let t=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=$e(t,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return S}};$._$litElement$=!0,$.finalized=!0,re.litElementHydrateSupport?.({LitElement:$});var Be=re.litElementPolyfillSupport;Be?.({LitElement:$});(re.litElementVersions??=[]).push("4.2.2");var we=s=>(e,t)=>{t!==void 0?t.addInitializer(()=>{customElements.define(s,e)}):customElements.define(s,e)};var je={attribute:!0,type:String,converter:z,reflect:!1,hasChanged:D},Ke=(s=je,e,t)=>{let{kind:i,metadata:r}=t,o=globalThis.litPropertyMetadata.get(r);if(o===void 0&&globalThis.litPropertyMetadata.set(r,o=new Map),i==="setter"&&((s=Object.create(s)).wrapped=!0),o.set(t.name,s),i==="accessor"){let{name:n}=t;return{set(c){let a=e.get.call(this);e.set.call(this,c),this.requestUpdate(n,a,s,!0,c)},init(c){return c!==void 0&&this.C(n,void 0,s,c),c}}}if(i==="setter"){let{name:n}=t;return function(c){let a=this[n];e.call(this,c),this.requestUpdate(n,a,s,!0,c)}}throw Error("Unsupported decorator location: "+i)};function j(s){return(e,t)=>typeof t=="object"?Ke(s,e,t):((i,r,o)=>{let n=r.hasOwnProperty(o);return r.constructor.createProperty(o,i),n?Object.getOwnPropertyDescriptor(r,o):void 0})(s,e,t)}function u(s){return j({...s,state:!0,attribute:!1})}var se=[{code:0,label:"Not used",description:"This zone number has nothing assigned to it.",category:"Special",lifeSafety:!1},{code:1,label:"Entry/Exit (primary)",description:"Your main door. Gives you time to walk out after arming, and time to walk in and disarm before an alarm sounds.",category:"Entry/Exit",lifeSafety:!1},{code:2,label:"Entry/Exit (secondary)",description:"A second, less-used entry door that needs more time to get to the keypad than your main door.",category:"Entry/Exit",lifeSafety:!1},{code:3,label:"Perimeter (instant)",description:"An exterior door or window that should alarm immediately the moment it opens while armed -- no walk-in delay.",category:"Perimeter / Interior",lifeSafety:!1},{code:4,label:"Interior (follower)",description:"An indoor area you pass through after entering (foyer, hallway). Delayed only if a delay door was opened first; otherwise instant. Auto-ignored when armed Stay/Instant.",category:"Perimeter / Interior",lifeSafety:!1},{code:9,label:"Fire (smoke/heat detector)",description:"A hardwired smoke or heat detector. Always active, day or night, armed or not, and cannot be bypassed. Changing a real smoke detector's zone away from this type will silence it.",category:"Life Safety",lifeSafety:!0},{code:16,label:"Fire with verification",description:"Like Fire, but the panel double-checks before sounding, to cut down on false alarms. Always active and cannot be bypassed.",category:"Life Safety",lifeSafety:!0},{code:14,label:"Carbon monoxide detector",description:"A CO detector. Always active and cannot be bypassed.",category:"Life Safety",lifeSafety:!0},{code:6,label:"Panic button (silent)",description:"An emergency button. Notifies the monitoring station only -- no sound at the keypad or siren.",category:"Panic / Emergency",lifeSafety:!1},{code:7,label:"Panic button (audible)",description:"An emergency button. Notifies the monitoring station and sounds the keypad and siren.",category:"Panic / Emergency",lifeSafety:!1},{code:8,label:"Auxiliary alarm (24-hour)",description:"For an emergency button or a monitoring sensor (water, temperature). Notifies the monitoring station and beeps the keypad, but does not sound the siren.",category:"Panic / Emergency",lifeSafety:!1},{code:10,label:"Interior with delay",description:"Like Interior (follower), but always gives the entry delay when armed Away, even if no delay door was tripped first.",category:"Perimeter / Interior",lifeSafety:!1},{code:12,label:"Monitor (trouble only, no alarm)",description:"Reports faults as a non-alarm 'trouble' condition, not a burglary alarm. Do not pair with a relay set to trigger on alarm.",category:"Special",lifeSafety:!1},{code:23,label:"No alarm response",description:"Never triggers an alarm by itself -- useful for an output relay action with no security response.",category:"Special",lifeSafety:!1},{code:24,label:"Silent burglary",description:"Like Perimeter, but with no audible indication anywhere -- only a silent report to the monitoring station.",category:"Perimeter / Interior",lifeSafety:!1}],Ee=Object.fromEntries(se.map(s=>[s.code,s])),xe=[{value:"0",label:"End-of-line resistor (standard, most common)"},{value:"1",label:"Normally closed, no resistor"},{value:"2",label:"Normally open, no resistor"},{value:"3",label:"Zone doubling (two zones share one input)"},{value:"4",label:"Double-balanced (tamper-resistant)"}],Se=[{value:"0",label:"10 ms (fastest, standard wired contacts)"},{value:"1",label:"350 ms"},{value:"2",label:"700 ms"},{value:"3",label:"1.2 seconds (slowest, reduces false trips)"}],N=[{field:"34",label:"Exit delay",description:"How many seconds you have to leave after arming before the exit delay ends. Factory default is 60.",min:0,max:96,specials:{97:"120 seconds"}},{field:"35",label:"Entry delay 1 (primary door)",description:"How many seconds you have to disarm after opening the primary entry door. Factory default is 30.",min:0,max:96,specials:{97:"120 seconds",98:"180 seconds",99:"240 seconds"}},{field:"36",label:"Entry delay 2 (secondary door)",description:"Same as Entry Delay 1, but for secondary entry/exit zones. Factory default is 30.",min:0,max:96,specials:{97:"120 seconds",98:"180 seconds",99:"240 seconds"}},{field:"84",label:"Auto-stay arm",description:"If no delay zone is opened during exit delay, automatically switch the arming mode to Stay. 0=off, 1=partition 1 only, 2=partition 2 only, 3=both. Factory default is 3.",min:0,max:3,specials:{}}],Ae=[{value:0,label:"Default emergency key (fire/police/medical)"},{value:1,label:"Page a number"},{value:2,label:"Show the time"},{value:3,label:"Arm Away"},{value:4,label:"Arm Stay"},{value:5,label:"Arm Night-Stay"},{value:6,label:"Step-arm (Stay, then Night, then Away)"},{value:7,label:"Trigger an output/relay"},{value:8,label:"Send a communication test"}];var ke={disarmed:"Disarmed",armed_away:"Armed \xB7 Away",armed_home:"Armed \xB7 Home",armed_night:"Armed \xB7 Night",arming:"Arming\u2026",pending:"Entry Delay\u2026",triggered:"ALARM",unavailable:"Unavailable",unknown:"Unknown"},p=class extends ${constructor(){super(...arguments);this._showDisarmInput=!1;this._disarmCode="";this._showFieldProgramming=!1;this._progTab="zone";this._progError=null;this._progBusy=!1;this._zpZone="1";this._zpType=3;this._zpPartition="1";this._zpReportEnabled=!0;this._zpHardwireType="0";this._zpResponseTime="1";this._zpConfirm=!1;this._zpConfirmLifeSafety=!1;this._stField=N[0].field;this._stValue="60";this._stConfirm=!1;this._fkKey="A";this._fkPartition="1";this._fkAction=3;this._fkConfirm=!1;this._rawPartition="1";this._rawKeys="";this._rawConfirm=!1}setConfig(t){if(!t.alarm_entity)throw new Error("vista-console-card: `alarm_entity` is required");this._config={show_programming_console:!0,...t}}getCardSize(){return 6}static getStubConfig(){return{alarm_entity:"alarm_control_panel.partition"}}get _entryId(){let t=this.hass?.states[this._config.alarm_entity];return this._config.entry_id??t?.attributes?.config_entry_id}_zoneEntities(){if(!this.hass)return[];if(this._config.zone_entities?.length)return this._config.zone_entities.map(i=>this.hass.states[i]).filter(i=>!!i);let t=this._entryId;return Object.values(this.hass.states).filter(i=>i.entity_id.startsWith("binary_sensor.")&&i.attributes.config_entry_id===t&&i.attributes.zone_number!==void 0)}_troubleEntity(){let t=this._entryId;return Object.values(this.hass.states).find(i=>i.entity_id.startsWith("binary_sensor.")&&i.attributes.config_entry_id===t&&i.attributes.zone_number===void 0)}render(){if(!this.hass||!this._config)return l``;let t=this.hass.states[this._config.alarm_entity];if(!t)return l`<ha-card>
         <div class="warning">Entity ${this._config.alarm_entity} not found.</div>
-      </ha-card>`;let s=e.state in $t?e.state:"unknown",r=this._troubleEntity(),n=this._zoneEntities().sort((o,l)=>(o.attributes.zone_number??0)-(l.attributes.zone_number??0));return u`
+      </ha-card>`;let i=t.state in ke?t.state:"unknown",r=this._troubleEntity(),o=this._zoneEntities().sort((n,c)=>(n.attributes.zone_number??0)-(c.attributes.zone_number??0));return l`
       <ha-card>
-        <div class="console state-${s}">
+        <div class="console state-${i}">
           <div class="header">
             <div class="title">
               <ha-icon icon="mdi:shield-home"></ha-icon>
               <span>${this._config.title??"Vista Console"}</span>
             </div>
-            <div class="conn-dot ${e.state==="unavailable"?"off":"on"}"></div>
+            <div class="conn-dot ${t.state==="unavailable"?"off":"on"}"></div>
           </div>
 
-          ${r?.state==="on"?u`<div class="banner trouble">
+          ${r?.state==="on"?l`<div class="banner trouble">
                 <ha-icon icon="mdi:alert"></ha-icon>
                 System trouble condition present
               </div>`:d}
 
           <div class="status-block">
-            <div class="status-label">${$t[s]}</div>
-            ${this._renderActions(s)}
+            <div class="status-label">${ke[i]}</div>
+            ${this._renderActions(i)}
           </div>
 
-          ${n.length?u`<div class="zones">
-                ${n.map(o=>this._renderZone(o))}
+          ${o.length?l`<div class="zones">
+                ${o.map(n=>this._renderZone(n))}
               </div>`:d}
 
-          ${this._config.show_programming_console?this._renderProgrammingConsole():d}
+          ${this._config.show_programming_console?this._renderFieldProgrammingSection():d}
         </div>
       </ha-card>
-    `}_renderActions(e){return e==="disarmed"?u`<div class="actions">
+    `}_renderActions(t){return t==="disarmed"?l`<div class="actions">
         <button class="btn away" @click=${()=>this._arm("away")}>Away</button>
         <button class="btn home" @click=${()=>this._arm("home")}>Home</button>
         <button class="btn night" @click=${()=>this._arm("night")}>Night</button>
-      </div>`:u`<div class="actions">
-      ${this._showDisarmInput?u`<input
+      </div>`:l`<div class="actions">
+      ${this._showDisarmInput?l`<input
               class="code-input"
               type="password"
               inputmode="numeric"
               placeholder="Code"
               .value=${this._disarmCode}
-              @input=${s=>this._disarmCode=s.target.value}
+              @input=${i=>this._disarmCode=i.target.value}
             />
-            <button class="btn disarm" @click=${()=>this._disarm()}>Confirm</button>`:u`<button
+            <button class="btn disarm" @click=${()=>this._disarm()}>Confirm</button>`:l`<button
             class="btn disarm"
             @click=${()=>this._showDisarmInput=!0}
           >
             Disarm
           </button>`}
-    </div>`}_renderZone(e){let s=e.state==="on",r=!!e.attributes.bypassed,n=!!e.attributes.fault,o=!!e.attributes.tamper,l=e.attributes.friendly_name??e.entity_id;return u`<div
-      class="zone ${s?"open":"closed"} ${r?"bypassed":""} ${n||o?"fault":""}"
-      title=${l}
-      @click=${()=>this._toggleBypass(e)}
+    </div>`}_renderZone(t){let i=t.state==="on",r=!!t.attributes.bypassed,o=!!t.attributes.fault,n=!!t.attributes.tamper,c=t.attributes.friendly_name??t.entity_id;return l`<div
+      class="zone ${i?"open":"closed"} ${r?"bypassed":""} ${o||n?"fault":""}"
+      title=${c}
+      @click=${()=>this._toggleBypass(t)}
     >
-      <ha-icon icon=${s?"mdi:door-open":"mdi:door-closed"}></ha-icon>
-      <span class="zone-name">${l}</span>
-      ${r?u`<span class="pill">BYPASS</span>`:d}
-    </div>`}_renderProgrammingConsole(){return this._showProgramming?u`<div class="programming">
+      <ha-icon icon=${i?"mdi:door-open":"mdi:door-closed"}></ha-icon>
+      <span class="zone-name">${c}</span>
+      ${r?l`<span class="pill">BYPASS</span>`:d}
+    </div>`}_renderFieldProgrammingSection(){return this._showFieldProgramming?l`<div class="programming">
       <div class="banner warning">
         <ha-icon icon="mdi:alert-octagon"></ha-icon>
-        Raw keypad sequences. A sequence containing <code>*8</code> enters
-        installer programming and can lock the panel out until it is
-        power-cycled; installer mode also governs fire-zone and
-        UL-listing-relevant settings. Only proceed if you know exactly what
-        this sequence does on a Vista panel.
+        Every action here opens the panel's installer Program Mode. This
+        integration cannot read back what's currently on the keypad display,
+        so double-check at the physical keypad first if you're not sure
+        what's already programmed -- especially for smoke/CO detector zones.
       </div>
+      <div class="tabs">
+        ${[{id:"zone",label:"Zones"},{id:"timing",label:"Timing"},{id:"keys",label:"Function Keys"},{id:"raw",label:"Raw"}].map(i=>l`<button
+            class="tab ${this._progTab===i.id?"active":""}"
+            @click=${()=>{this._progTab=i.id,this._progError=null}}
+          >
+            ${i.label}
+          </button>`)}
+      </div>
+      ${this._progTab==="zone"?this._renderZoneProgramForm():d}
+      ${this._progTab==="timing"?this._renderSystemTimingForm():d}
+      ${this._progTab==="keys"?this._renderFunctionKeyForm():d}
+      ${this._progTab==="raw"?this._renderRawKeystrokeForm():d}
+      ${this._progError?l`<div class="banner trouble">${this._progError}</div>`:d}
+      <div class="actions">
+        <button
+          class="btn disarm"
+          @click=${()=>this._showFieldProgramming=!1}
+        >
+          Close
+        </button>
+      </div>
+    </div>`:l`<button
+        class="prog-toggle"
+        @click=${()=>this._showFieldProgramming=!0}
+      >
+        <ha-icon icon="mdi:wrench-cog"></ha-icon>
+        Field Programming
+      </button>`}_renderZoneProgramForm(){let t=Number(this._zpZone)||1,i=Ee[this._zpType],r=t<=8,o=t>=2&&t<=8;return l`
+      <div class="prog-row">
+        <label>Zone #</label>
+        <input
+          class="prog-input small"
+          type="number"
+          min="1"
+          max="64"
+          .value=${this._zpZone}
+          @input=${n=>this._zpZone=n.target.value}
+        />
+        <label>Partition</label>
+        <select
+          class="prog-input small"
+          .value=${this._zpPartition}
+          @change=${n=>this._zpPartition=n.target.value}
+        >
+          ${[1,2,3].map(n=>l`<option value=${n}>${n}</option>`)}
+        </select>
+      </div>
+      <div class="prog-row column">
+        <label>Zone type</label>
+        <select
+          class="prog-input wide"
+          .value=${String(this._zpType)}
+          @change=${n=>this._zpType=Number(n.target.value)}
+        >
+          ${se.map(n=>l`<option value=${n.code}>${n.label}</option>`)}
+        </select>
+        ${i?l`<p class="field-help">${i.description}</p>`:d}
+      </div>
+      ${i?.lifeSafety?l`<div class="banner trouble">
+            <ha-icon icon="mdi:fire-alert"></ha-icon>
+            This is a life-safety zone type (fire/CO). Getting this wrong on
+            a real detector's zone can silence it. Requires an extra
+            confirmation below.
+          </div>`:d}
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._zpReportEnabled}
+          @change=${n=>this._zpReportEnabled=n.target.checked}
+        />
+        Report to monitoring station
+      </label>
+      ${o?l`<div class="prog-row column">
+            <label>Hardwire type</label>
+            <select
+              class="prog-input wide"
+              .value=${this._zpHardwireType}
+              @change=${n=>this._zpHardwireType=n.target.value}
+            >
+              ${xe.map(n=>l`<option value=${n.value}>${n.label}</option>`)}
+            </select>
+          </div>`:d}
+      ${r?l`<div class="prog-row column">
+            <label>Response time</label>
+            <select
+              class="prog-input wide"
+              .value=${this._zpResponseTime}
+              @change=${n=>this._zpResponseTime=n.target.value}
+            >
+              ${Se.map(n=>l`<option value=${n.value}>${n.label}</option>`)}
+            </select>
+          </div>`:l`<p class="field-help">
+            Zone 9+: treated as an auxiliary-wired zone. Wireless (RF) sensor
+            enrollment isn't supported here -- enroll the transmitter at the
+            keypad first, then use this to set its type/partition.
+          </p>`}
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._zpConfirm}
+          @change=${n=>this._zpConfirm=n.target.checked}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      ${i?.lifeSafety?l`<label class="confirm-row">
+            <input
+              type="checkbox"
+              .checked=${this._zpConfirmLifeSafety}
+              @change=${n=>this._zpConfirmLifeSafety=n.target.checked}
+            />
+            I confirm this life-safety zone type change is intentional.
+          </label>`:d}
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${()=>this._submitZoneProgram()}>
+          Apply
+        </button>
+      </div>
+    `}async _submitZoneProgram(){let t=this._entryId;if(this._progError=null,!t){this._progError="Could not determine the config entry id for this card.";return}if(!this._zpConfirm){this._progError="Check the Program Mode confirmation box first.";return}this._progBusy=!0;try{await this.hass.callService("vista_console","program_zone",{entry_id:t,zone_number:Number(this._zpZone),zone_type:this._zpType,partition:Number(this._zpPartition),report_enabled:this._zpReportEnabled,hardwire_type:this._zpHardwireType,response_time:this._zpResponseTime,confirm:this._zpConfirm,confirm_life_safety:this._zpConfirmLifeSafety})}catch(i){this._progError=i instanceof Error?i.message:String(i)}finally{this._progBusy=!1}}_renderSystemTimingForm(){let t=N.find(i=>i.field===this._stField);return l`
+      <div class="prog-row column">
+        <label>Field</label>
+        <select
+          class="prog-input wide"
+          .value=${this._stField}
+          @change=${i=>{this._stField=i.target.value,this._stValue=String(N.find(r=>r.field===this._stField).min)}}
+        >
+          ${N.map(i=>l`<option value=${i.field}>${i.label}</option>`)}
+        </select>
+        <p class="field-help">${t.description}</p>
+      </div>
+      <div class="prog-row">
+        <label>Value</label>
+        <input
+          class="prog-input small"
+          type="number"
+          min="0"
+          max="240"
+          .value=${this._stValue}
+          @input=${i=>this._stValue=i.target.value}
+        />
+        ${Object.keys(t.specials).length?l`<span class="field-help inline">
+              (${Object.entries(t.specials).map(([i,r])=>`${i}=${r}`).join(", ")})
+            </span>`:d}
+      </div>
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._stConfirm}
+          @change=${i=>this._stConfirm=i.target.checked}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${()=>this._submitSystemTiming()}>
+          Apply
+        </button>
+      </div>
+    `}async _submitSystemTiming(){let t=this._entryId;if(this._progError=null,!t){this._progError="Could not determine the config entry id for this card.";return}if(!this._stConfirm){this._progError="Check the Program Mode confirmation box first.";return}this._progBusy=!0;try{await this.hass.callService("vista_console","set_system_timing",{entry_id:t,field:this._stField,value:Number(this._stValue),confirm:this._stConfirm})}catch(i){this._progError=i instanceof Error?i.message:String(i)}finally{this._progBusy=!1}}_renderFunctionKeyForm(){return l`
+      <div class="prog-row">
+        <label>Key</label>
+        <select
+          class="prog-input small"
+          .value=${this._fkKey}
+          @change=${t=>this._fkKey=t.target.value}
+        >
+          ${["A","B","C","D"].map(t=>l`<option value=${t}>${t}</option>`)}
+        </select>
+        <label>Partition</label>
+        <select
+          class="prog-input small"
+          .value=${this._fkPartition}
+          @change=${t=>this._fkPartition=t.target.value}
+        >
+          ${[1,2,3].map(t=>l`<option value=${t}>${t}</option>`)}
+        </select>
+      </div>
+      <div class="prog-row column">
+        <label>Action</label>
+        <select
+          class="prog-input wide"
+          .value=${String(this._fkAction)}
+          @change=${t=>this._fkAction=Number(t.target.value)}
+        >
+          ${Ae.map(t=>l`<option value=${t.value}>${t.label}</option>`)}
+        </select>
+      </div>
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._fkConfirm}
+          @change=${t=>this._fkConfirm=t.target.checked}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${()=>this._submitFunctionKey()}>
+          Apply
+        </button>
+      </div>
+    `}async _submitFunctionKey(){let t=this._entryId;if(this._progError=null,!t){this._progError="Could not determine the config entry id for this card.";return}if(!this._fkConfirm){this._progError="Check the Program Mode confirmation box first.";return}this._progBusy=!0;try{await this.hass.callService("vista_console","program_function_key",{entry_id:t,key:this._fkKey,partition:Number(this._fkPartition),action:this._fkAction,confirm:this._fkConfirm})}catch(i){this._progError=i instanceof Error?i.message:String(i)}finally{this._progBusy=!1}}_renderRawKeystrokeForm(){return l`
+      <p class="field-help">
+        For anything the guided tabs above don't cover. Sequences that open
+        Program Mode (installer code followed by 800) need the confirmation
+        box below.
+      </p>
       <div class="prog-row">
         <label>Partition</label>
         <input
@@ -73,8 +276,8 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
           type="number"
           min="1"
           max="8"
-          .value=${this._progPartition}
-          @input=${e=>this._progPartition=e.target.value}
+          .value=${this._rawPartition}
+          @input=${t=>this._rawPartition=t.target.value}
         />
       </div>
       <div class="prog-row">
@@ -82,47 +285,40 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
         <input
           class="prog-input"
           type="text"
-          placeholder="e.g. *1 01 #"
-          .value=${this._progKeys}
-          @input=${e=>this._progKeys=e.target.value}
+          placeholder="e.g. *101#"
+          .value=${this._rawKeys}
+          @input=${t=>this._rawKeys=t.target.value}
         />
       </div>
       <label class="confirm-row">
         <input
           type="checkbox"
-          .checked=${this._progConfirm}
-          @change=${e=>this._progConfirm=e.target.checked}
+          .checked=${this._rawConfirm}
+          @change=${t=>this._rawConfirm=t.target.checked}
         />
-        I understand the installer-mode / fire-safety risk above.
+        I understand the Program Mode / fire-safety risk above.
       </label>
-      ${this._progError?u`<div class="banner trouble">${this._progError}</div>`:d}
       <div class="actions">
-        <button class="btn away" @click=${()=>this._sendKeystrokes()}>
+        <button class="btn away" ?disabled=${this._progBusy} @click=${()=>this._sendRawKeystrokes()}>
           Send
         </button>
-        <button
-          class="btn disarm"
-          @click=${()=>this._showProgramming=!1}
-        >
-          Close
-        </button>
       </div>
-    </div>`:u`<button
-        class="prog-toggle"
-        @click=${()=>this._showProgramming=!0}
-      >
-        <ha-icon icon="mdi:wrench-cog"></ha-icon>
-        Advanced Programming Console
-      </button>`}async _arm(e){await this.hass.callService("alarm_control_panel",`alarm_arm_${e}`,{entity_id:this._config.alarm_entity})}async _disarm(){await this.hass.callService("alarm_control_panel","alarm_disarm",{entity_id:this._config.alarm_entity,code:this._disarmCode||void 0}),this._disarmCode="",this._showDisarmInput=!1}async _toggleBypass(e){let s=this._entryId;if(!s)return;let r=e.attributes.friendly_name??e.entity_id,n=e.attributes.bypassed?"un-bypass":"bypass";window.confirm(`${n==="bypass"?"Bypass":"Un-bypass"} ${r}?`)&&await this.hass.callService("vista_console","toggle_zone_bypass",{entry_id:s,zone:e.attributes.zone_number})}async _sendKeystrokes(){let e=this._entryId;if(this._progError=null,!e){this._progError="Could not determine the config entry id for this card.";return}if(!this._progKeys.trim()){this._progError="Enter a keystroke sequence first.";return}if(this._progKeys.includes("*8")&&!this._progConfirm){this._progError="This sequence enters installer mode. Check the confirmation box first.";return}try{await this.hass.callService("vista_console","send_keystrokes",{entry_id:e,partition:Number(this._progPartition)||1,keys:this._progKeys,confirm_installer_risk:this._progConfirm}),this._progKeys=""}catch(s){this._progError=s instanceof Error?s.message:String(s)}}};m.styles=W`
+    `}async _arm(t){await this.hass.callService("alarm_control_panel",`alarm_arm_${t}`,{entity_id:this._config.alarm_entity})}async _disarm(){await this.hass.callService("alarm_control_panel","alarm_disarm",{entity_id:this._config.alarm_entity,code:this._disarmCode||void 0}),this._disarmCode="",this._showDisarmInput=!1}async _toggleBypass(t){let i=this._entryId;if(!i)return;let r=t.attributes.friendly_name??t.entity_id,o=t.attributes.bypassed?"un-bypass":"bypass";window.confirm(`${o==="bypass"?"Bypass":"Un-bypass"} ${r}?`)&&await this.hass.callService("vista_console","toggle_zone_bypass",{entry_id:i,zone:t.attributes.zone_number})}async _sendRawKeystrokes(){let t=this._entryId;if(this._progError=null,!t){this._progError="Could not determine the config entry id for this card.";return}if(!this._rawKeys.trim()){this._progError="Enter a keystroke sequence first.";return}this._progBusy=!0;try{await this.hass.callService("vista_console","send_keystrokes",{entry_id:t,partition:Number(this._rawPartition)||1,keys:this._rawKeys,confirm_installer_risk:this._rawConfirm}),this._rawKeys=""}catch(i){this._progError=i instanceof Error?i.message:String(i)}finally{this._progBusy=!1}}};p.styles=q`
     :host {
       --vc-bg: #0f172a;
       --vc-bg-raised: #1e293b;
       --vc-border: #334155;
       --vc-text: #e2e8f0;
       --vc-text-dim: #94a3b8;
-      --vc-away: #f59e0b;
-      --vc-home: #3b82f6;
-      --vc-night: #6366f1;
+      /* Accent hues are loosely inspired by the Envisalink/EyezOn bridge
+         this card talks to (their site uses a crimson/violet/amber accent
+         trio over a dark charcoal base) -- a nod for visual harmony, not a
+         reproduction of their branding. Falls back to the light/dark HA
+         theme's own tone where it matters (borders, surfaces, text) so this
+         only touches the armed-state accent colors, not the whole theme. */
+      --vc-away: #e11d48;
+      --vc-home: #7c3aed;
+      --vc-night: #d97706;
       --vc-safe: #22c55e;
       --vc-danger: #ef4444;
     }
@@ -178,9 +374,9 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
       border: 1px solid rgba(239, 68, 68, 0.35);
     }
     .banner.warning {
-      background: rgba(245, 158, 11, 0.12);
+      background: rgba(217, 119, 6, 0.12);
       color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.35);
+      border: 1px solid rgba(217, 119, 6, 0.35);
     }
     .status-block {
       background: rgba(255, 255, 255, 0.03);
@@ -214,7 +410,7 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
     }
     .state-pending .status-label,
     .state-arming .status-label {
-      color: var(--vc-away);
+      color: var(--vc-night);
       animation: pulse 1.4s infinite;
     }
     @keyframes pulse {
@@ -234,16 +430,20 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
-      color: #0f172a;
+      color: white;
       transition: transform 0.1s ease;
     }
     .btn:active {
       transform: scale(0.96);
     }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
     .btn.away { background: var(--vc-away); }
-    .btn.home { background: var(--vc-home); color: white; }
-    .btn.night { background: var(--vc-night); color: white; }
-    .btn.disarm { background: var(--vc-safe); }
+    .btn.home { background: var(--vc-home); }
+    .btn.night { background: var(--vc-night); color: #1c1917; }
+    .btn.disarm { background: var(--vc-safe); color: #0f172a; }
     .code-input, .prog-input {
       background: var(--vc-bg);
       border: 1px solid var(--vc-border);
@@ -254,6 +454,9 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
     }
     .prog-input.small {
       width: 60px;
+    }
+    .prog-input.wide {
+      width: 100%;
     }
     .zones {
       display: grid;
@@ -277,7 +480,7 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
       border-color: var(--vc-home);
     }
     .zone.open {
-      color: var(--vc-away);
+      color: var(--vc-night);
     }
     .zone.closed {
       color: var(--vc-text-dim);
@@ -293,8 +496,8 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
     }
     .pill {
       margin-left: auto;
-      background: var(--vc-away);
-      color: #0f172a;
+      background: var(--vc-night);
+      color: #1c1917;
       font-size: 0.65rem;
       font-weight: 700;
       border-radius: 6px;
@@ -320,16 +523,49 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
       padding: 12px;
       background: rgba(0, 0, 0, 0.15);
     }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--vc-border);
+    }
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--vc-text-dim);
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--vc-text);
+      border-bottom-color: var(--vc-home);
+    }
     .prog-row {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-bottom: 10px;
     }
+    .prog-row.column {
+      flex-direction: column;
+      align-items: stretch;
+    }
     .prog-row label {
-      width: 70px;
+      min-width: 70px;
       font-size: 0.85rem;
       color: var(--vc-text-dim);
+    }
+    .field-help {
+      font-size: 0.78rem;
+      color: var(--vc-text-dim);
+      margin: 4px 0 0;
+      line-height: 1.4;
+    }
+    .field-help.inline {
+      margin: 0;
+      white-space: nowrap;
     }
     .confirm-row {
       display: flex;
@@ -343,4 +579,4 @@ var At=Object.defineProperty;var xt=Object.getOwnPropertyDescriptor;var g=(i,t,e
       padding: 16px;
       color: var(--vc-danger);
     }
-  `,g([q({attribute:!1})],m.prototype,"hass",2),g([v()],m.prototype,"_config",2),g([v()],m.prototype,"_showProgramming",2),g([v()],m.prototype,"_showDisarmInput",2),g([v()],m.prototype,"_disarmCode",2),g([v()],m.prototype,"_progPartition",2),g([v()],m.prototype,"_progKeys",2),g([v()],m.prototype,"_progConfirm",2),g([v()],m.prototype,"_progError",2),m=g([bt("vista-console-card")],m);window.customCards=window.customCards||[];window.customCards.push({type:"vista-console-card",name:"Vista Console Card",description:"Modern control + programming console for a Vista panel bridged via Envisalink."});export{m as VistaConsoleCard};
+  `,h([j({attribute:!1})],p.prototype,"hass",2),h([u()],p.prototype,"_config",2),h([u()],p.prototype,"_showDisarmInput",2),h([u()],p.prototype,"_disarmCode",2),h([u()],p.prototype,"_showFieldProgramming",2),h([u()],p.prototype,"_progTab",2),h([u()],p.prototype,"_progError",2),h([u()],p.prototype,"_progBusy",2),h([u()],p.prototype,"_zpZone",2),h([u()],p.prototype,"_zpType",2),h([u()],p.prototype,"_zpPartition",2),h([u()],p.prototype,"_zpReportEnabled",2),h([u()],p.prototype,"_zpHardwireType",2),h([u()],p.prototype,"_zpResponseTime",2),h([u()],p.prototype,"_zpConfirm",2),h([u()],p.prototype,"_zpConfirmLifeSafety",2),h([u()],p.prototype,"_stField",2),h([u()],p.prototype,"_stValue",2),h([u()],p.prototype,"_stConfirm",2),h([u()],p.prototype,"_fkKey",2),h([u()],p.prototype,"_fkPartition",2),h([u()],p.prototype,"_fkAction",2),h([u()],p.prototype,"_fkConfirm",2),h([u()],p.prototype,"_rawPartition",2),h([u()],p.prototype,"_rawKeys",2),h([u()],p.prototype,"_rawConfirm",2),p=h([we("vista-console-card")],p);window.customCards=window.customCards||[];window.customCards.push({type:"vista-console-card",name:"Vista Console Card",description:"Modern control + guided field-programming console for a Vista panel bridged via Envisalink."});export{p as VistaConsoleCard};

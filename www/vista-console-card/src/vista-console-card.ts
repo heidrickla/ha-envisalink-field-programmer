@@ -1,5 +1,13 @@
 import { LitElement, html, css, nothing, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import {
+  FUNCTION_KEY_ACTIONS,
+  HARDWIRE_TYPES,
+  RESPONSE_TIMES,
+  SYSTEM_TIMING_FIELDS,
+  ZONE_TYPES,
+  ZONE_TYPES_BY_CODE,
+} from "./field-programming-data";
 
 interface HassEntity {
   entity_id: string;
@@ -37,17 +45,47 @@ const ARM_STATE_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
+type ProgrammingTab = "zone" | "timing" | "keys" | "raw";
+
 @customElement("vista-console-card")
 export class VistaConsoleCard extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config!: VistaConsoleCardConfig;
-  @state() private _showProgramming = false;
   @state() private _showDisarmInput = false;
   @state() private _disarmCode = "";
-  @state() private _progPartition = "1";
-  @state() private _progKeys = "";
-  @state() private _progConfirm = false;
+
+  // Field-programming console: collapsed behind one explicit toggle, then
+  // split into tabs. Only "raw" ever exposes bare keystrokes.
+  @state() private _showFieldProgramming = false;
+  @state() private _progTab: ProgrammingTab = "zone";
   @state() private _progError: string | null = null;
+  @state() private _progBusy = false;
+
+  // Zone-program form state.
+  @state() private _zpZone = "1";
+  @state() private _zpType = 3;
+  @state() private _zpPartition = "1";
+  @state() private _zpReportEnabled = true;
+  @state() private _zpHardwireType = "0";
+  @state() private _zpResponseTime = "1";
+  @state() private _zpConfirm = false;
+  @state() private _zpConfirmLifeSafety = false;
+
+  // System-timing form state.
+  @state() private _stField = SYSTEM_TIMING_FIELDS[0].field;
+  @state() private _stValue = "60";
+  @state() private _stConfirm = false;
+
+  // Function-key form state.
+  @state() private _fkKey = "A";
+  @state() private _fkPartition = "1";
+  @state() private _fkAction = 3;
+  @state() private _fkConfirm = false;
+
+  // Raw keystroke console (the original escape hatch).
+  @state() private _rawPartition = "1";
+  @state() private _rawKeys = "";
+  @state() private _rawConfirm = false;
 
   setConfig(config: VistaConsoleCardConfig): void {
     if (!config.alarm_entity) {
@@ -140,7 +178,7 @@ export class VistaConsoleCard extends LitElement {
             : nothing}
 
           ${this._config.show_programming_console
-            ? this._renderProgrammingConsole()
+            ? this._renderFieldProgrammingSection()
             : nothing}
         </div>
       </ha-card>
@@ -195,25 +233,394 @@ export class VistaConsoleCard extends LitElement {
     </div>`;
   }
 
-  private _renderProgrammingConsole(): TemplateResult {
-    if (!this._showProgramming) {
+  // -- Field programming: entry point + tab shell -------------------------
+
+  private _renderFieldProgrammingSection(): TemplateResult {
+    if (!this._showFieldProgramming) {
       return html`<button
         class="prog-toggle"
-        @click=${() => (this._showProgramming = true)}
+        @click=${() => (this._showFieldProgramming = true)}
       >
         <ha-icon icon="mdi:wrench-cog"></ha-icon>
-        Advanced Programming Console
+        Field Programming
       </button>`;
     }
+
+    const tabs: { id: ProgrammingTab; label: string }[] = [
+      { id: "zone", label: "Zones" },
+      { id: "timing", label: "Timing" },
+      { id: "keys", label: "Function Keys" },
+      { id: "raw", label: "Raw" },
+    ];
+
     return html`<div class="programming">
       <div class="banner warning">
         <ha-icon icon="mdi:alert-octagon"></ha-icon>
-        Raw keypad sequences. A sequence containing <code>*8</code> enters
-        installer programming and can lock the panel out until it is
-        power-cycled; installer mode also governs fire-zone and
-        UL-listing-relevant settings. Only proceed if you know exactly what
-        this sequence does on a Vista panel.
+        Every action here opens the panel's installer Program Mode. This
+        integration cannot read back what's currently on the keypad display,
+        so double-check at the physical keypad first if you're not sure
+        what's already programmed -- especially for smoke/CO detector zones.
       </div>
+      <div class="tabs">
+        ${tabs.map(
+          (t) => html`<button
+            class="tab ${this._progTab === t.id ? "active" : ""}"
+            @click=${() => {
+              this._progTab = t.id;
+              this._progError = null;
+            }}
+          >
+            ${t.label}
+          </button>`
+        )}
+      </div>
+      ${this._progTab === "zone" ? this._renderZoneProgramForm() : nothing}
+      ${this._progTab === "timing" ? this._renderSystemTimingForm() : nothing}
+      ${this._progTab === "keys" ? this._renderFunctionKeyForm() : nothing}
+      ${this._progTab === "raw" ? this._renderRawKeystrokeForm() : nothing}
+      ${this._progError
+        ? html`<div class="banner trouble">${this._progError}</div>`
+        : nothing}
+      <div class="actions">
+        <button
+          class="btn disarm"
+          @click=${() => (this._showFieldProgramming = false)}
+        >
+          Close
+        </button>
+      </div>
+    </div>`;
+  }
+
+  // -- Zone programming tab ------------------------------------------------
+
+  private _renderZoneProgramForm(): TemplateResult {
+    const zoneNum = Number(this._zpZone) || 1;
+    const selected = ZONE_TYPES_BY_CODE[this._zpType];
+    const isHardwiredZone = zoneNum <= 8;
+    const showHardwireType = zoneNum >= 2 && zoneNum <= 8;
+
+    return html`
+      <div class="prog-row">
+        <label>Zone #</label>
+        <input
+          class="prog-input small"
+          type="number"
+          min="1"
+          max="64"
+          .value=${this._zpZone}
+          @input=${(e: InputEvent) => (this._zpZone = (e.target as HTMLInputElement).value)}
+        />
+        <label>Partition</label>
+        <select
+          class="prog-input small"
+          .value=${this._zpPartition}
+          @change=${(e: Event) =>
+            (this._zpPartition = (e.target as HTMLSelectElement).value)}
+        >
+          ${[1, 2, 3].map((p) => html`<option value=${p}>${p}</option>`)}
+        </select>
+      </div>
+      <div class="prog-row column">
+        <label>Zone type</label>
+        <select
+          class="prog-input wide"
+          .value=${String(this._zpType)}
+          @change=${(e: Event) =>
+            (this._zpType = Number((e.target as HTMLSelectElement).value))}
+        >
+          ${ZONE_TYPES.map(
+            (zt) => html`<option value=${zt.code}>${zt.label}</option>`
+          )}
+        </select>
+        ${selected
+          ? html`<p class="field-help">${selected.description}</p>`
+          : nothing}
+      </div>
+      ${selected?.lifeSafety
+        ? html`<div class="banner trouble">
+            <ha-icon icon="mdi:fire-alert"></ha-icon>
+            This is a life-safety zone type (fire/CO). Getting this wrong on
+            a real detector's zone can silence it. Requires an extra
+            confirmation below.
+          </div>`
+        : nothing}
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._zpReportEnabled}
+          @change=${(e: Event) =>
+            (this._zpReportEnabled = (e.target as HTMLInputElement).checked)}
+        />
+        Report to monitoring station
+      </label>
+      ${showHardwireType
+        ? html`<div class="prog-row column">
+            <label>Hardwire type</label>
+            <select
+              class="prog-input wide"
+              .value=${this._zpHardwireType}
+              @change=${(e: Event) =>
+                (this._zpHardwireType = (e.target as HTMLSelectElement).value)}
+            >
+              ${HARDWIRE_TYPES.map(
+                (h) => html`<option value=${h.value}>${h.label}</option>`
+              )}
+            </select>
+          </div>`
+        : nothing}
+      ${isHardwiredZone
+        ? html`<div class="prog-row column">
+            <label>Response time</label>
+            <select
+              class="prog-input wide"
+              .value=${this._zpResponseTime}
+              @change=${(e: Event) =>
+                (this._zpResponseTime = (e.target as HTMLSelectElement).value)}
+            >
+              ${RESPONSE_TIMES.map(
+                (r) => html`<option value=${r.value}>${r.label}</option>`
+              )}
+            </select>
+          </div>`
+        : html`<p class="field-help">
+            Zone 9+: treated as an auxiliary-wired zone. Wireless (RF) sensor
+            enrollment isn't supported here -- enroll the transmitter at the
+            keypad first, then use this to set its type/partition.
+          </p>`}
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._zpConfirm}
+          @change=${(e: Event) =>
+            (this._zpConfirm = (e.target as HTMLInputElement).checked)}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      ${selected?.lifeSafety
+        ? html`<label class="confirm-row">
+            <input
+              type="checkbox"
+              .checked=${this._zpConfirmLifeSafety}
+              @change=${(e: Event) =>
+                (this._zpConfirmLifeSafety = (e.target as HTMLInputElement).checked)}
+            />
+            I confirm this life-safety zone type change is intentional.
+          </label>`
+        : nothing}
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${() => this._submitZoneProgram()}>
+          Apply
+        </button>
+      </div>
+    `;
+  }
+
+  private async _submitZoneProgram(): Promise<void> {
+    const entryId = this._entryId;
+    this._progError = null;
+    if (!entryId) {
+      this._progError = "Could not determine the config entry id for this card.";
+      return;
+    }
+    if (!this._zpConfirm) {
+      this._progError = "Check the Program Mode confirmation box first.";
+      return;
+    }
+    this._progBusy = true;
+    try {
+      await this.hass.callService("vista_console", "program_zone", {
+        entry_id: entryId,
+        zone_number: Number(this._zpZone),
+        zone_type: this._zpType,
+        partition: Number(this._zpPartition),
+        report_enabled: this._zpReportEnabled,
+        hardwire_type: this._zpHardwireType,
+        response_time: this._zpResponseTime,
+        confirm: this._zpConfirm,
+        confirm_life_safety: this._zpConfirmLifeSafety,
+      });
+    } catch (err) {
+      this._progError = err instanceof Error ? err.message : String(err);
+    } finally {
+      this._progBusy = false;
+    }
+  }
+
+  // -- System timing tab ---------------------------------------------------
+
+  private _renderSystemTimingForm(): TemplateResult {
+    const info = SYSTEM_TIMING_FIELDS.find((f) => f.field === this._stField)!;
+    return html`
+      <div class="prog-row column">
+        <label>Field</label>
+        <select
+          class="prog-input wide"
+          .value=${this._stField}
+          @change=${(e: Event) => {
+            this._stField = (e.target as HTMLSelectElement).value;
+            this._stValue = String(
+              SYSTEM_TIMING_FIELDS.find((f) => f.field === this._stField)!.min
+            );
+          }}
+        >
+          ${SYSTEM_TIMING_FIELDS.map(
+            (f) => html`<option value=${f.field}>${f.label}</option>`
+          )}
+        </select>
+        <p class="field-help">${info.description}</p>
+      </div>
+      <div class="prog-row">
+        <label>Value</label>
+        <input
+          class="prog-input small"
+          type="number"
+          min="0"
+          max="240"
+          .value=${this._stValue}
+          @input=${(e: InputEvent) => (this._stValue = (e.target as HTMLInputElement).value)}
+        />
+        ${Object.keys(info.specials).length
+          ? html`<span class="field-help inline">
+              (${Object.entries(info.specials)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(", ")})
+            </span>`
+          : nothing}
+      </div>
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._stConfirm}
+          @change=${(e: Event) =>
+            (this._stConfirm = (e.target as HTMLInputElement).checked)}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${() => this._submitSystemTiming()}>
+          Apply
+        </button>
+      </div>
+    `;
+  }
+
+  private async _submitSystemTiming(): Promise<void> {
+    const entryId = this._entryId;
+    this._progError = null;
+    if (!entryId) {
+      this._progError = "Could not determine the config entry id for this card.";
+      return;
+    }
+    if (!this._stConfirm) {
+      this._progError = "Check the Program Mode confirmation box first.";
+      return;
+    }
+    this._progBusy = true;
+    try {
+      await this.hass.callService("vista_console", "set_system_timing", {
+        entry_id: entryId,
+        field: this._stField,
+        value: Number(this._stValue),
+        confirm: this._stConfirm,
+      });
+    } catch (err) {
+      this._progError = err instanceof Error ? err.message : String(err);
+    } finally {
+      this._progBusy = false;
+    }
+  }
+
+  // -- Function keys tab ----------------------------------------------------
+
+  private _renderFunctionKeyForm(): TemplateResult {
+    return html`
+      <div class="prog-row">
+        <label>Key</label>
+        <select
+          class="prog-input small"
+          .value=${this._fkKey}
+          @change=${(e: Event) => (this._fkKey = (e.target as HTMLSelectElement).value)}
+        >
+          ${["A", "B", "C", "D"].map((k) => html`<option value=${k}>${k}</option>`)}
+        </select>
+        <label>Partition</label>
+        <select
+          class="prog-input small"
+          .value=${this._fkPartition}
+          @change=${(e: Event) =>
+            (this._fkPartition = (e.target as HTMLSelectElement).value)}
+        >
+          ${[1, 2, 3].map((p) => html`<option value=${p}>${p}</option>`)}
+        </select>
+      </div>
+      <div class="prog-row column">
+        <label>Action</label>
+        <select
+          class="prog-input wide"
+          .value=${String(this._fkAction)}
+          @change=${(e: Event) =>
+            (this._fkAction = Number((e.target as HTMLSelectElement).value))}
+        >
+          ${FUNCTION_KEY_ACTIONS.map(
+            (a) => html`<option value=${a.value}>${a.label}</option>`
+          )}
+        </select>
+      </div>
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          .checked=${this._fkConfirm}
+          @change=${(e: Event) =>
+            (this._fkConfirm = (e.target as HTMLInputElement).checked)}
+        />
+        I understand this opens Program Mode on the panel.
+      </label>
+      <div class="actions">
+        <button class="btn away" ?disabled=${this._progBusy} @click=${() => this._submitFunctionKey()}>
+          Apply
+        </button>
+      </div>
+    `;
+  }
+
+  private async _submitFunctionKey(): Promise<void> {
+    const entryId = this._entryId;
+    this._progError = null;
+    if (!entryId) {
+      this._progError = "Could not determine the config entry id for this card.";
+      return;
+    }
+    if (!this._fkConfirm) {
+      this._progError = "Check the Program Mode confirmation box first.";
+      return;
+    }
+    this._progBusy = true;
+    try {
+      await this.hass.callService("vista_console", "program_function_key", {
+        entry_id: entryId,
+        key: this._fkKey,
+        partition: Number(this._fkPartition),
+        action: this._fkAction,
+        confirm: this._fkConfirm,
+      });
+    } catch (err) {
+      this._progError = err instanceof Error ? err.message : String(err);
+    } finally {
+      this._progBusy = false;
+    }
+  }
+
+  // -- Raw keystroke tab (escape hatch for anything the guided forms above
+  // don't cover) ------------------------------------------------------------
+
+  private _renderRawKeystrokeForm(): TemplateResult {
+    return html`
+      <p class="field-help">
+        For anything the guided tabs above don't cover. Sequences that open
+        Program Mode (installer code followed by 800) need the confirmation
+        box below.
+      </p>
       <div class="prog-row">
         <label>Partition</label>
         <input
@@ -221,9 +628,9 @@ export class VistaConsoleCard extends LitElement {
           type="number"
           min="1"
           max="8"
-          .value=${this._progPartition}
+          .value=${this._rawPartition}
           @input=${(e: InputEvent) =>
-            (this._progPartition = (e.target as HTMLInputElement).value)}
+            (this._rawPartition = (e.target as HTMLInputElement).value)}
         />
       </div>
       <div class="prog-row">
@@ -231,36 +638,26 @@ export class VistaConsoleCard extends LitElement {
         <input
           class="prog-input"
           type="text"
-          placeholder="e.g. *1 01 #"
-          .value=${this._progKeys}
-          @input=${(e: InputEvent) =>
-            (this._progKeys = (e.target as HTMLInputElement).value)}
+          placeholder="e.g. *101#"
+          .value=${this._rawKeys}
+          @input=${(e: InputEvent) => (this._rawKeys = (e.target as HTMLInputElement).value)}
         />
       </div>
       <label class="confirm-row">
         <input
           type="checkbox"
-          .checked=${this._progConfirm}
+          .checked=${this._rawConfirm}
           @change=${(e: Event) =>
-            (this._progConfirm = (e.target as HTMLInputElement).checked)}
+            (this._rawConfirm = (e.target as HTMLInputElement).checked)}
         />
-        I understand the installer-mode / fire-safety risk above.
+        I understand the Program Mode / fire-safety risk above.
       </label>
-      ${this._progError
-        ? html`<div class="banner trouble">${this._progError}</div>`
-        : nothing}
       <div class="actions">
-        <button class="btn away" @click=${() => this._sendKeystrokes()}>
+        <button class="btn away" ?disabled=${this._progBusy} @click=${() => this._sendRawKeystrokes()}>
           Send
         </button>
-        <button
-          class="btn disarm"
-          @click=${() => (this._showProgramming = false)}
-        >
-          Close
-        </button>
       </div>
-    </div>`;
+    `;
   }
 
   private async _arm(mode: "away" | "home" | "night"): Promise<void> {
@@ -292,32 +689,30 @@ export class VistaConsoleCard extends LitElement {
     });
   }
 
-  private async _sendKeystrokes(): Promise<void> {
+  private async _sendRawKeystrokes(): Promise<void> {
     const entryId = this._entryId;
     this._progError = null;
     if (!entryId) {
       this._progError = "Could not determine the config entry id for this card.";
       return;
     }
-    if (!this._progKeys.trim()) {
+    if (!this._rawKeys.trim()) {
       this._progError = "Enter a keystroke sequence first.";
       return;
     }
-    if (this._progKeys.includes("*8") && !this._progConfirm) {
-      this._progError =
-        "This sequence enters installer mode. Check the confirmation box first.";
-      return;
-    }
+    this._progBusy = true;
     try {
       await this.hass.callService("vista_console", "send_keystrokes", {
         entry_id: entryId,
-        partition: Number(this._progPartition) || 1,
-        keys: this._progKeys,
-        confirm_installer_risk: this._progConfirm,
+        partition: Number(this._rawPartition) || 1,
+        keys: this._rawKeys,
+        confirm_installer_risk: this._rawConfirm,
       });
-      this._progKeys = "";
+      this._rawKeys = "";
     } catch (err) {
       this._progError = err instanceof Error ? err.message : String(err);
+    } finally {
+      this._progBusy = false;
     }
   }
 
@@ -328,9 +723,15 @@ export class VistaConsoleCard extends LitElement {
       --vc-border: #334155;
       --vc-text: #e2e8f0;
       --vc-text-dim: #94a3b8;
-      --vc-away: #f59e0b;
-      --vc-home: #3b82f6;
-      --vc-night: #6366f1;
+      /* Accent hues are loosely inspired by the Envisalink/EyezOn bridge
+         this card talks to (their site uses a crimson/violet/amber accent
+         trio over a dark charcoal base) -- a nod for visual harmony, not a
+         reproduction of their branding. Falls back to the light/dark HA
+         theme's own tone where it matters (borders, surfaces, text) so this
+         only touches the armed-state accent colors, not the whole theme. */
+      --vc-away: #e11d48;
+      --vc-home: #7c3aed;
+      --vc-night: #d97706;
       --vc-safe: #22c55e;
       --vc-danger: #ef4444;
     }
@@ -386,9 +787,9 @@ export class VistaConsoleCard extends LitElement {
       border: 1px solid rgba(239, 68, 68, 0.35);
     }
     .banner.warning {
-      background: rgba(245, 158, 11, 0.12);
+      background: rgba(217, 119, 6, 0.12);
       color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.35);
+      border: 1px solid rgba(217, 119, 6, 0.35);
     }
     .status-block {
       background: rgba(255, 255, 255, 0.03);
@@ -422,7 +823,7 @@ export class VistaConsoleCard extends LitElement {
     }
     .state-pending .status-label,
     .state-arming .status-label {
-      color: var(--vc-away);
+      color: var(--vc-night);
       animation: pulse 1.4s infinite;
     }
     @keyframes pulse {
@@ -442,16 +843,20 @@ export class VistaConsoleCard extends LitElement {
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
-      color: #0f172a;
+      color: white;
       transition: transform 0.1s ease;
     }
     .btn:active {
       transform: scale(0.96);
     }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
     .btn.away { background: var(--vc-away); }
-    .btn.home { background: var(--vc-home); color: white; }
-    .btn.night { background: var(--vc-night); color: white; }
-    .btn.disarm { background: var(--vc-safe); }
+    .btn.home { background: var(--vc-home); }
+    .btn.night { background: var(--vc-night); color: #1c1917; }
+    .btn.disarm { background: var(--vc-safe); color: #0f172a; }
     .code-input, .prog-input {
       background: var(--vc-bg);
       border: 1px solid var(--vc-border);
@@ -462,6 +867,9 @@ export class VistaConsoleCard extends LitElement {
     }
     .prog-input.small {
       width: 60px;
+    }
+    .prog-input.wide {
+      width: 100%;
     }
     .zones {
       display: grid;
@@ -485,7 +893,7 @@ export class VistaConsoleCard extends LitElement {
       border-color: var(--vc-home);
     }
     .zone.open {
-      color: var(--vc-away);
+      color: var(--vc-night);
     }
     .zone.closed {
       color: var(--vc-text-dim);
@@ -501,8 +909,8 @@ export class VistaConsoleCard extends LitElement {
     }
     .pill {
       margin-left: auto;
-      background: var(--vc-away);
-      color: #0f172a;
+      background: var(--vc-night);
+      color: #1c1917;
       font-size: 0.65rem;
       font-weight: 700;
       border-radius: 6px;
@@ -528,16 +936,49 @@ export class VistaConsoleCard extends LitElement {
       padding: 12px;
       background: rgba(0, 0, 0, 0.15);
     }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--vc-border);
+    }
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--vc-text-dim);
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--vc-text);
+      border-bottom-color: var(--vc-home);
+    }
     .prog-row {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-bottom: 10px;
     }
+    .prog-row.column {
+      flex-direction: column;
+      align-items: stretch;
+    }
     .prog-row label {
-      width: 70px;
+      min-width: 70px;
       font-size: 0.85rem;
       color: var(--vc-text-dim);
+    }
+    .field-help {
+      font-size: 0.78rem;
+      color: var(--vc-text-dim);
+      margin: 4px 0 0;
+      line-height: 1.4;
+    }
+    .field-help.inline {
+      margin: 0;
+      white-space: nowrap;
     }
     .confirm-row {
       display: flex;
@@ -564,5 +1005,5 @@ declare global {
 (window as any).customCards.push({
   type: "vista-console-card",
   name: "Vista Console Card",
-  description: "Modern control + programming console for a Vista panel bridged via Envisalink.",
+  description: "Modern control + guided field-programming console for a Vista panel bridged via Envisalink.",
 });
