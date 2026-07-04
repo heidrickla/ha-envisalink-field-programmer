@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from .client import TPIAuthError, TPIConnectionError
 from .const import (
     CONF_HOST,
+    CONF_INSTALLER_CODE,
     CONF_KEEPALIVE_INTERVAL,
     CONF_NUM_PARTITIONS,
     CONF_NUM_ZONES,
@@ -20,6 +21,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import VistaConsoleCoordinator
+from .field_programming_services import async_register_field_programming_services
 from .frontend import async_register_frontend
 from .programming import async_register_services
 
@@ -39,6 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         keepalive_interval=entry.options.get(
             CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
         ),
+        installer_code=entry.options.get(CONF_INSTALLER_CODE) or None,
     )
 
     try:
@@ -53,6 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     async_register_services(hass)
+    async_register_field_programming_services(hass)
     await async_register_frontend(hass)
     return True
 
