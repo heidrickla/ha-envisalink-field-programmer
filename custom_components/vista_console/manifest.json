@@ -1,10 +1,10 @@
 {
   "domain": "vista_console",
   "name": "Vista Console (Envisalink)",
-  "codeowners": ["@lheidrick"],
+  "codeowners": ["@heidrickla"],
   "config_flow": true,
-  "documentation": "https://github.com/lheidrick/vista-console",
-  "issue_tracker": "https://github.com/lheidrick/vista-console/issues",
+  "documentation": "https://github.com/heidrickla/vista-console",
+  "issue_tracker": "https://github.com/heidrickla/vista-console/issues",
   "iot_class": "local_push",
   "integration_type": "hub",
   "requirements": [],

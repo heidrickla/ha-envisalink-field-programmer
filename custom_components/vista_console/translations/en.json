@@ -26,8 +26,10 @@
   "options": {
     "step": {
       "init": {
+        "description": "The installer code is optional and only needed for the field-programming console (zone types, timing, function keys). Leave it blank to keep programming disabled -- arming, disarming, status, and zone bypass never need it.",
         "data": {
           "user_code": "Default disarm user code",
+          "installer_code": "Installer code (enables field programming)",
           "keepalive_interval": "Keepalive poll interval (seconds)"
         }
       }

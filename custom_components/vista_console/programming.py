@@ -1,28 +1,37 @@
 """Guardrails around sending raw keystrokes to the panel.
 
 The Envisalink TPI command 071 ("Send Keystroke String") is the same
-mechanism used for everything from an ordinary zone bypass to entering full
-installer field programming (*8 on the keypad). The EnvisaLink TPI
-Programmer's Document itself calls this out (section 3.6, "Installers Mode
-- Warning"): sending the wrong keystrokes can put the panel into installers
-mode, where most functions -- including disarm -- are locked out until
-someone physically power-cycles the panel. Installer mode is also where
-fire-zone and UL-listing-relevant settings live, so an accidental or
-scripted keystroke sequence here is not a "just retry" failure mode.
+mechanism used for everything from an ordinary zone bypass to opening full
+installer field programming. On a real Vista panel, Program Mode is opened
+by typing the installer code followed by 800 (e.g. "4112800" with the
+factory-default code) -- see the ADEMCO VISTA-21iP/VISTA-21iPSIA
+Programming Guide (K14488PRV3), "PROGRAMMING MODE COMMANDS" table. Once in
+Program Mode, essentially everything about the panel can be reconfigured,
+including fire-zone and UL-listing-relevant settings, and if the panel ends
+up somewhere unexpected there is no read-back channel over TPI to tell what
+state it's actually in (the protocol reports keypad LED bits, not display
+text).
+
+An earlier version of this guard blocked any sequence containing "*8",
+based on a generic "installers mode" warning in the EnvisaLink TPI spec that
+turns out to describe DSC-style panels, not Vista -- there is no "*8" menu
+on a Vista panel at all. This module blocks the actual Vista trigger
+(``<installer code>800``) instead.
 
 This module is the single choke point every keystroke-sending code path
 goes through, so that safety logic lives in exactly one place:
 
   * Everyday, user-level sequences (e.g. quick zone bypass, "*1..#") are
-    allowed by default.
-  * Any sequence that would enter installers mode ("*8") is refused unless
-    the caller explicitly opts in *and* the config entry allows it -- there
-    is deliberately no way to do this from the Lovelace card without going
-    through the raw service call and its confirmation field.
+    allowed by default -- they never open Program Mode.
+  * Any sequence that would open Program Mode is refused unless the caller
+    explicitly opts in via ``confirm_installer_risk`` -- there is
+    deliberately no way to do this from the Lovelace card's normal UI
+    without an explicit confirmation step.
 """
 from __future__ import annotations
 
 import logging
+import re
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -30,7 +39,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .client import EnvisalinkClient
-from .const import DOMAIN
+from .const import DOMAIN, PROGRAM_MODE_SUFFIX
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,9 +52,11 @@ ATTR_KEYS = "keys"
 ATTR_ZONE = "zone"
 ATTR_CONFIRM_INSTALLER_RISK = "confirm_installer_risk"
 
-# Sequences that enter, or could plausibly enter, installer-level
-# programming on a Vista panel. Blocked unless explicitly confirmed.
-_INSTALLER_MODE_TRIGGERS = ("*8",)
+# Generic fallback for when the configured installer code isn't available to
+# check against directly: any run of 4-6 digits immediately followed by the
+# Program Mode suffix. This is what an installer-code entry actually looks
+# like on the wire, regardless of which code is in use.
+_GENERIC_PROGRAM_MODE_PATTERN = re.compile(r"\d{4,6}" + re.escape(PROGRAM_MODE_SUFFIX))
 
 # Only digits, *, and # are valid ECP keystrokes per the TPI spec.
 _VALID_KEYSTROKE_CHARS = set("0123456789*#")
@@ -71,7 +82,18 @@ class KeystrokeGuardError(HomeAssistantError):
     """Raised when a keystroke sequence is refused by the safety guard."""
 
 
-def validate_keystrokes(keys: str, *, allow_installer_mode: bool = False) -> None:
+def _contains_program_mode_entry(keys: str, installer_code: str | None) -> bool:
+    if installer_code and f"{installer_code}{PROGRAM_MODE_SUFFIX}" in keys:
+        return True
+    return bool(_GENERIC_PROGRAM_MODE_PATTERN.search(keys))
+
+
+def validate_keystrokes(
+    keys: str,
+    *,
+    allow_installer_mode: bool = False,
+    installer_code: str | None = None,
+) -> None:
     """Raise KeystrokeGuardError if ``keys`` is unsafe to send unattended."""
     if not keys:
         raise KeystrokeGuardError("Keystroke string must not be empty")
@@ -83,18 +105,16 @@ def validate_keystrokes(keys: str, *, allow_installer_mode: bool = False) -> Non
             "only digits, '*', and '#' are valid on a Vista keypad"
         )
 
-    if not allow_installer_mode:
-        for trigger in _INSTALLER_MODE_TRIGGERS:
-            if trigger in keys:
-                raise KeystrokeGuardError(
-                    f"Refusing to send {keys!r}: contains {trigger!r}, which enters "
-                    "installer programming mode. Vista panels can dead-lock in "
-                    "installer mode (see EnvisaLink TPI doc section 3.6) until the "
-                    "panel is power-cycled, and installer mode governs fire-zone and "
-                    "UL-listing-relevant settings. Pass confirm_installer_risk: true "
-                    "to the send_keystrokes service if you deliberately intend to "
-                    "enter installer programming and understand the risk."
-                )
+    if not allow_installer_mode and _contains_program_mode_entry(keys, installer_code):
+        raise KeystrokeGuardError(
+            f"Refusing to send {keys!r}: this looks like it opens Program Mode "
+            "(installer code followed by 800). Program Mode gives access to "
+            "every data field on the panel, including fire-zone and "
+            "UL-listing-relevant settings, and the TPI protocol has no way to "
+            "read back what's actually on the keypad display while there. "
+            "Pass confirm_installer_risk: true if you deliberately intend this "
+            "and understand the risk."
+        )
 
 
 async def async_send_guarded_keystrokes(
@@ -103,9 +123,12 @@ async def async_send_guarded_keystrokes(
     keys: str,
     *,
     allow_installer_mode: bool = False,
+    installer_code: str | None = None,
 ) -> None:
     """Validate ``keys`` against the safety guard, then send them."""
-    validate_keystrokes(keys, allow_installer_mode=allow_installer_mode)
+    validate_keystrokes(
+        keys, allow_installer_mode=allow_installer_mode, installer_code=installer_code
+    )
     await client.send_keystrokes(partition, keys)
 
 
@@ -129,6 +152,7 @@ def async_register_services(hass: HomeAssistant) -> None:
             call.data[ATTR_PARTITION],
             call.data[ATTR_KEYS],
             allow_installer_mode=call.data[ATTR_CONFIRM_INSTALLER_RISK],
+            installer_code=coordinator.installer_code,
         )
 
     async def _handle_toggle_zone_bypass(call: ServiceCall) -> None:

@@ -45,6 +45,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         num_partitions: int,
         num_zones: int,
         keepalive_interval: int = DEFAULT_KEEPALIVE_INTERVAL,
+        installer_code: str | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -57,6 +58,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self._port = port
         self._password = password
         self._keepalive_interval = keepalive_interval
+        # Only needed for the field-programming layer (opening Program Mode);
+        # arm/disarm/status/bypass never use it. See programming.py.
+        self.installer_code = installer_code
         self.data = VistaState.create(num_partitions, num_zones)
 
         self.client = EnvisalinkClient(

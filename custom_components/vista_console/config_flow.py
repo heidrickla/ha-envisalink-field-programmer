@@ -12,6 +12,7 @@ from homeassistant.data_entry_flow import FlowResult
 from .client import EnvisalinkClient, TPIAuthError, TPIConnectionError
 from .const import (
     CONF_HOST,
+    CONF_INSTALLER_CODE,
     CONF_KEEPALIVE_INTERVAL,
     CONF_NUM_PARTITIONS,
     CONF_NUM_ZONES,
@@ -126,6 +127,12 @@ class VistaConsoleOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_USER_CODE,
                     default=options.get(CONF_USER_CODE, data.get(CONF_USER_CODE, "")),
+                ): str,
+                vol.Optional(
+                    CONF_INSTALLER_CODE,
+                    default=options.get(
+                        CONF_INSTALLER_CODE, data.get(CONF_INSTALLER_CODE, "")
+                    ),
                 ): str,
                 vol.Optional(
                     CONF_KEEPALIVE_INTERVAL,

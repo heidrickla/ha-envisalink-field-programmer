@@ -11,6 +11,7 @@ CONF_HOST: Final = "host"
 CONF_PORT: Final = "port"
 CONF_PASSWORD: Final = "password"
 CONF_USER_CODE: Final = "user_code"
+CONF_INSTALLER_CODE: Final = "installer_code"
 CONF_NUM_PARTITIONS: Final = "num_partitions"
 CONF_NUM_ZONES: Final = "num_zones"
 CONF_ZONE_NAMES: Final = "zone_names"
@@ -186,6 +187,33 @@ ERROR_KEYBUS_BUSY_INSTALLERS_MODE = "17"
 # a physical power cycle of the panel, and while in this mode most commands,
 # including disarm, are locked out.
 INSTALLERS_MODE_EVENT_CODES: Final = {"680"}
+
+# ---------------------------------------------------------------------------
+# Vista field-programming ("*56" etc.) keystroke conventions
+# ---------------------------------------------------------------------------
+# Source: ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3 10/12
+# Rev B ("PROGRAMMING MODE COMMANDS" table and per-field sections).
+#
+# IMPORTANT correctness note: an earlier version of this integration's
+# keystroke guard blocked any sequence containing "*8", based on a generic
+# warning in the EnvisaLink TPI spec about "installer mode" that reads as
+# DSC-flavored boilerplate. On a real Vista panel there is no "*8" menu at
+# all. The actual sequence that opens Program Mode (equivalent to physically
+# standing at the keypad and being able to edit every data field/zone/output
+# on the panel) is:
+#
+#       <installer code> 8 0 0
+#
+# e.g. "4112800" with the factory-default installer code. That is the
+# sequence this integration actually needs to guard, not "*8".
+PROGRAM_MODE_SUFFIX: Final = "800"
+# Exit Program Mode normally (re-enterable via installer code or the
+# power-up method). Deliberately never uses *98 (the "lockout" exit), which
+# can only be undone by a physical power cycle -- see the guide's own
+# PROGRAMMING MODE COMMANDS table.
+EXIT_PROGRAM_MODE: Final = "*99"
+ENTER_ZONE_PROGRAMMING: Final = "*56"
+ENTER_FUNCTION_KEY_PROGRAMMING: Final = "*57"
 
 ATTR_PARTITION = "partition"
 ATTR_ZONE = "zone"
