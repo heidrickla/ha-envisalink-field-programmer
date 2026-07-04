@@ -53,6 +53,9 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
   @state() private _config!: EnvisalinkFieldProgrammerCardConfig;
   @state() private _showDisarmInput = false;
   @state() private _disarmCode = "";
+  @state() private _pendingArmMode: "away" | "home" | "night" | null = null;
+  @state() private _armCode = "";
+  @state() private _actionError: string | null = null;
 
   // Field-programming console: collapsed behind one explicit toggle, then
   // split into tabs. Only "raw" ever exposes bare keystrokes.
@@ -168,7 +171,10 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
 
           <div class="status-block">
             <div class="status-label">${ARM_STATE_LABELS[armState]}</div>
-            ${this._renderActions(armState)}
+            ${this._renderActions(armState, alarm)}
+            ${this._actionError
+              ? html`<p class="field-help error">${this._actionError}</p>`
+              : nothing}
           </div>
 
           ${this._config.show_programming_console
@@ -185,12 +191,47 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
     `;
   }
 
-  private _renderActions(armState: string): TemplateResult {
+  private _renderActions(armState: string, alarm: HassEntity): TemplateResult {
     if (armState === "disarmed") {
+      // A real Vista panel arms by typing the user code plus a mode digit --
+      // there is no code-free arm command over this protocol, unlike some
+      // other panel families. code_arm_required (set by the integration
+      // from whether a default user code is configured) tells us whether
+      // we need to collect one here, or whether the backend already has a
+      // default to fall back on.
+      if (this._pendingArmMode) {
+        const mode = this._pendingArmMode;
+        return html`<div class="actions">
+          <input
+            class="code-input"
+            type="password"
+            inputmode="numeric"
+            placeholder="Code"
+            .value=${this._armCode}
+            @input=${(e: InputEvent) =>
+              (this._armCode = (e.target as HTMLInputElement).value)}
+          />
+          <button class="btn ${mode}" @click=${() => this._arm(mode)}>
+            Confirm
+          </button>
+          <button
+            class="btn disarm"
+            @click=${() => {
+              this._pendingArmMode = null;
+              this._armCode = "";
+            }}
+          >
+            Cancel
+          </button>
+        </div>`;
+      }
+      const codeRequired = alarm.attributes.code_arm_required !== false;
+      const startArm = (mode: "away" | "home" | "night") =>
+        codeRequired ? (this._pendingArmMode = mode) : this._arm(mode);
       return html`<div class="actions">
-        <button class="btn away" @click=${() => this._arm("away")}>Away</button>
-        <button class="btn home" @click=${() => this._arm("home")}>Home</button>
-        <button class="btn night" @click=${() => this._arm("night")}>Night</button>
+        <button class="btn away" @click=${() => startArm("away")}>Away</button>
+        <button class="btn home" @click=${() => startArm("home")}>Home</button>
+        <button class="btn night" @click=${() => startArm("night")}>Night</button>
       </div>`;
     }
     return html`<div class="actions">
@@ -661,18 +702,38 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
   }
 
   private async _arm(mode: "away" | "home" | "night"): Promise<void> {
-    await this.hass.callService("alarm_control_panel", `alarm_arm_${mode}`, {
-      entity_id: this._config.alarm_entity,
-    });
+    this._actionError = null;
+    try {
+      await this.hass.callService("alarm_control_panel", `alarm_arm_${mode}`, {
+        entity_id: this._config.alarm_entity,
+        code: this._armCode || undefined,
+      });
+      this._pendingArmMode = null;
+      this._armCode = "";
+    } catch (err: unknown) {
+      this._actionError = this._errorMessage(err, `Failed to arm ${mode}.`);
+    }
   }
 
   private async _disarm(): Promise<void> {
-    await this.hass.callService("alarm_control_panel", "alarm_disarm", {
-      entity_id: this._config.alarm_entity,
-      code: this._disarmCode || undefined,
-    });
-    this._disarmCode = "";
-    this._showDisarmInput = false;
+    this._actionError = null;
+    try {
+      await this.hass.callService("alarm_control_panel", "alarm_disarm", {
+        entity_id: this._config.alarm_entity,
+        code: this._disarmCode || undefined,
+      });
+      this._disarmCode = "";
+      this._showDisarmInput = false;
+    } catch (err: unknown) {
+      this._actionError = this._errorMessage(err, "Failed to disarm.");
+    }
+  }
+
+  private _errorMessage(err: unknown, fallback: string): string {
+    if (err && typeof err === "object" && "message" in err) {
+      return String((err as { message: unknown }).message) || fallback;
+    }
+    return fallback;
   }
 
   private async _toggleBypass(zone: HassEntity): Promise<void> {
@@ -981,6 +1042,9 @@ export class EnvisalinkFieldProgrammerCard extends LitElement {
     .field-help.inline {
       margin: 0;
       white-space: nowrap;
+    }
+    .field-help.error {
+      color: var(--vc-danger);
     }
     .confirm-row {
       display: flex;
