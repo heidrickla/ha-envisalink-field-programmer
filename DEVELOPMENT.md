@@ -119,6 +119,26 @@ Note the build output path: it deliberately writes into
 `frontend.py`'s docstring for why (HACS only ships the
 `custom_components/<domain>` tree).
 
+## Real-hardware gotcha: only one TPI client at a time
+
+Confirmed 2026-07-04 against a live Envisalink EVL-4 + VISTA-21iP: setting
+up this integration while `envisalink_new` (or anything else) already holds
+a TPI connection to the same device fails with a plain "Could not connect
+to the Envisalink at that host/port" -- indistinguishable in the config
+flow's error handling from a genuinely wrong host/port. Root cause is the
+Envisalink's own TPI server, which accepts exactly one client connection on
+port 4025 and refuses any second one outright (this matches the TPI spec's
+"will only accept one client connection on that port" line, but it's easy
+to forget when troubleshooting a "cannot_connect" error and go looking for
+a networking problem instead).
+
+**Diagnostic shortcut**: if another Envisalink integration is already
+configured on the same HA instance, check its config entry's `disabled_by`
+field in `.storage/core.config_entries` (or just check the UI) before
+assuming the new integration's host/port/password are wrong -- if that
+other entry isn't disabled, that's almost certainly the actual cause, and
+no amount of double-checking credentials will fix it.
+
 ## Where the Vista programming-guide research came from
 
 The field-programming data model (`field_programming.py`) was built from

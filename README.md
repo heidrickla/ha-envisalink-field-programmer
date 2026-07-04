@@ -63,6 +63,25 @@ You'll need:
 - Optionally (in the integration's options, after setup), your **installer
   code** — only needed if you want to use field programming
 
+### The Envisalink only accepts one TPI client at a time
+
+Confirmed against real hardware: if `envisalink_new` (or any other
+integration/app already talking TPI to this Envisalink) is connected,
+setting up this integration against the same device will fail with
+"Could not connect to the Envisalink at that host/port" — not because the
+host/port/password are wrong, but because the Envisalink's TPI server
+(port 4025) refuses a second simultaneous connection outright. This is a
+hardware/firmware limit, not a bug in either integration.
+
+If you hit that error and you're sure your connection details are correct,
+check whether another integration already holds the connection
+(Settings → Devices & Services → find it → confirm it's enabled) and
+disable it first. The two integrations can't both be connected at the same
+time, so plan your setup around whichever one you want active day-to-day
+(e.g. keep `envisalink_new` enabled for daily zone/arm status, and only
+temporarily disable it and enable this one when you actually need to do
+field programming, or vice versa).
+
 ## Field programming
 
 Three guided services, each translating validated, structured input into
@@ -242,6 +261,14 @@ panel. What's actually exercised by the automated test suite (`pytest tests/`,
   confirm_life_safety/installer-code gates**: against the real Home
   Assistant config-entry machinery via `pytest-homeassistant-custom-component`,
   still driven by the fake TPI server.
+
+**Confirmed against real hardware (2026-07-04):** the config flow's login
+handshake, error handling, and HACS installation/setup all work correctly
+end-to-end against a live Envisalink EVL-4 + VISTA-21iP. Also confirmed:
+the Envisalink's TPI server only accepts one client connection at a time —
+see "The Envisalink only accepts one TPI client at a time" above. This
+was the actual cause of an initial "Could not connect" error during
+real-hardware testing, not a bug in the connection logic.
 
 **What still needs your real Envisalink/panel to confirm:**
 - The exact login password/firewall behavior of your specific EVL
