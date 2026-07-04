@@ -141,15 +141,24 @@ no amount of double-checking credentials will fix it.
 
 ## Protocol correction: the original TPI research was wrong
 
+**This is still TPI.** The correction described here is not a switch to some
+different, unrelated protocol -- the Envisalink has always spoken (and
+still speaks) TPI (Third Party Interface) on port 4025, and this
+integration has always used TPI. What changed is the accuracy of this
+integration's understanding of TPI's wire-level framing details, nothing
+about which protocol/port/system it connects to.
+
 The client (`client.py`), state machine (`state_machine.py`), and the
 relevant parts of `const.py` were originally built from the "EnvisaLink TPI
-Programmer's Document v1.08" (2017-02-10) PDF, which describes a hex-ASCII,
-checksum-framed protocol with 3-digit numeric command codes and a
-`005`/`505`-style login handshake.
+Programmer's Document v1.08" (2017-02-10) PDF, which describes a real
+variant of TPI: hex-ASCII, checksum-framed, with 3-digit numeric command
+codes and a `005`/`505`-style login handshake.
 
-That does not match what a real EVL-4 + VISTA-21iP actually speaks. This
-was discovered during live-hardware testing (2026-07-04): after the config
-flow failed with "Could not connect", Home Assistant's core log showed
+That does not match what a real EVL-4 + VISTA-21iP actually speaks -- same
+protocol name, different (and, for this hardware, incorrect) wire format.
+This was discovered during live-hardware testing (2026-07-04): after the
+config flow failed with "Could not connect", Home Assistant's core log
+showed
 
 ```
 TPIProtocolError: checksum mismatch for 'Login:': got n:, expected 8B
