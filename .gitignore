@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Frontend (dist/vista-console-card.js IS committed -- it's the artifact
+# HACS/Lovelace actually loads, so don't ignore it)
+www/vista-console-card/node_modules/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# HA config artifacts if a local test HA instance is ever run here
+config/.storage/
+config/home-assistant.log
