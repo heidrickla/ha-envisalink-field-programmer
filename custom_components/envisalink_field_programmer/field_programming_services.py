@@ -95,7 +95,7 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str):
     domain_data = hass.data.get(DOMAIN, {})
     coordinator = domain_data.get(entry_id)
     if coordinator is None:
-        raise HomeAssistantError(f"No Vista Console config entry with id {entry_id!r}")
+        raise HomeAssistantError(f"No Envisalink Field Programmer config entry with id {entry_id!r}")
     return coordinator
 
 

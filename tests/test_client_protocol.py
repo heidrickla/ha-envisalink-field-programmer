@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.vista_console.client import (
+from custom_components.envisalink_field_programmer.client import (
     TPIProtocolError,
     build_event,
     compute_checksum,

@@ -9,7 +9,7 @@ import asyncio
 
 import pytest
 
-from custom_components.vista_console.client import (
+from custom_components.envisalink_field_programmer.client import (
     EnvisalinkClient,
     TPIAuthError,
     TPIConnectionError,

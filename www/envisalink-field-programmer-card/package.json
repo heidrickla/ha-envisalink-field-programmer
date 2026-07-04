@@ -1,8 +1,8 @@
 {
-  "name": "vista-console-card",
+  "name": "envisalink-field-programmer-card",
   "version": "0.1.0",
   "private": true,
-  "description": "Modern Lovelace card for the Vista Console Home Assistant integration",
+  "description": "Modern Lovelace card for the Envisalink Field Programmer Home Assistant integration",
   "scripts": {
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch"

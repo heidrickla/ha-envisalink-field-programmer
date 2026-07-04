@@ -7,9 +7,10 @@ const watch = process.argv.includes("--watch");
 // so that's the only place a bundled frontend asset can live and still be
 // installed alongside the integration. This folder is a dev workspace only.
 const options = {
-  entryPoints: ["src/vista-console-card.ts"],
+  entryPoints: ["src/envisalink-field-programmer-card.ts"],
   bundle: true,
-  outfile: "../../custom_components/vista_console/www/vista-console-card.js",
+  outfile:
+    "../../custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js",
   format: "esm",
   target: "es2021",
   minify: !watch,
@@ -23,5 +24,5 @@ if (watch) {
   console.log("Watching for changes...");
 } else {
   await esbuild.build(options);
-  console.log("Built dist/vista-console-card.js");
+  console.log("Built envisalink-field-programmer-card.js");
 }

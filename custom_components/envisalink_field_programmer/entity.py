@@ -1,4 +1,4 @@
-"""Shared base entity for Vista Console platforms."""
+"""Shared base entity for Envisalink Field Programmer platforms."""
 from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceInfo

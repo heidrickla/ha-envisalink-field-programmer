@@ -12,7 +12,7 @@ import pytest
 import voluptuous as vol
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.vista_console.const import DOMAIN
+from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .helpers import FakeEnvisalinkServer
 

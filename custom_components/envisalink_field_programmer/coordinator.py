@@ -50,7 +50,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         super().__init__(
             hass,
             _LOGGER,
-            name=f"vista_console:{host}",
+            name=f"envisalink_field_programmer:{host}",
             config_entry=entry,
             update_interval=None,
         )
@@ -124,7 +124,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.async_set_updated_data(self.data)
         if self._shutting_down:
             return
-        _LOGGER.warning("Vista Console lost connection to %s: %s", self._host, error)
+        _LOGGER.warning("Envisalink Field Programmer lost connection to %s: %s", self._host, error)
         self._reconnect_task = self.hass.loop.create_task(self._reconnect_loop())
 
     async def _keepalive_loop(self) -> None:
@@ -146,7 +146,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 try:
                     await self.client.connect()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Vista Console reconnect attempt failed: %s", err)
+                    _LOGGER.debug("Envisalink Field Programmer reconnect attempt failed: %s", err)
                     self._backoff = min(self._backoff * 2, RECONNECT_BACKOFF_MAX)
                     continue
                 self._backoff = RECONNECT_BACKOFF_MIN

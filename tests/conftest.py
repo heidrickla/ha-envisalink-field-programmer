@@ -5,8 +5,8 @@ its own bundled ``testing_config/custom_components`` directory (see
 ``pytest_homeassistant_custom_component.common.get_test_config_dir``), not
 under this repo's ``custom_components/``. We mirror our integration into
 that directory before the test session starts so ``enable_custom_integrations``
-can discover it as ``vista_console``, same as it would in a real HA config
-dir.
+can discover it as ``envisalink_field_programmer``, same as it would in a
+real HA config dir.
 """
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ import pytest_socket
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 REPO_ROOT = Path(__file__).parent.parent
-SOURCE = REPO_ROOT / "custom_components" / "vista_console"
+SOURCE = REPO_ROOT / "custom_components" / "envisalink_field_programmer"
 
 
 def _mirror_into_test_config_dir() -> None:
     import pytest_homeassistant_custom_component.common as ha_test_common
 
     dest_root = Path(ha_test_common.get_test_config_dir("custom_components"))
-    dest = dest_root / "vista_console"
+    dest = dest_root / "envisalink_field_programmer"
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(

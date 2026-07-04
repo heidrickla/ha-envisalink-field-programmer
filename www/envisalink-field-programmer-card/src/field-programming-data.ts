@@ -1,5 +1,5 @@
 /**
- * Mirrors custom_components/vista_console/field_programming.py.
+ * Mirrors custom_components/envisalink_field_programmer/field_programming.py.
  *
  * This is presentation data only (labels/descriptions/valid ranges for the
  * guided UI) -- the backend re-validates everything independently and is

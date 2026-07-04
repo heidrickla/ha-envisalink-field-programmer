@@ -1,8 +1,9 @@
 """Serve the bundled Lovelace card and register it as a frontend resource.
 
-The card is built ahead of time (see www/vista-console-card/ at the repo
-root for source + build tooling) and its output is committed straight into
-this package at ``www/vista-console-card.js``. That placement matters: HACS
+The card is built ahead of time (see www/envisalink-field-programmer-card/
+at the repo root for source + build tooling) and its output is committed
+straight into this package at
+``www/envisalink-field-programmer-card.js``. That placement matters: HACS
 only installs the ``custom_components/<domain>`` tree for an
 ``integration``-category repository, so the compiled asset has to live
 inside it, not in a top-level ``www/`` folder, or it would never reach a
@@ -24,8 +25,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-URL_BASE = "/vista_console_static"
-CARD_FILENAME = "vista-console-card.js"
+URL_BASE = "/envisalink_field_programmer_static"
+CARD_FILENAME = "envisalink-field-programmer-card.js"
 _REGISTERED_KEY = f"{DOMAIN}_frontend_registered"
 
 
@@ -43,7 +44,7 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
 
     if hass.http is None:
         _LOGGER.debug(
-            "hass.http is not available; skipping vista-console-card frontend "
+            "hass.http is not available; skipping the frontend card "
             "registration (entities and services are unaffected)."
         )
         return
@@ -52,9 +53,9 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
     card_path = www_dir / CARD_FILENAME
     if not card_path.is_file():
         _LOGGER.warning(
-            "Vista Console card asset missing at %s; the vista-console-card "
-            "Lovelace card will not be available. Run `npm run build` in "
-            "www/vista-console-card/ and reinstall.",
+            "Card asset missing at %s; the Lovelace card will not be "
+            "available. Run `npm run build` in "
+            "www/envisalink-field-programmer-card/ and reinstall.",
             card_path,
         )
         return
@@ -74,7 +75,7 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         hass.data[_REGISTERED_KEY] = True
     except Exception:  # noqa: BLE001
         _LOGGER.warning(
-            "Could not register the vista-console-card frontend asset; "
-            "entities and services are unaffected.",
+            "Could not register the frontend card asset; entities and "
+            "services are unaffected.",
             exc_info=True,
         )

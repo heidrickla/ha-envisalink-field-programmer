@@ -1,4 +1,4 @@
-"""The Vista Console (Envisalink bridge) integration."""
+"""The Envisalink Field Programmer integration."""
 from __future__ import annotations
 
 import logging
@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Vista Console from a config entry."""
+    """Set up Envisalink Field Programmer from a config entry."""
     coordinator = VistaConsoleCoordinator(
         hass,
         entry,

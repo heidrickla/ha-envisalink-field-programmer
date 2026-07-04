@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.vista_console.programming import (
+from custom_components.envisalink_field_programmer.programming import (
     KeystrokeGuardError,
     validate_keystrokes,
 )

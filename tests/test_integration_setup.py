@@ -8,7 +8,7 @@ import pytest
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.vista_console.const import DOMAIN
+from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .helpers import FakeEnvisalinkServer
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.vista_console.field_programming import (
+from custom_components.envisalink_field_programmer.field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
     FunctionKeyAction,
     FunctionKeyLetter,

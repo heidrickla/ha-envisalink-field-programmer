@@ -1,11 +1,11 @@
-# Vista Console
+# Envisalink Field Programmer
 
 A standalone Home Assistant custom integration for a Honeywell/Ademco **VISTA**
 alarm panel, bridged locally over an **EyezOn Envisalink** (EVL-3/EVL-4)
 module. No cloud, no Total Connect — just your panel's keybus, your LAN, and
 Home Assistant.
 
-Vista Console talks the Envisalink **TPI** (Third Party Interface) protocol
+Envisalink Field Programmer talks the Envisalink **TPI** (Third Party Interface) protocol
 directly over TCP (port 4025) with its own asyncio client — it does not
 depend on `pyenvisalink` or any other integration.
 
@@ -16,7 +16,7 @@ mature, actively maintained HACS integration that already covers arm/disarm,
 zone/partition status, and bypass switches for both DSC and Honeywell panels
 well. If all you want is basic alarm control, use that one.
 
-Vista Console's actual reason to exist is **guided installer field
+This integration's actual reason to exist is **guided installer field
 programming** — a structured, plain-language layer over Vista's `*56`/`*57`
 keypad programming language (zone types, entry/exit timing, function keys),
 with strong confirmation gates given the fire/UL-safety stakes of getting
@@ -40,21 +40,21 @@ point.
   `program_function_key` — plus the lower-level `send_keystrokes` and
   `toggle_zone_bypass` (see [Field programming](#field-programming) and
   [Safety](#safety-read-this))
-- Built-in diagnostics download (Settings → Devices → Vista Console →
+- Built-in diagnostics download (Settings → Devices → Envisalink Field Programmer →
   Download Diagnostics) — see [Backups](#backups-what-this-can-and-cant-capture)
-- A custom `vista-console-card` Lovelace card, auto-registered on setup —
+- A custom `envisalink-field-programmer-card` Lovelace card, auto-registered on setup —
   no manual "add resource" step, with guided Zone/Timing/Function-Key tabs
   plus a raw-keystroke escape hatch
 
 ## Installation
 
 **HACS (custom repository):** add this repo as a custom repository (category:
-Integration), then install "Vista Console".
+Integration), then install "Envisalink Field Programmer".
 
-**Manual:** copy `custom_components/vista_console/` into your Home
+**Manual:** copy `custom_components/envisalink_field_programmer/` into your Home
 Assistant `config/custom_components/` directory and restart.
 
-Then: Settings → Devices & Services → Add Integration → "Vista Console".
+Then: Settings → Devices & Services → Add Integration → "Envisalink Field Programmer".
 
 You'll need:
 - The Envisalink's IP address and TPI port (4025 by default)
@@ -67,16 +67,16 @@ You'll need:
 
 Three guided services, each translating validated, structured input into
 the exact keystroke sequence Vista expects (see
-`custom_components/vista_console/field_programming.py`, built from the
+`custom_components/envisalink_field_programmer/field_programming.py`, built from the
 ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3):
 
-- **`vista_console.program_zone`** — zone type (translated to plain-language
+- **`envisalink_field_programmer.program_zone`** — zone type (translated to plain-language
   options like "Perimeter (instant)" or "Fire (smoke/heat detector)", not
   raw Vista field numbers), partition, reporting, and wiring settings for
   one zone.
-- **`vista_console.set_system_timing`** — exit delay, entry delay 1/2, and
+- **`envisalink_field_programmer.set_system_timing`** — exit delay, entry delay 1/2, and
   auto-stay-arm.
-- **`vista_console.program_function_key`** — assign the keypad's A/B/C/D
+- **`envisalink_field_programmer.program_function_key`** — assign the keypad's A/B/C/D
   function keys.
 
 This is deliberately a **curated subset**, not the full installer field set
@@ -116,7 +116,7 @@ badly, that can mean a physical power cycle. Two important specifics:
 Given that, this integration:
 
 - Routes **every** keystroke send — raw or guided — through a single guard
-  (`custom_components/vista_console/programming.py`) that refuses any
+  (`custom_components/envisalink_field_programmer/programming.py`) that refuses any
   sequence matching the Program Mode trigger unless explicitly confirmed.
 - Requires the three guided services' `confirm: true` field on every call
   (they always open Program Mode by design), plus an additional
@@ -160,19 +160,19 @@ concerned, that data doesn't come back over the wire.
 
 ## Services
 
-### `vista_console.program_zone`, `set_system_timing`, `program_function_key`
+### `envisalink_field_programmer.program_zone`, `set_system_timing`, `program_function_key`
 
 See [Field programming](#field-programming) above and `services.yaml` for
 full field references — each has several fields and is best driven from the
 Lovelace card's guided tabs rather than hand-written service calls.
 
-### `vista_console.toggle_zone_bypass`
+### `envisalink_field_programmer.toggle_zone_bypass`
 | field | required | description |
 |---|---|---|
 | `entry_id` | yes | Config entry that owns the zone |
 | `zone` | yes | Zone number (1-64) |
 
-### `vista_console.send_keystrokes`
+### `envisalink_field_programmer.send_keystrokes`
 | field | required | description |
 |---|---|---|
 | `entry_id` | yes | Config entry to send to |
@@ -185,9 +185,9 @@ Lovelace card's guided tabs rather than hand-written service calls.
 Auto-registered after setup. Add it to a dashboard:
 
 ```yaml
-type: custom:vista-console-card
+type: custom:envisalink-field-programmer-card
 title: Home Alarm
-alarm_entity: alarm_control_panel.vista_console_192_168_1_50_partition
+alarm_entity: alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition
 ```
 
 Zones and the system-trouble sensor are auto-detected from the same config
@@ -204,15 +204,15 @@ accent trio) for visual harmony with the hardware this talks to — not a
 reproduction of their branding, and it still respects Home Assistant's
 light/dark theme for borders, surfaces, and text.
 
-Card source lives in `www/vista-console-card/` (TypeScript + Lit, built
+Card source lives in `www/envisalink-field-programmer-card/` (TypeScript + Lit, built
 with esbuild). The build output is committed to
-`custom_components/vista_console/www/vista-console-card.js` — that's the
-file HACS/HA actually ships and serves; `www/vista-console-card/` at the
+`custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js` — that's the
+file HACS/HA actually ships and serves; `www/envisalink-field-programmer-card/` at the
 repo root is a dev workspace only, not something HACS installs. If you
 change the card:
 
 ```bash
-cd www/vista-console-card
+cd www/envisalink-field-programmer-card
 npm install
 npm run build
 ```

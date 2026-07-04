@@ -136,12 +136,12 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str):
     domain_data = hass.data.get(DOMAIN, {})
     coordinator = domain_data.get(entry_id)
     if coordinator is None:
-        raise HomeAssistantError(f"No Vista Console config entry with id {entry_id!r}")
+        raise HomeAssistantError(f"No Envisalink Field Programmer config entry with id {entry_id!r}")
     return coordinator
 
 
 def async_register_services(hass: HomeAssistant) -> None:
-    """Register the vista_console.* services, if not already registered."""
+    """Register the envisalink_field_programmer.* services, if not already registered."""
     if hass.services.has_service(DOMAIN, SERVICE_SEND_KEYSTROKES):
         return
 

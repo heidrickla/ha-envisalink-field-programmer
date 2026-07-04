@@ -1,9 +1,9 @@
 """Tests for folding TPIEvents into VistaState."""
 from __future__ import annotations
 
-from custom_components.vista_console.client import build_event
-from custom_components.vista_console.models import VistaState
-from custom_components.vista_console.state_machine import apply_event
+from custom_components.envisalink_field_programmer.client import build_event
+from custom_components.envisalink_field_programmer.models import VistaState
+from custom_components.envisalink_field_programmer.state_machine import apply_event
 
 
 def _state() -> VistaState:

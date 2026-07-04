@@ -1,4 +1,4 @@
-"""Config flow for Vista Console."""
+"""Config flow for Envisalink Field Programmer."""
 from __future__ import annotations
 
 import logging
@@ -61,7 +61,7 @@ async def _test_connection(host: str, port: int, password: str) -> None:
 
 
 class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Vista Console."""
+    """Handle a config flow for Envisalink Field Programmer."""
 
     VERSION = 1
 
@@ -86,7 +86,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             except OSError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error validating Vista Console connection")
+                _LOGGER.exception("Unexpected error validating Envisalink Field Programmer connection")
                 errors["base"] = "unknown"
             else:
                 await self.async_set_unique_id(
@@ -94,7 +94,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Vista Console ({user_input[CONF_HOST]})",
+                    title=f"Envisalink Field Programmer ({user_input[CONF_HOST]})",
                     data=user_input,
                 )
 

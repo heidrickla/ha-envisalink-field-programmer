@@ -103,6 +103,6 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         if not use_code:
             raise HomeAssistantError(
                 "No disarm code provided and no default user code configured for"
-                " this Vista Console entry."
+                " this integration's entry."
             )
         await self.coordinator.async_disarm(self._partition_number, use_code)

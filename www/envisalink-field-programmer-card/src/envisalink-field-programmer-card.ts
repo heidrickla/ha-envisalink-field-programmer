@@ -24,7 +24,7 @@ interface HomeAssistant {
   ) => Promise<unknown>;
 }
 
-interface VistaConsoleCardConfig {
+interface EnvisalinkFieldProgrammerCardConfig {
   type: string;
   title?: string;
   alarm_entity: string;
@@ -47,10 +47,10 @@ const ARM_STATE_LABELS: Record<string, string> = {
 
 type ProgrammingTab = "zone" | "timing" | "keys" | "raw";
 
-@customElement("vista-console-card")
-export class VistaConsoleCard extends LitElement {
+@customElement("envisalink-field-programmer-card")
+export class EnvisalinkFieldProgrammerCard extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
-  @state() private _config!: VistaConsoleCardConfig;
+  @state() private _config!: EnvisalinkFieldProgrammerCardConfig;
   @state() private _showDisarmInput = false;
   @state() private _disarmCode = "";
 
@@ -87,9 +87,9 @@ export class VistaConsoleCard extends LitElement {
   @state() private _rawKeys = "";
   @state() private _rawConfirm = false;
 
-  setConfig(config: VistaConsoleCardConfig): void {
+  setConfig(config: EnvisalinkFieldProgrammerCardConfig): void {
     if (!config.alarm_entity) {
-      throw new Error("vista-console-card: `alarm_entity` is required");
+      throw new Error("envisalink-field-programmer-card: `alarm_entity` is required");
     }
     this._config = { show_programming_console: true, ...config };
   }
@@ -98,7 +98,7 @@ export class VistaConsoleCard extends LitElement {
     return 6;
   }
 
-  static getStubConfig(): Partial<VistaConsoleCardConfig> {
+  static getStubConfig(): Partial<EnvisalinkFieldProgrammerCardConfig> {
     return { alarm_entity: "alarm_control_panel.partition" };
   }
 
@@ -154,7 +154,7 @@ export class VistaConsoleCard extends LitElement {
           <div class="header">
             <div class="title">
               <ha-icon icon="mdi:shield-home"></ha-icon>
-              <span>${this._config.title ?? "Vista Console"}</span>
+              <span>${this._config.title ?? "Security Console"}</span>
             </div>
             <div class="conn-dot ${alarm.state === "unavailable" ? "off" : "on"}"></div>
           </div>
@@ -429,7 +429,7 @@ export class VistaConsoleCard extends LitElement {
     }
     this._progBusy = true;
     try {
-      await this.hass.callService("vista_console", "program_zone", {
+      await this.hass.callService("envisalink_field_programmer", "program_zone", {
         entry_id: entryId,
         zone_number: Number(this._zpZone),
         zone_type: this._zpType,
@@ -518,7 +518,7 @@ export class VistaConsoleCard extends LitElement {
     }
     this._progBusy = true;
     try {
-      await this.hass.callService("vista_console", "set_system_timing", {
+      await this.hass.callService("envisalink_field_programmer", "set_system_timing", {
         entry_id: entryId,
         field: this._stField,
         value: Number(this._stValue),
@@ -597,7 +597,7 @@ export class VistaConsoleCard extends LitElement {
     }
     this._progBusy = true;
     try {
-      await this.hass.callService("vista_console", "program_function_key", {
+      await this.hass.callService("envisalink_field_programmer", "program_function_key", {
         entry_id: entryId,
         key: this._fkKey,
         partition: Number(this._fkPartition),
@@ -683,7 +683,7 @@ export class VistaConsoleCard extends LitElement {
     if (!window.confirm(`${action === "bypass" ? "Bypass" : "Un-bypass"} ${name}?`)) {
       return;
     }
-    await this.hass.callService("vista_console", "toggle_zone_bypass", {
+    await this.hass.callService("envisalink_field_programmer", "toggle_zone_bypass", {
       entry_id: entryId,
       zone: zone.attributes.zone_number,
     });
@@ -702,7 +702,7 @@ export class VistaConsoleCard extends LitElement {
     }
     this._progBusy = true;
     try {
-      await this.hass.callService("vista_console", "send_keystrokes", {
+      await this.hass.callService("envisalink_field_programmer", "send_keystrokes", {
         entry_id: entryId,
         partition: Number(this._rawPartition) || 1,
         keys: this._rawKeys,
@@ -997,13 +997,13 @@ export class VistaConsoleCard extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "vista-console-card": VistaConsoleCard;
+    "envisalink-field-programmer-card": EnvisalinkFieldProgrammerCard;
   }
 }
 
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
-  type: "vista-console-card",
-  name: "Vista Console Card",
-  description: "Modern control + guided field-programming console for a Vista panel bridged via Envisalink.",
+  type: "envisalink-field-programmer-card",
+  name: "Envisalink Field Programmer Card",
+  description: "Modern control + guided field-programming console for an alarm panel bridged via Envisalink.",
 });

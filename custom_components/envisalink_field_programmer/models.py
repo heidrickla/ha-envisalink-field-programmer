@@ -1,4 +1,4 @@
-"""Plain-data state models for Vista Console.
+"""Plain-data state models for Envisalink Field Programmer.
 
 These are intentionally framework-free (no Home Assistant imports) so they
 can be constructed and asserted against in unit tests without spinning up

@@ -10,11 +10,11 @@ send_keystrokes:
   fields:
     entry_id:
       name: Config entry
-      description: The Vista Console config entry to send this to.
+      description: The Envisalink Field Programmer config entry to send this to.
       required: true
       selector:
         config_entry:
-          integration: vista_console
+          integration: envisalink_field_programmer
     partition:
       name: Partition
       description: Partition number (1-8).
@@ -55,11 +55,11 @@ program_zone:
   fields:
     entry_id:
       name: Config entry
-      description: The Vista Console config entry that owns this zone.
+      description: The Envisalink Field Programmer config entry that owns this zone.
       required: true
       selector:
         config_entry:
-          integration: vista_console
+          integration: envisalink_field_programmer
     zone_number:
       name: Zone number
       description: Zone number (1-64).
@@ -143,11 +143,11 @@ set_system_timing:
   fields:
     entry_id:
       name: Config entry
-      description: The Vista Console config entry to program.
+      description: The Envisalink Field Programmer config entry to program.
       required: true
       selector:
         config_entry:
-          integration: vista_console
+          integration: envisalink_field_programmer
     field:
       name: Field
       description: Which timing field to set.
@@ -183,11 +183,11 @@ program_function_key:
   fields:
     entry_id:
       name: Config entry
-      description: The Vista Console config entry to program.
+      description: The Envisalink Field Programmer config entry to program.
       required: true
       selector:
         config_entry:
-          integration: vista_console
+          integration: envisalink_field_programmer
     key:
       name: Key
       description: Which function key to assign.
@@ -229,11 +229,11 @@ toggle_zone_bypass:
   fields:
     entry_id:
       name: Config entry
-      description: The Vista Console config entry that owns this zone.
+      description: The Envisalink Field Programmer config entry that owns this zone.
       required: true
       selector:
         config_entry:
-          integration: vista_console
+          integration: envisalink_field_programmer
     zone:
       name: Zone
       description: Zone number (1-64).

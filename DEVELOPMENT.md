@@ -28,14 +28,14 @@ pin to something with a `cp313` wheel, 3.13 should work fine too -- check
 
 Both are explained inline in the file itself, but the short version:
 
-1. **It mirrors `custom_components/vista_console/` into the test harness's
+1. **It mirrors `custom_components/envisalink_field_programmer/` into the test harness's
    own `testing_config/custom_components/` directory** before the session
    starts. `pytest-homeassistant-custom-component`'s `enable_custom_integrations`
    fixture only looks for custom integrations under its own bundled
    `testing_config/` path (see
    `pytest_homeassistant_custom_component.common.get_test_config_dir`), not
    under this repo's `custom_components/`. Without the mirror step, `hass`
-   fixture tests can't find/load `vista_console` at all.
+   fixture tests can't find/load `envisalink_field_programmer` at all.
 
 2. **It neuters `pytest_socket.disable_socket`** at module-import time. The
    harness calls `pytest_socket.disable_socket(allow_unix_socket=True)`
@@ -88,7 +88,7 @@ package. Getting it running locally was attempted via a sparse git clone:
 git clone --filter=blob:none --sparse --depth 1 https://github.com/home-assistant/core.git ha-core-sparse
 cd ha-core-sparse
 git sparse-checkout set --skip-checks script homeassistant/const.py homeassistant/__init__.py homeassistant/loader.py
-python -m script.hassfest --integration-path /path/to/vista-console/custom_components/vista_console
+python -m script.hassfest --integration-path /path/to/ha-envisalink-field-programmer/custom_components/envisalink_field_programmer
 ```
 
 This got hassfest's source without a full ~1GB checkout, but **failed with
@@ -108,14 +108,14 @@ pinned version to something closer to current `main`.
 ## Frontend card build
 
 ```bash
-cd www/vista-console-card
+cd www/envisalink-field-programmer-card
 npm install
-npm run build          # writes ../../custom_components/vista_console/www/vista-console-card.js
+npm run build          # writes ../../custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js
 npx tsc --noEmit        # type-check only, no output
 ```
 
 Note the build output path: it deliberately writes into
-`custom_components/vista_console/www/`, not a local `dist/` folder --  see
+`custom_components/envisalink_field_programmer/www/`, not a local `dist/` folder --  see
 `frontend.py`'s docstring for why (HACS only ships the
 `custom_components/<domain>` tree).
 

@@ -1,9 +1,9 @@
-"""Constants for the Vista Console (Envisalink bridge) integration."""
+"""Constants for the Envisalink Field Programmer integration."""
 from __future__ import annotations
 
 from typing import Final
 
-DOMAIN: Final = "vista_console"
+DOMAIN: Final = "envisalink_field_programmer"
 PLATFORMS: Final = ["alarm_control_panel", "binary_sensor", "sensor", "switch"]
 
 # Config entry keys

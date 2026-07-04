@@ -1,0 +1,12 @@
+{
+  "domain": "envisalink_field_programmer",
+  "name": "Envisalink Field Programmer",
+  "codeowners": ["@heidrickla"],
+  "config_flow": true,
+  "documentation": "https://github.com/heidrickla/ha-envisalink-field-programmer",
+  "issue_tracker": "https://github.com/heidrickla/ha-envisalink-field-programmer/issues",
+  "iot_class": "local_push",
+  "integration_type": "hub",
+  "requirements": [],
+  "version": "0.1.0"
+}

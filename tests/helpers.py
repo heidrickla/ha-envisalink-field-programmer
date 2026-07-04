@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
-from custom_components.vista_console.client import compute_checksum
+from custom_components.envisalink_field_programmer.client import compute_checksum
 
 
 def frame(code: str, data: str = "") -> bytes:

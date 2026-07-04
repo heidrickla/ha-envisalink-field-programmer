@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: www/vista-console-card
+        working-directory: www/envisalink-field-programmer-card
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,4 +51,4 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build
       - name: Fail if built card is out of date
-        run: git diff --exit-code -- ../../custom_components/vista_console/www/vista-console-card.js
+        run: git diff --exit-code -- ../../custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js
