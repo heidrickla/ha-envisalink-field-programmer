@@ -237,6 +237,17 @@ npm install
 npm run build
 ```
 
+## Troubleshooting
+
+Hit "Could not connect", a config entry that fails to set up, the card
+editor saying "Custom element doesn't exist", or a card that looks like a
+plain default tile instead of the custom design? See
+**[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — it covers the real issues
+hit setting this up (connection errors including the single-TPI-client
+limit, a Home Assistant update breaking compatibility, browser-cache
+issues with the Lovelace card, and what to check when field programming
+doesn't seem to have done anything).
+
 ## What's verified vs. what needs your hardware
 
 **Protocol correction (2026-07-04):** an earlier version of this integration
