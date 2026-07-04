@@ -250,10 +250,14 @@ doesn't seem to have done anything).
 
 ## What's verified vs. what needs your hardware
 
-**Protocol correction (2026-07-04):** an earlier version of this integration
-implemented the wrong wire protocol entirely — the "EnvisaLink TPI
-Programmer's Document v1.08" PDF this was originally built from (checksum
-framing, 3-digit numeric command codes) does not match what a real EVL-4 +
+**Protocol correction (2026-07-04):** to be clear about what did and didn't
+change here — this integration still talks **TPI** (Third Party Interface),
+the same Envisalink protocol on the same port 4025 it always has. What was
+wrong wasn't the protocol's name or which system it connects to, it was
+this integration's understanding of TPI's actual **wire-level framing**. An
+earlier version was built from the "EnvisaLink TPI Programmer's Document
+v1.08" PDF (checksum framing, 3-digit numeric command codes), which
+describes a real but different variant of TPI than what a real EVL-4 +
 VISTA-21iP actually speaks. This was caught during real-hardware testing
 (a `checksum mismatch for 'Login:'` error in the HA core logs) and confirmed
 by reading raw socket traffic and the actively maintained `pyenvisalink`
