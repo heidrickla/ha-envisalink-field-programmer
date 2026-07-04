@@ -1,0 +1,17 @@
+{
+  "name": "vista-console-card",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modern Lovelace card for the Vista Console Home Assistant integration",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch"
+  },
+  "dependencies": {
+    "lit": "^3.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
