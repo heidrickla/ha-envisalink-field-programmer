@@ -1,0 +1,63 @@
+send_keystrokes:
+  name: Send keystrokes
+  description: >-
+    Send a raw ECP keystroke string to a partition, as if typed on a keypad.
+    Refused if the sequence would enter installer programming mode (*8)
+    unless confirm_installer_risk is set to true. Read the integration's
+    README safety section before using this for anything beyond zone
+    bypass-style sequences.
+  fields:
+    entry_id:
+      name: Config entry
+      description: The Vista Console config entry to send this to.
+      required: true
+      selector:
+        config_entry:
+          integration: vista_console
+    partition:
+      name: Partition
+      description: Partition number (1-8).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 8
+          mode: box
+    keys:
+      name: Keys
+      description: Keystrokes to send (digits, * and # only).
+      required: true
+      selector:
+        text:
+    confirm_installer_risk:
+      name: Confirm installer risk
+      description: >-
+        Must be true to send a sequence containing *8 (installer mode
+        entry). Only set this if you understand the panel can lock out
+        until power-cycled, and that installer mode governs fire-zone and
+        UL-listing-relevant settings.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+toggle_zone_bypass:
+  name: Toggle zone bypass
+  description: Bypass or un-bypass a single zone using the standard *1zz# sequence.
+  fields:
+    entry_id:
+      name: Config entry
+      description: The Vista Console config entry that owns this zone.
+      required: true
+      selector:
+        config_entry:
+          integration: vista_console
+    zone:
+      name: Zone
+      description: Zone number (1-64).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 64
+          mode: box
