@@ -4,10 +4,10 @@ from __future__ import annotations
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
     CodeFormat,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_ALARM_ARMING, STATE_ALARM_DISARMED, STATE_ALARM_TRIGGERED
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -61,19 +61,19 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         return self.coordinator.data.partition(self._partition_number)
 
     @property
-    def alarm_state(self) -> str | None:
+    def alarm_state(self) -> AlarmControlPanelState | None:
         # Note: there is no "pending" (entry delay) state here -- this
         # protocol's alpha-text parsing for entry delay isn't reliable
         # enough to port (see state_machine.py's module docstring; even the
         # reference `pyenvisalink` implementation leaves it unhandled).
         partition = self._partition
         if partition.alarm:
-            return STATE_ALARM_TRIGGERED
+            return AlarmControlPanelState.TRIGGERED
         if partition.exit_delay:
-            return STATE_ALARM_ARMING
+            return AlarmControlPanelState.ARMING
         if partition.armed:
-            return partition.arm_state
-        return STATE_ALARM_DISARMED
+            return AlarmControlPanelState(partition.arm_state)
+        return AlarmControlPanelState.DISARMED
 
     @property
     def extra_state_attributes(self) -> dict:
