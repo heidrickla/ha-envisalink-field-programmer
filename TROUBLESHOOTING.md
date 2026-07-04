@@ -12,22 +12,50 @@ section's diagnostics download for a full state snapshot to attach too.
 
 ### "Could not connect to the Envisalink at that host/port"
 
-Two different causes produce this exact same message:
+Two different causes produce this exact same message — check both before
+assuming your host/port/password are wrong:
 
 1. **Wrong host/IP or port.** Default TPI port is 4025. Confirm the
    Envisalink's IP hasn't changed (check your router's DHCP leases if it's
    not a static/reserved address).
-2. **Another integration or app already holds the TPI connection.** The
-   Envisalink's TPI server only accepts **one client connection at a
-   time** — this is a hardware/firmware limit, not a bug. If
-   `envisalink_new` (or anything else that talks TPI to this device) is
-   already set up and enabled, this integration cannot connect until you
-   disable that other entry. See the
-   [Installation](README.md#the-envisalink-only-accepts-one-tpi-client-at-a-time)
-   section for the full explanation. **Diagnostic shortcut**: Settings →
-   Devices & Services → find any other Envisalink integration → confirm
-   whether it's enabled. If it is, that's almost certainly the actual
-   cause, no matter how many times you double-check the password.
+2. **The single-TPI-client-instance gotcha** (see below) — by far the more
+   common cause once you've confirmed the host/port are right.
+
+### Gotcha: the Envisalink only accepts one TPI client at a time, ever
+
+This is the single biggest time-sink during this integration's own
+real-hardware setup, so it gets called out on its own. The Envisalink's
+TPI server (port 4025) is a **hardware/firmware limit, not a bug in any
+integration**: it accepts exactly **one** client connection at a time,
+full stop. It doesn't queue a second connection, doesn't share the feed —
+it just refuses the new connection outright, which surfaces here as the
+generic "Could not connect to the Envisalink at that host/port" error,
+indistinguishable from a genuinely wrong host/port.
+
+This means:
+
+- If `envisalink_new`, this integration, the Envisalink's own mobile app,
+  Total Connect, or literally anything else is already holding a TPI
+  session to this device, nothing else can connect until that one
+  disconnects.
+- **You cannot run this integration and `envisalink_new` (or any other
+  TPI-based tool) at the same time against the same Envisalink**, full
+  stop — not "shouldn't", genuinely *can't*. Decide which one you want
+  active day-to-day (e.g. `envisalink_new` for daily arm/disarm/status,
+  this one only when you need to do field programming) and disable the
+  other rather than trying to have both enabled.
+- Disabling one to enable the other is a manual toggle, not automatic —
+  if you disable `envisalink_new` to test this integration, remember it's
+  still disabled afterward; nothing re-enables it for you.
+
+**Diagnostic shortcut**: Settings → Devices & Services → find any other
+Envisalink integration on this Home Assistant instance → confirm whether
+it's enabled. If it is, that's almost certainly the actual cause of a
+"cannot connect" error here, no matter how many times you re-check the
+password. See
+[Installation](README.md#the-envisalink-only-accepts-one-tpi-client-at-a-time)
+in the README for where this was originally confirmed against real
+hardware.
 
 ### "The Envisalink rejected that password"
 
@@ -58,12 +86,12 @@ need.
 initial setup**: pulling the password directly from that file and
 confirming it was byte-for-byte correct, but the connection *still*
 failed. If that happens to you, don't keep re-checking the password —
-look at the other two causes on this page first (single-TPI-client limit,
-or check the log for a real traceback rather than just the generic
-"rejected" message). In this integration's case specifically, the
-password was correct the entire time; the actual bug was that the client
-was speaking the wrong wire protocol entirely, unrelated to credentials
-at all — see the "Protocol correction" note in
+check the single-TPI-client-instance gotcha above first, and if that's
+not it either, get the actual traceback from the log rather than trusting
+the generic "rejected"/"cannot connect" message. In this integration's
+case specifically, the password was correct the entire time; the actual
+bug was that the client was speaking the wrong wire protocol entirely,
+unrelated to credentials at all — see the "Protocol correction" note in
 [README.md](README.md#whats-verified-vs-what-needs-your-hardware) if
 you're curious how deep that rabbit hole went.
 
