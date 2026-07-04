@@ -23,11 +23,11 @@ var Te=Object.defineProperty;var Ce=Object.getOwnPropertyDescriptor;var h=(r,e,t
             ${this._renderActions(i)}
           </div>
 
+          ${this._config.show_programming_console?this._renderFieldProgrammingSection():d}
+
           ${n.length?l`<div class="zones">
                 ${n.map(o=>this._renderZone(o))}
               </div>`:d}
-
-          ${this._config.show_programming_console?this._renderFieldProgrammingSection():d}
         </div>
       </ha-card>
     `}_renderActions(t){return t==="disarmed"?l`<div class="actions">
