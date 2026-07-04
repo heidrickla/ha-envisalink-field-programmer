@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Envisalink",
+        "description": "Enter the connection details for your Envisalink EVL-3/EVL-4 module. The password is the same one used to log into the Envisalink's local web page.",
+        "data": {
+          "host": "Host or IP address",
+          "port": "Port",
+          "password": "Envisalink password",
+          "user_code": "Default disarm user code (optional)",
+          "num_partitions": "Number of partitions",
+          "num_zones": "Number of zones"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the Envisalink at that host/port.",
+      "invalid_auth": "The Envisalink rejected that password.",
+      "unknown": "Unexpected error while connecting."
+    },
+    "abort": {
+      "already_configured": "This Envisalink is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "user_code": "Default disarm user code",
+          "keepalive_interval": "Keepalive poll interval (seconds)"
+        }
+      }
+    }
+  }
+}
