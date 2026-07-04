@@ -516,12 +516,14 @@ var Te=Object.defineProperty;var Ce=Object.getOwnPropertyDescriptor;var h=(r,e,t
       gap: 6px;
       cursor: pointer;
       font-size: 0.85rem;
+      margin-bottom: 14px;
     }
     .programming {
       border: 1px solid var(--vc-border);
       border-radius: 12px;
       padding: 12px;
       background: rgba(0, 0, 0, 0.15);
+      margin-bottom: 14px;
     }
     .tabs {
       display: flex;
