@@ -26,7 +26,7 @@ async def fake_server():
     await server.stop()
 
 
-async def test_successful_login_and_status_report(fake_server):
+async def test_successful_login_and_keepalive(fake_server):
     events = []
     client = EnvisalinkClient(
         "127.0.0.1", fake_server.port, "user", event_callback=events.append
@@ -34,9 +34,9 @@ async def test_successful_login_and_status_report(fake_server):
     await client.connect()
     try:
         assert client.connected
-        await client.status_report()
+        await client.keep_alive()
         await asyncio.sleep(0.05)
-        assert ("001", "") in fake_server.received
+        assert ("00", "") in fake_server.received
     finally:
         await client.disconnect()
 
@@ -64,9 +64,9 @@ async def test_events_are_delivered_to_callback(fake_server):
     )
     await client.connect()
     try:
-        await fake_server.push("650", "1")
+        await fake_server.push("00", "1,1020,0,08,ready")
         await asyncio.sleep(0.05)
-        assert any(e.code == "650" and e.partition == 1 for e in events)
+        assert any(e.code == "%00" and e.fields.get("partition") == "1" for e in events)
     finally:
         await client.disconnect()
 
@@ -86,15 +86,28 @@ async def test_disconnect_callback_invoked_on_server_close(fake_server):
     assert len(disconnects) == 1
 
 
-async def test_send_keystrokes_chunks_into_frames_of_six(fake_server):
+async def test_send_keystrokes_sends_one_character_per_frame(fake_server):
     client = EnvisalinkClient(
         "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
     )
     await client.connect()
     try:
-        await client.send_keystrokes(1, "1234567890")
+        await client.send_keystrokes(1, "1234")
         await asyncio.sleep(0.05)
-        keystroke_frames = [d for c, d in fake_server.received if c == "071"]
-        assert keystroke_frames == ["1123456", "17890"]
+        keypress_frames = [d for c, d in fake_server.received if c == "03"]
+        assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]
+    finally:
+        await client.disconnect()
+
+
+async def test_dump_zone_timers_sends_expected_command(fake_server):
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
+    await client.connect()
+    try:
+        await client.dump_zone_timers()
+        await asyncio.sleep(0.05)
+        assert ("02", "") in fake_server.received
     finally:
         await client.disconnect()

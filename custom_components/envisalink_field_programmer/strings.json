@@ -8,7 +8,7 @@
           "host": "Host or IP address",
           "port": "Port",
           "password": "Envisalink password",
-          "user_code": "Default disarm user code (optional)",
+          "user_code": "Default user code for arming/disarming (optional)",
           "num_partitions": "Number of partitions",
           "num_zones": "Number of zones"
         }
@@ -26,9 +26,9 @@
   "options": {
     "step": {
       "init": {
-        "description": "The installer code is optional and only needed for the field-programming console (zone types, timing, function keys). Leave it blank to keep programming disabled -- arming, disarming, status, and zone bypass never need it.",
+        "description": "The installer code is optional and only needed for the field-programming console (zone types, timing, function keys). Leave it blank to keep programming disabled -- zone bypass never needs it. A real Vista panel arms and disarms by typing a user code, so set a default user code here if you don't want to pass one on every arm/disarm call.",
         "data": {
-          "user_code": "Default disarm user code",
+          "user_code": "Default user code for arming/disarming",
           "installer_code": "Installer code (enables field programming)",
           "keepalive_interval": "Keepalive poll interval (seconds)"
         }

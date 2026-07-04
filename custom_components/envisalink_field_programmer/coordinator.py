@@ -2,9 +2,14 @@
 
 This is a push-driven (``iot_class: local_push``) coordinator: instead of
 polling on an interval, it keeps a long-lived TCP session open and updates
-listeners whenever the Envisalink reports a state change. A lightweight
-poll (TPI command 000) is still sent on ``keepalive_interval`` purely to
-detect a silently-dead connection and trigger reconnection.
+listeners whenever the Envisalink reports a state change. Two things are
+still sent on a timer, since the protocol offers no better alternative:
+
+  * a keepalive poll, purely to detect a silently-dead connection and
+    trigger reconnection.
+  * a zone timer dump request (``%FF``), the only authoritative source of
+    zone open/closed state for a Honeywell panel over this protocol (see
+    state_machine.py) -- the panel doesn't push zone changes on its own.
 """
 from __future__ import annotations
 
@@ -22,13 +27,12 @@ from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_BACKOFF_MIN,
+    ZONE_TIMER_DUMP_INTERVAL,
 )
 from .models import VistaState
 from .state_machine import apply_event
 
 _LOGGER = logging.getLogger(__name__)
-
-_CODE_REQUEST_CODES = {"900", "921", "922"}
 
 
 class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
@@ -71,11 +75,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             disconnect_callback=self._handle_disconnect,
         )
 
-        self._keepalive_task: asyncio.Task | None = None
+        self._periodic_task: asyncio.Task | None = None
         self._reconnect_task: asyncio.Task | None = None
         self._backoff = RECONNECT_BACKOFF_MIN
         self._shutting_down = False
-        self._code_request_waiters: list[asyncio.Future[str]] = []
         self.last_event: TPIEvent | None = None
         self._remove_stop_listener: Callable[[], None] | None = None
 
@@ -83,8 +86,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         """Establish the initial connection. Raises on failure."""
         await self.client.connect()
         self.data.system.connected = True
-        await self.client.status_report()
-        self._keepalive_task = self.hass.loop.create_task(self._keepalive_loop())
+        await self.client.dump_zone_timers()
+        self._periodic_task = self.hass.loop.create_task(self._periodic_loop())
         # Belt-and-suspenders: async_shutdown() is normally reached via
         # async_unload_entry(), but that isn't guaranteed on every teardown
         # path (e.g. a core stop without an explicit entry unload). Without
@@ -102,7 +105,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         if self._remove_stop_listener is not None:
             self._remove_stop_listener()
             self._remove_stop_listener = None
-        for task in (self._keepalive_task, self._reconnect_task):
+        for task in (self._periodic_task, self._reconnect_task):
             if task is not None:
                 task.cancel()
         await self.client.disconnect()
@@ -115,8 +118,6 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
     def _handle_event(self, event: TPIEvent) -> None:
         self.last_event = event
         apply_event(self.data, event)
-        if event.code in _CODE_REQUEST_CODES:
-            self._resolve_code_waiters(event.code)
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:
@@ -127,15 +128,30 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         _LOGGER.warning("Envisalink Field Programmer lost connection to %s: %s", self._host, error)
         self._reconnect_task = self.hass.loop.create_task(self._reconnect_loop())
 
-    async def _keepalive_loop(self) -> None:
+    async def _periodic_loop(self) -> None:
+        """Keepalive + zone timer dump, both on their own cadence."""
         try:
+            next_keepalive = self._keepalive_interval
+            next_zone_dump = ZONE_TIMER_DUMP_INTERVAL
+            tick = min(self._keepalive_interval, ZONE_TIMER_DUMP_INTERVAL)
             while True:
-                await asyncio.sleep(self._keepalive_interval)
-                if self.client.connected:
+                await asyncio.sleep(tick)
+                next_keepalive -= tick
+                next_zone_dump -= tick
+                if not self.client.connected:
+                    continue
+                if next_keepalive <= 0:
+                    next_keepalive = self._keepalive_interval
                     try:
-                        await self.client.poll()
+                        await self.client.keep_alive()
                     except Exception:  # noqa: BLE001
                         _LOGGER.debug("Keepalive poll failed", exc_info=True)
+                if next_zone_dump <= 0:
+                    next_zone_dump = ZONE_TIMER_DUMP_INTERVAL
+                    try:
+                        await self.client.dump_zone_timers()
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.debug("Zone timer dump request failed", exc_info=True)
         except asyncio.CancelledError:
             raise
 
@@ -151,51 +167,52 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     continue
                 self._backoff = RECONNECT_BACKOFF_MIN
                 self.data.system.connected = True
-                await self.client.status_report()
+                await self.client.dump_zone_timers()
                 self.async_set_updated_data(self.data)
                 return
         except asyncio.CancelledError:
             raise
 
-    def _resolve_code_waiters(self, code: str) -> None:
-        waiters, self._code_request_waiters = self._code_request_waiters, []
-        for waiter in waiters:
-            if not waiter.done():
-                waiter.set_result(code)
-
-    async def async_wait_for_code_request(self, timeout: float = 10) -> str:
-        """Block until the panel asks us for a code (900/921/922), or time out."""
-        waiter: asyncio.Future[str] = self.hass.loop.create_future()
-        self._code_request_waiters.append(waiter)
-        try:
-            return await asyncio.wait_for(waiter, timeout=timeout)
-        finally:
-            if waiter in self._code_request_waiters:
-                self._code_request_waiters.remove(waiter)
-
     # -- High level actions used by entity platforms -----------------------
 
-    async def async_arm_away(self, partition: int) -> None:
-        await self.client.arm_away(partition)
+    async def async_arm_away(self, partition: int, code: str) -> None:
+        await self._async_send_arm_disarm_keystrokes(partition, f"{code}2")
 
-    async def async_arm_stay(self, partition: int) -> None:
-        await self.client.arm_stay(partition)
+    async def async_arm_stay(self, partition: int, code: str) -> None:
+        await self._async_send_arm_disarm_keystrokes(partition, f"{code}3")
 
-    async def async_arm_night(self, partition: int) -> None:
-        await self.client.arm_zero_entry(partition)
+    async def async_arm_night(self, partition: int, code: str) -> None:
+        await self._async_send_arm_disarm_keystrokes(partition, f"{code}33")
 
     async def async_disarm(self, partition: int, code: str) -> None:
-        await self.client.disarm(partition, code)
+        await self._async_send_arm_disarm_keystrokes(partition, f"{code}1")
+
+    async def _async_send_arm_disarm_keystrokes(self, partition: int, keys: str) -> None:
+        """Arm/disarm by typing the user code + mode digit(s), like a real keypad.
+
+        Routed through the same guardrail as every other keystroke send
+        (see programming.py) for defense in depth, even though a plain
+        code+digit sequence is extremely unlikely to collide with the
+        Program Mode trigger pattern it guards against.
+        """
+        from .programming import async_send_guarded_keystrokes  # avoid import cycle
+
+        await async_send_guarded_keystrokes(
+            self.client, partition, keys, installer_code=self.installer_code
+        )
 
     async def async_toggle_zone_bypass(self, zone_number: int) -> None:
         """Toggle bypass on a single zone via the standard *1zz# keypad sequence.
 
-        Routed through the same guardrail every other keystroke send goes
-        through (see programming.py), even though this particular sequence
-        is an ordinary end-user operation with no installer-mode risk.
+        The real protocol has no acknowledgement that ties back to which
+        zone got bypassed, so the resulting ``bypassed`` flag is set
+        optimistically here and only cleared later once the partition's
+        bypass icon flag reports no bypass active (see state_machine.py).
         """
         from .programming import async_send_guarded_keystrokes  # avoid import cycle
 
         zone = self.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
         await async_send_guarded_keystrokes(self.client, zone.partition, keys)
+        zone.bypassed = not zone.bypassed
+        self.async_set_updated_data(self.data)

@@ -66,8 +66,8 @@ async def test_program_zone_sends_expected_keystrokes(hass, fake_server):
         blocking=True,
     )
     await asyncio.sleep(0.05)
-    keystroke_frames = [d for c, d in fake_server.received if c == "071"]
-    full_sent = "".join(frame[1:] for frame in keystroke_frames)  # strip partition digit
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
+    full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)  # strip partition prefix
     # 4112800 (enter Program Mode) + *56 zone menu: confirm=no, zone 03,
     # accept summary, type=03 (Perimeter), partition=1, report=on,
     # hardwire=EOL(default), response=350ms(default), alpha=no, exit zone
@@ -129,7 +129,7 @@ async def test_program_zone_fire_type_succeeds_when_confirmed(hass, fake_server)
         blocking=True,
     )
     await asyncio.sleep(0.05)
-    keystroke_frames = [d for c, d in fake_server.received if c == "071"]
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
     assert keystroke_frames  # something was sent
     await _unload(hass, entry)
 
@@ -166,8 +166,8 @@ async def test_set_system_timing_sends_expected_keystrokes(hass, fake_server):
         blocking=True,
     )
     await asyncio.sleep(0.05)
-    keystroke_frames = [d for c, d in fake_server.received if c == "071"]
-    full_sent = "".join(frame[1:] for frame in keystroke_frames)
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
+    full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)
     assert full_sent == "4112800*3445**99"
     await _unload(hass, entry)
 
@@ -187,7 +187,7 @@ async def test_program_function_key_sends_expected_keystrokes(hass, fake_server)
         blocking=True,
     )
     await asyncio.sleep(0.05)
-    keystroke_frames = [d for c, d in fake_server.received if c == "071"]
-    full_sent = "".join(frame[1:] for frame in keystroke_frames)
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
+    full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)
     assert full_sent == "4112800*571*1*03*0*00*99"
     await _unload(hass, entry)

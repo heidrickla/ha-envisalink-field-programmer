@@ -75,7 +75,8 @@ async def test_entities_created_and_default_state(hass, fake_server):
 
 async def test_arm_event_updates_alarm_entity(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
-    await fake_server.push("652", "10")  # partition 1, mode 0 = armed away
+    # Icon LED bits: armed_away (bit 2) + ac_present (bit 3) = 0xC.
+    await fake_server.push("00", "1,c,0,00,ARMED AWAY")
     await asyncio.sleep(0.1)
     await hass.async_block_till_done()
 
@@ -87,7 +88,10 @@ async def test_arm_event_updates_alarm_entity(hass, fake_server):
 
 async def test_zone_open_event_updates_binary_sensor(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
-    await fake_server.push("609", "002")  # zone 2 open
+    # Zone timer dump, 4 zones: zone 2's chunk (FEFF, little-endian) decodes
+    # to 1 tick since last fault -- recently faulted, so considered open.
+    hex_string = "0000" + "FEFF" + "0000" + "0000"
+    await fake_server.push("FF", hex_string)
     await asyncio.sleep(0.1)
     await hass.async_block_till_done()
 
