@@ -201,6 +201,28 @@ async def test_program_zone_unverified_model_proceeds_when_acked(hass, fake_serv
     await _unload(hass, entry)
 
 
+async def test_guided_programming_refused_for_dsc(hass, fake_server):
+    # DSC PowerSeries uses positional whole-section programming, not the
+    # VISTA *56 per-zone menu, so the guided service refuses outright rather
+    # than building meaningless (and potentially destructive) keystrokes.
+    entry = await _setup_entry(hass, fake_server, panel_model="dsc_pc1864")
+    with pytest.raises(Exception, match="not available"):
+        await hass.services.async_call(
+            DOMAIN,
+            "program_zone",
+            {
+                "entry_id": entry.entry_id,
+                "zone_number": 3,
+                "zone_type": 3,
+                "partition": 1,
+                "confirm": True,
+                "confirm_unverified_model": True,
+            },
+            blocking=True,
+        )
+    await _unload(hass, entry)
+
+
 async def test_set_system_timing_sends_expected_keystrokes(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
     await hass.services.async_call(

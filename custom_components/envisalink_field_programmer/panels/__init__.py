@@ -16,14 +16,16 @@ from .base import (
     Verification,
     ZoneTypeDef,
 )
+from .dsc import DSC_DIALECT, DSC_MODELS
 from .vista import VISTA_DIALECT, VISTA_MODELS
 
-MODELS: tuple[PanelModel, ...] = VISTA_MODELS
+MODELS: tuple[PanelModel, ...] = VISTA_MODELS + DSC_MODELS
 
 DEFAULT_MODEL_ID = "vista_21ip"
 
 _DIALECTS: dict[PanelFamily, PanelDialect] = {
     PanelFamily.VISTA: VISTA_DIALECT,
+    PanelFamily.DSC_POWERSERIES: DSC_DIALECT,
 }
 
 # Build a lookup covering canonical ids and every alias, case/spacing tolerant.

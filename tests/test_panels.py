@@ -1,9 +1,8 @@
 """Tests for the panel-model + dialect abstraction (pure logic, no HA).
 
-Covers the registry lookup, the VISTA family dialect's Program-Mode grammar
-and installer-mode detection, and the honesty invariants (verification levels,
-which family supports guided per-zone programming). DSC-family cases are added
-alongside the DSC dialect.
+Covers the registry lookup, both family dialects' Program-Mode grammar and
+installer-mode detection, and the honesty invariants (verification levels,
+which family supports guided per-zone programming).
 """
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ from custom_components.envisalink_field_programmer.panels import (
     get_model,
     model_choices,
 )
+from custom_components.envisalink_field_programmer.panels.dsc import DSC_DIALECT
 from custom_components.envisalink_field_programmer.panels.vista import VISTA_DIALECT
 from custom_components.envisalink_field_programmer.programming import (
     KeystrokeGuardError,
@@ -36,6 +36,7 @@ def test_get_model_resolves_canonical_alias_and_normalized():
     assert get_model("vista_20p").model_id == "vista_20p"
     assert get_model("20p").model_id == "vista_20p"  # alias
     assert get_model("VISTA-20P").model_id == "vista_20p"  # normalized
+    assert get_model("pc1864").model_id == "dsc_pc1864"  # DSC alias
 
 
 def test_get_model_unknown_raises():
@@ -82,14 +83,54 @@ def test_vista_zone_types_flag_life_safety():
     assert 3 not in codes
 
 
-# --- guard is family-aware (Vista side) -----------------------------------
+# --- DSC dialect ----------------------------------------------------------
 
-def test_guard_blocks_vista_program_mode_under_vista_dialect():
+def test_dsc_dialect_family_and_no_guided_support():
+    assert DSC_DIALECT.family == PanelFamily.DSC_POWERSERIES
+    # DSC uses positional whole-section programming; the VISTA-shaped guided
+    # per-zone flow deliberately does not drive it.
+    assert DSC_DIALECT.supports_guided_field_programming is False
+    assert DSC_DIALECT.guided_field_programming_note
+
+
+def test_dsc_program_mode_wrapper():
+    assert DSC_DIALECT.program_mode_wrapper("5555", "001") == "*85555001##"
+
+
+def test_dsc_opens_program_mode_detects_star_8_code():
+    assert DSC_DIALECT.opens_program_mode("*85555001", "5555") is True
+    assert DSC_DIALECT.opens_program_mode("*89999", None) is True  # generic
+    # VISTA's <code>800 is NOT how DSC opens programming.
+    assert DSC_DIALECT.opens_program_mode("4112800*56", None) is False
+
+
+def test_dsc_zone_types_flag_fire_and_co():
+    codes = DSC_DIALECT.life_safety_zone_codes()
+    assert 9 in codes  # 24-hour fire
+    assert 13 in codes  # CO
+    assert 3 not in codes  # instant/perimeter
+
+
+def test_all_dsc_models_are_provisional():
+    dsc = [m for m in MODELS if m.family == PanelFamily.DSC_POWERSERIES]
+    assert dsc  # there are some
+    assert all(m.verification == Verification.PROVISIONAL for m in dsc)
+
+
+# --- guard is family-aware ------------------------------------------------
+
+def test_guard_blocks_dsc_program_mode_only_under_dsc_dialect():
+    # Under the DSC dialect, *8<code> is refused...
+    with pytest.raises(KeystrokeGuardError):
+        validate_keystrokes("*85555001", dialect=DSC_DIALECT)
+    # ...but the same string under the (default) VISTA dialect is not, because
+    # Vista has no *8 installer menu at all.
+    validate_keystrokes("*85555001")  # must not raise
+
+
+def test_guard_blocks_vista_program_mode_only_under_vista_dialect():
+    # Vista's <code>800 is refused under Vista...
     with pytest.raises(KeystrokeGuardError):
         validate_keystrokes("4112800*56", dialect=VISTA_DIALECT)
-
-
-def test_guard_leaves_dsc_style_star8_alone_under_vista():
-    # Vista has no *8 installer menu at all, so a *8... sequence must not be
-    # treated as installer-mode entry by the (default) Vista guard.
-    validate_keystrokes("*85555001")  # must not raise
+    # ...but is not the DSC trigger, so DSC's guard leaves it alone.
+    validate_keystrokes("4112800*56", dialect=DSC_DIALECT)  # must not raise
