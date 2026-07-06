@@ -176,22 +176,27 @@ def _dsc(model_id, label, max_zones, max_partitions, notes, aliases=()):
 # still awaiting a per-panel check. The whole DSC family stays PROVISIONAL
 # because guided programming is disabled for it regardless (see the dialect).
 DSC_MODELS: tuple[PanelModel, ...] = (
-    _dsc("dsc_pc1555", "DSC PC1555", 8, 2,
-         "Entry-level PowerSeries; same *8 section grammar. Capacity from general "
-         "knowledge (clean guide text not obtained) -- confirm per panel.",
+    _dsc("dsc_pc1555", "DSC PC1555", 32, 2,
+         "PowerSeries 6-32 zone panel (max corrected from 8 to 32, 2026-07-05, "
+         "per the official 'PC1555 ... PowerSeries 6-32 Zone Control Panel' "
+         "manual title); same *8 section grammar as the PC1555MX.",
          aliases=("pc1555", "1555")),
     _dsc("dsc_pc1555mx", "DSC PC1555MX", 32, 2,
          "Grammar + expandable-to-32-zone capacity guide-confirmed 2026-07-05 "
          "(PC1555MX Installation Manual): [*][8][code] entry, sections "
          "[001]-[004] zone definitions, [005] timing.",
          aliases=("pc1555mx", "1555mx")),
-    _dsc("dsc_pc1575", "DSC PC1575", 6, 2,
-         "PowerSeries 6-zone panel (max_zones corrected from 32 to 6, 2026-07-05). "
-         "Same *8 section grammar. Partition count not yet guide-confirmed.",
+    _dsc("dsc_pc1575", "DSC PC1575", 6, 1,
+         "PowerSeries 6-zone single-partition panel, guide-confirmed 2026-07-05 "
+         "(official JCI PC1575 v1.0 Installation Manual): 6 zones, *8 section "
+         "grammar, section 5.2 zone definitions. Corrected from 32 zones / 2 "
+         "partitions.",
          aliases=("pc1575", "1575")),
     _dsc("dsc_pc5010", "DSC PC5010 (Power832)", 32, 2,
-         "Power832. Same *8 section grammar. The obtained guide PDF is a scanned "
-         "image (no extractable text) -- capacity is from general knowledge.",
+         "Power832. 32 zones / 2 partitions confirmed 2026-07-05 (Power832 "
+         "instruction manual); same *8 section grammar. The installer-manual "
+         "PDFs found are scanned images, so the zone-definition table is taken "
+         "from the newer PowerSeries guides.",
          aliases=("pc5010", "5010", "power832", "832")),
     _dsc("dsc_pc5020", "DSC PC5020 (Power864)", 64, 8,
          "Power864. 64 zones / 8 partitions guide-confirmed 2026-07-05 (PC5020 "
