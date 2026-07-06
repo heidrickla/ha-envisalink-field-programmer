@@ -174,6 +174,65 @@ class DscPowerSeriesDialect:
 DSC_DIALECT = DscPowerSeriesDialect()
 
 
+# --- DSC section-programming keystroke builders ---------------------------
+# Pure, deterministic functions that generate the *inner* section keystrokes
+# (not the *8<code>...## wrapper -- that's DscPowerSeriesDialect.program_mode_
+# wrapper). Built from the verified DSC PowerSeries grammar (sections [001]-[004]
+# zone definitions, [005] partition timing). They are UNIT-TESTED building blocks
+# and are deliberately NOT wired to any service: the client transport speaks
+# Honeywell TPI, so there is no path to actually send these to a DSC panel yet.
+# When DSC transport is added, these become the keystroke source for guided DSC
+# programming (which must still be verified against real hardware first).
+
+ZONES_PER_SECTION = 8  # DSC zone-definition sections hold 8 zones each
+
+
+def build_dsc_zone_definitions(section: int, zone_type_codes: list[int]) -> str:
+    """Build a DSC zone-definition section ([001]-[008]) keystroke string.
+
+    DSC zone definitions are *positional*: section [001] holds zones 1-8,
+    [002] holds 9-16, and so on, each zone a 2-digit type code keyed
+    back-to-back. You must supply all 8 codes for the block (there is no
+    per-zone edit; the whole block is rewritten), which is exactly why this is a
+    reference builder gated behind the "no guided DSC" safety decision.
+
+    Returns e.g. ``"0010103..."`` = section 001 + eight 2-digit codes.
+    """
+    if not 1 <= section <= 8:
+        raise ValueError(f"section must be 1-8, got {section}")
+    if len(zone_type_codes) != ZONES_PER_SECTION:
+        raise ValueError(
+            f"must supply exactly {ZONES_PER_SECTION} zone-type codes for the "
+            f"positional block, got {len(zone_type_codes)}"
+        )
+    for code in zone_type_codes:
+        if not 0 <= code <= 99:
+            raise ValueError(f"zone-type code must be 0-99, got {code}")
+    body = "".join(f"{code:02d}" for code in zone_type_codes)
+    return f"{section:03d}{body}"
+
+
+def build_dsc_partition_timing(
+    partition: int, entry_delay_1: int, entry_delay_2: int, exit_delay: int
+) -> str:
+    """Build a DSC section [005] partition-timing keystroke string.
+
+    After section [005] you key the 2-digit partition subsection, then Entry
+    Delay 1, Entry Delay 2 and Exit Delay -- each a 3-digit value in seconds
+    (valid [001]-[255]). Returns e.g. ``"005" + "01" + "030" + "045" + "060"``.
+    """
+    if not 1 <= partition <= 8:
+        raise ValueError(f"partition must be 1-8, got {partition}")
+    for name, value in (
+        ("entry_delay_1", entry_delay_1),
+        ("entry_delay_2", entry_delay_2),
+        ("exit_delay", exit_delay),
+    ):
+        if not 1 <= value <= 255:
+            raise ValueError(f"{name} must be 1-255 seconds, got {value}")
+    return f"005{partition:02d}{entry_delay_1:03d}{entry_delay_2:03d}{exit_delay:03d}"
+
+
 def _dsc(model_id, label, max_zones, max_partitions, notes, aliases=()):
     return PanelModel(
         model_id=model_id,
