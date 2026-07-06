@@ -9,19 +9,31 @@ the VISTA-21iP/21iPSIA Programming Guide (K14488PRV3).
 Per-model honesty (see :class:`~.base.Verification`):
 
   * **VISTA-21iP** -- VERIFIED. This is the panel the whole field-programming
-    layer was written and (partially) hardware-tested against.
-  * **VISTA-20P / 15P / 10P** -- GRAMMAR_VERIFIED. These are the residential
-    siblings of the 21iP (the 21iP is essentially a 20P with onboard IP). They
-    share the same ``*56``/``*57``/``800``/``*99`` programming grammar and the
-    same zone-type table; what differs and is *not* individually reconfirmed
-    here is exact zone/partition capacity handling and a handful of field
-    numbers on the older 10P. Capacities below are the documented maximums.
+    layer was written and (partially) hardware-tested against (K14488PRV3).
+  * **VISTA-20P / 15P** -- VERIFIED (2026-07-05). Cross-checked field-by-field
+    against the combined VISTA-15P/20P Programming Guide
+    (``v15pand20pprogrammingguide.pdf``): the ``<code>800`` entry, ``*56``/``*57``
+    menus, ``*99`` exit, the ``*34``/``*35``/``*36`` timing fields (defaults
+    60/30/30) and ``*84`` auto-stay (default 3), and the whole zone-type table
+    (00 Not used, 01/02 Entry-exit, 03 Perimeter, 04 Interior Follower, 06/07/08
+    24-Hr, 09 Fire, 10 Interior w/Delay, 12 Monitor, 14 CO, 16 Fire w/Verify, 23
+    No Alarm Resp, 24 Silent Burglary) are all *identical* to the 21iP. Capacity
+    confirmed from the guide: 20P = 48 zones + partitions; 15P = 32 zones
+    (1-6, 9-34, 49-56), single partition.
+  * **VISTA-10P** -- VERIFIED (2026-07-05) against ``vista10pprogramming.pdf``.
+    Program-mode entry, ``*56``/``*57``, ``*99``, the ``*34``/``*35``/``*36``
+    timing fields, and the full zone-type table (including 14 Carbon Monoxide)
+    are identical to the 21iP. Its zones are 1-6 (hardwired) and 9-24 (RF) with
+    no zones 7-8 -- the same shape as the 15P -- so the shared ``*56`` builder is
+    correct for every zone that physically exists. Single partition, 22 zones.
+    Only cosmetic difference: ``*84`` auto-stay factory default is 1, not 3
+    (a default value, not a field-number or keystroke change).
   * **VISTA-128BP / 250BP** -- PROVISIONAL. The commercial panels enter Program
     Mode the same way but use a materially larger and different data-field set
-    (and a different guide entirely). Their zone-type table is reused from the
-    residential set as a best effort **and must not be trusted** until checked
-    against the 128BP/250BP programming guide. They are included so the model
-    can be selected and basic arm/disarm/bypass works; guided field
+    (and a different guide entirely, K5894PRV6). Their zone-type table is reused
+    from the residential set as a best effort **and must not be trusted** until
+    checked against the 128BP/250BP programming guide. They are included so the
+    model can be selected and basic arm/disarm/bypass works; guided field
     programming against them should be treated as unverified.
 """
 from __future__ import annotations
@@ -102,11 +114,11 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         label="Honeywell VISTA-20P",
         max_zones=48,
         max_partitions=3,
-        verification=Verification.GRAMMAR_VERIFIED,
+        verification=Verification.VERIFIED,
         notes=(
-            "Residential sibling of the 21iP; shares its *56/*57/800/*99 "
-            "programming grammar and zone types. Field numbers assumed "
-            "identical to the 21iP -- spot-check against the 20P guide."
+            "Verified field-by-field against the VISTA-15P/20P Programming Guide "
+            "(2026-07-05): program-mode grammar, zone types, and *34/*35/*36/*84 "
+            "timing fields are identical to the 21iP. 48 zones, partitioned."
         ),
         default_zones=8,
         default_partitions=1,
@@ -118,10 +130,11 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         label="Honeywell VISTA-15P",
         max_zones=32,
         max_partitions=1,
-        verification=Verification.GRAMMAR_VERIFIED,
+        verification=Verification.VERIFIED,
         notes=(
-            "Single-partition residential panel; same programming grammar and "
-            "zone types as the 20P/21iP. Capacity is the documented maximum."
+            "Verified against the VISTA-15P/20P Programming Guide (2026-07-05): "
+            "same programming language and zone types as the 20P/21iP. "
+            "Single-partition, 32 zones (1-6, 9-34, 49-56)."
         ),
         default_zones=6,
         default_partitions=1,
@@ -133,11 +146,13 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         label="Honeywell VISTA-10P",
         max_zones=22,
         max_partitions=1,
-        verification=Verification.PROVISIONAL,
+        verification=Verification.VERIFIED,
         notes=(
-            "Older single-partition panel. Program-Mode grammar matches the "
-            "family, but some field numbers on this generation differ -- verify "
-            "against the VISTA-10P guide before real-hardware field programming."
+            "Verified against the VISTA-10P Programming Guide (2026-07-05): "
+            "program-mode grammar, zone types (incl. 14 CO), and *34/*35/*36 "
+            "timing fields identical to the 21iP. Zones 1-6 hardwired + 9-24 RF "
+            "(no zones 7-8), single partition. *84 auto-stay default is 1 (a "
+            "default value only)."
         ),
         default_zones=6,
         default_partitions=1,

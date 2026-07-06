@@ -55,9 +55,13 @@ def test_model_choices_covers_all_models():
     assert choices["vista_21ip"] == "Honeywell VISTA-21iP"
 
 
-def test_only_vista_21ip_is_fully_verified():
-    verified = [m for m in MODELS if m.verification == Verification.VERIFIED]
-    assert [m.model_id for m in verified] == ["vista_21ip"]
+def test_verified_models_are_the_guide_checked_residential_vistas():
+    # The residential VISTA line, each cross-checked field-by-field against its
+    # own programming guide (2026-07-05): 21iP (K14488PRV3), 20P/15P
+    # (v15pand20pprogrammingguide), 10P (vista10pprogramming). Everything else
+    # remains inherited/provisional until checked against its own guide.
+    verified = {m.model_id for m in MODELS if m.verification == Verification.VERIFIED}
+    assert verified == {"vista_21ip", "vista_20p", "vista_15p", "vista_10p"}
 
 
 # --- VISTA dialect --------------------------------------------------------
