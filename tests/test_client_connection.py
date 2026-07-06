@@ -12,6 +12,7 @@ import pytest
 from custom_components.envisalink_field_programmer.client import (
     EnvisalinkClient,
     TPIAuthError,
+    TPICommandError,
     TPIConnectionError,
 )
 
@@ -96,6 +97,78 @@ async def test_send_keystrokes_sends_one_character_per_frame(fake_server):
         await asyncio.sleep(0.05)
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]
+    finally:
+        await client.disconnect()
+
+
+async def test_send_retries_keypress_after_buffer_overrun(fake_server):
+    # The EVL answers 01 ("Receive Buffer Overrun") when a command arrives
+    # while the previous one is still being processed; the client must
+    # re-send rather than silently dropping the keystroke.
+    fake_server.scripted_responses["03"] = ["01"]
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
+    await client.connect()
+    try:
+        await client.send_keypress(1, "4")
+        keypress_frames = [d for c, d in fake_server.received if c == "03"]
+        assert keypress_frames == ["1,4", "1,4"]
+    finally:
+        await client.disconnect()
+
+
+async def test_send_raises_on_rejected_command(fake_server):
+    fake_server.scripted_responses["03"] = ["02"]  # Unknown Command
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
+    await client.connect()
+    try:
+        with pytest.raises(TPICommandError, match="Unknown Command"):
+            await client.send_keypress(1, "4")
+    finally:
+        await client.disconnect()
+
+
+async def test_send_raises_when_ack_never_arrives(fake_server):
+    fake_server.ack_commands = False
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        fake_server.port,
+        "user",
+        event_callback=lambda e: None,
+        ack_timeout=0.2,
+    )
+    await client.connect()
+    try:
+        with pytest.raises(TPICommandError, match="no acknowledgement"):
+            await client.keep_alive()
+    finally:
+        await client.disconnect()
+
+
+async def test_keystrokes_wait_for_each_ack_before_next_send(fake_server):
+    # Regression test for the arm/disarm bug: every keypress command must
+    # wait for its ack before the next is written, so the wire order is
+    # strictly command, ack, command, ack... rather than a burst of
+    # commands the EVL would reject with buffer overruns.
+    acks_seen: list[str] = []
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        fake_server.port,
+        "user",
+        event_callback=lambda e: acks_seen.append(e.code) if e.code == "^03" else None,
+    )
+    await client.connect()
+    try:
+        await client.send_keystrokes(1, "1234")
+        # All four keypresses were delivered (none dropped)...
+        keypress_frames = [d for c, d in fake_server.received if c == "03"]
+        assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]
+        # ...and each one's ack came back before send_keystrokes returned,
+        # which can only happen if sends were serialized on the acks.
+        assert acks_seen == ["^03"] * 4
     finally:
         await client.disconnect()
 

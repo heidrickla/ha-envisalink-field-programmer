@@ -38,7 +38,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from .client import EnvisalinkClient
+from .client import EnvisalinkClient, TPIError
 from .const import DOMAIN
 from .panels import PanelDialect, get_dialect
 
@@ -145,7 +145,15 @@ async def async_send_guarded_keystrokes(
         installer_code=installer_code,
         dialect=dialect,
     )
-    await client.send_keystrokes(partition, keys)
+    try:
+        await client.send_keystrokes(partition, keys)
+    except TPIError as err:
+        # Surface transport/ack failures as a HomeAssistantError so service
+        # calls (and the Lovelace card) show the real reason instead of a
+        # generic "Unknown error" + log traceback.
+        raise HomeAssistantError(
+            f"Envisalink did not accept the keystroke sequence: {err}"
+        ) from err
 
 
 def _get_coordinator(hass: HomeAssistant, entry_id: str):

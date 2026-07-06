@@ -174,6 +174,23 @@ client) or `^CODE,DATA$` (client -> EVL), terminated by `$`, with no
 checksum at all -- and keystrokes go one character per frame
 (`^03,<partition>,<char>$`), not chunked.
 
+A second, subtler wire-protocol correction landed later, found because
+arm/disarm/away did nothing against real hardware while status and zones
+worked fine: the EVL processes exactly **one command at a time**. It
+acknowledges every command with `^CODE,<response>$` and rejects a command
+that arrives while the previous one is still being processed with response
+`01` ("Receive Buffer Overrun" -- that meaning comes straight from
+`pyenvisalink`'s Honeywell response-code table, and is why that library
+runs every command through a serialized queue that waits for each ack).
+The original client fired keystroke frames back-to-back with no ack
+handling, so single-frame commands (poll, zone timer dump) worked, but any
+multi-keystroke sequence -- a user code plus arm/disarm digit, a `*1zz#`
+bypass, a field-programming string -- only ever got its first keypress
+onto the panel, silently. `EnvisalinkClient._send()` now serializes the
+full round-trip (write, await ack, retry with backoff on buffer overrun,
+raise `TPICommandError` on rejection/timeout), and terminates outbound
+frames with `\r\n` after the `$` like `pyenvisalink` does.
+
 This was cross-checked against the actively maintained `pyenvisalink`
 library (the library behind `ufodone/envisalink_new`, a HACS integration
 confirmed working against this exact hardware). Reference copies of its
