@@ -176,6 +176,54 @@ def test_all_dsc_models_are_provisional():
     assert all(m.verification == Verification.PROVISIONAL for m in dsc)
 
 
+# --- DSC section-programming pure builders (not wired to any transport) ----
+
+def test_dsc_zone_definitions_builder():
+    from custom_components.envisalink_field_programmer.panels.dsc import (
+        build_dsc_zone_definitions,
+    )
+
+    # Section 001 (zones 1-8): Delay1, Delay1, Instant, Instant, Interior,
+    # Standard-24hr-Fire, Null, Null.
+    codes = [1, 1, 3, 3, 4, 8, 0, 0]
+    assert build_dsc_zone_definitions(1, codes) == "0010101030304080000"
+
+
+def test_dsc_zone_definitions_builder_validation():
+    from custom_components.envisalink_field_programmer.panels.dsc import (
+        build_dsc_zone_definitions,
+    )
+
+    with pytest.raises(ValueError):
+        build_dsc_zone_definitions(1, [1, 2, 3])  # not 8 codes
+    with pytest.raises(ValueError):
+        build_dsc_zone_definitions(9, [0] * 8)  # section out of range
+    with pytest.raises(ValueError):
+        build_dsc_zone_definitions(1, [0, 0, 0, 0, 0, 0, 0, 100])  # code > 99
+
+
+def test_dsc_partition_timing_builder():
+    from custom_components.envisalink_field_programmer.panels.dsc import (
+        build_dsc_partition_timing,
+    )
+
+    # Partition 1: entry1=30s, entry2=45s, exit=60s.
+    assert build_dsc_partition_timing(1, 30, 45, 60) == "00501030045060"
+
+
+def test_dsc_partition_timing_builder_validation():
+    from custom_components.envisalink_field_programmer.panels.dsc import (
+        build_dsc_partition_timing,
+    )
+
+    with pytest.raises(ValueError):
+        build_dsc_partition_timing(1, 0, 45, 60)  # delay < 1
+    with pytest.raises(ValueError):
+        build_dsc_partition_timing(1, 30, 45, 256)  # delay > 255
+    with pytest.raises(ValueError):
+        build_dsc_partition_timing(9, 30, 45, 60)  # partition out of range
+
+
 # --- guard is family-aware ------------------------------------------------
 
 def test_guard_blocks_dsc_program_mode_only_under_dsc_dialect():
