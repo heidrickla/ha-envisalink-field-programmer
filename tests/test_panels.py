@@ -109,9 +109,12 @@ def test_dsc_opens_program_mode_detects_star_8_code():
 
 
 def test_dsc_zone_types_flag_fire_and_co():
+    # Real DSC PowerSeries codes (PC1616/1832/1864 guide): [07]/[08] fire,
+    # [41]/[81] carbon monoxide are life-safety; [09] is Supervision (not fire).
     codes = DSC_DIALECT.life_safety_zone_codes()
-    assert 9 in codes  # 24-hour fire
-    assert 13 in codes  # CO
+    assert 7 in codes and 8 in codes  # delayed + standard 24-hour fire
+    assert 41 in codes and 81 in codes  # CO (hardwired + wireless)
+    assert 9 not in codes  # 24-hour supervision, not life-safety
     assert 3 not in codes  # instant/perimeter
 
 

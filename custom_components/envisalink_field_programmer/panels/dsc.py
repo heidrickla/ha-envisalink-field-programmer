@@ -25,17 +25,22 @@ What this dialect *does* provide, and stands behind at the grammar level:
     ``*8<code>`` by default, the DSC analogue of VISTA's ``<code>800``);
   * a documented DSC zone-type reference table.
 
-Everything model-specific here is :class:`~.base.Verification.PROVISIONAL`:
-the grammar is stable and well known, but the per-model zone/partition
-capacities and the exact zone-type code numbers vary across PowerSeries
-generations (the older PC1555/5010/5020 use different widths/codes than the
-PC1616/1832/1864) and are **not** verified against each panel's own installation
-manual. Verify before trusting on real hardware.
+The section grammar and the zone-definition code table below were checked
+against real DSC installation manuals (2026-07-05): the PC1616/PC1832/PC1864
+v4.6 guide (source of the code table), the PC1555MX manual, and the PC5020/
+Power864 manual all use the same ``[*][8][code]`` entry, ``[001]``-``[004]``
+zone-definition sections and ``[005]`` partition timing. Per-model capacities
+are guide-confirmed where noted on each :class:`~.base.PanelModel`; a couple
+(PC5010/Power832, whose obtained PDF is a scanned image, and PC1555) still rest
+on general knowledge.
 
-Note also that the current :mod:`client` transport speaks Honeywell TPI framing;
-wiring DSC arm/disarm/zone state is a separate future effort. This dialect is
-the programming-language half of that work, added now so the abstraction is in
-place and model selection is possible.
+All DSC models remain :class:`~.base.Verification.PROVISIONAL` regardless,
+because this integration does **not** offer guided programming for DSC (see
+``supports_guided_field_programming`` below) -- there is no guided keystroke
+path to "verify," and the current :mod:`client` transport speaks Honeywell TPI
+framing, so wiring DSC arm/disarm/zone state is a separate future effort. This
+dialect is the programming-language reference + safety guard half of that work;
+the code table is inventory/reference, not a keystroke source.
 """
 from __future__ import annotations
 
@@ -46,55 +51,62 @@ from .base import PanelFamily, PanelModel, Verification, ZoneTypeDef
 DSC_PROGRAM_MODE_PREFIX = "*8"
 DSC_EXIT_PROGRAM_MODE = "##"
 
-# Representative DSC PowerSeries zone-type ("zone definition") reference.
-# PROVISIONAL: reflects the standard PowerSeries categories, but exact numeric
-# codes differ between generations -- confirm against your panel's manual.
+# DSC PowerSeries zone-definition ("zone type") reference, taken from the
+# PC1616/PC1832/PC1864 v4.6 Installation Guide sections [001]-[004] (verified
+# 2026-07-05; the PC1555MX and PC5020/Power864 guides use the same grammar and
+# core codes). Reference/inventory only -- this integration does not drive DSC
+# zone programming (see the module docstring), so nothing here builds keystrokes.
 _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     0: ZoneTypeDef(0, "Null (unused)", "Zone disabled / not monitored."),
-    1: ZoneTypeDef(
-        1, "Delay 1", "Primary entry/exit door with entry/exit delay 1."
-    ),
-    2: ZoneTypeDef(
-        2, "Delay 2", "Secondary entry/exit door with the longer entry/exit delay 2."
-    ),
-    3: ZoneTypeDef(3, "Instant", "Perimeter door/window; alarms immediately when armed."),
+    1: ZoneTypeDef(1, "Delay 1", "Entry/exit door; follows Entry Delay 1 when armed."),
+    2: ZoneTypeDef(2, "Delay 2", "Entry/exit door; follows the longer Entry Delay 2."),
+    3: ZoneTypeDef(3, "Instant", "Perimeter door/window; instant alarm when armed."),
     4: ZoneTypeDef(
         4, "Interior", "Interior follower; delayed only if an entry door tripped first."
     ),
     5: ZoneTypeDef(
-        5, "Interior Stay/Away", "Interior zone automatically bypassed when armed Stay."
+        5, "Interior Stay/Away", "Interior zone auto-bypassed when armed in Stay mode."
     ),
     6: ZoneTypeDef(
-        6, "Delay Stay/Away", "Entry/exit zone that is auto-bypassed when armed Stay."
+        6, "Delay Stay/Away", "Delay-1 zone auto-bypassed when armed in Stay mode."
     ),
     7: ZoneTypeDef(
         7,
-        "24-Hour Fire (delayed)",
-        "Smoke/heat detector, always active with a verification delay. Life safety.",
+        "Delayed 24-Hour Fire",
+        "Hardwired smoke/heat detector; instant audible alarm, communication "
+        "delayed 30s. Always active. Life safety.",
         life_safety=True,
     ),
     8: ZoneTypeDef(
-        8, "24-Hour Bell", "Always-armed burglary zone that sounds the bell."
+        8,
+        "Standard 24-Hour Fire",
+        "Hardwired smoke/heat detector; instant alarm and communication. Always "
+        "active. Life safety.",
+        life_safety=True,
     ),
     9: ZoneTypeDef(
         9,
-        "24-Hour Fire",
-        "Smoke/heat detector, always active, cannot be bypassed. Life safety.",
+        "24-Hour Supervision",
+        "Instant alarm/communication; does not sound the bell or keypad buzzer.",
+    ),
+    10: ZoneTypeDef(
+        10, "24-Hour Supervisory Buzzer", "Instant alarm; sounds the keypad buzzer."
+    ),
+    11: ZoneTypeDef(11, "24-Hour Burglary", "Always-armed burglary zone; audible alarm."),
+    16: ZoneTypeDef(
+        16, "24-Hour Panic", "Hold-up/panic zone; reports to the monitoring station."
+    ),
+    41: ZoneTypeDef(
+        41,
+        "24-Hour Carbon Monoxide (hardwired)",
+        "Hardwired CO detector with distinct bell cadence. Life safety.",
         life_safety=True,
     ),
-    13: ZoneTypeDef(
-        13,
-        "24-Hour Carbon Monoxide",
-        "CO detector, always active. Life safety.",
+    81: ZoneTypeDef(
+        81,
+        "24-Hour Carbon Monoxide (wireless)",
+        "Wireless CO detector with distinct bell cadence. Life safety.",
         life_safety=True,
-    ),
-    24: ZoneTypeDef(
-        24,
-        "24-Hour Panic (silent)",
-        "Hold-up/panic; silent report to the monitoring station only.",
-    ),
-    25: ZoneTypeDef(
-        25, "24-Hour Panic (audible)", "Hold-up/panic; sounds the bell and reports."
     ),
 }
 
@@ -159,32 +171,42 @@ def _dsc(model_id, label, max_zones, max_partitions, notes, aliases=()):
     )
 
 
-# Capacities are the commonly-documented PowerSeries maximums, but are marked
-# PROVISIONAL along with everything else DSC here -- confirm per panel.
+# Capacities: those marked "(guide-confirmed 2026-07-05)" were read from that
+# panel's own installation manual; the rest are commonly-documented maximums
+# still awaiting a per-panel check. The whole DSC family stays PROVISIONAL
+# because guided programming is disabled for it regardless (see the dialect).
 DSC_MODELS: tuple[PanelModel, ...] = (
     _dsc("dsc_pc1555", "DSC PC1555", 8, 2,
-         "Entry-level PowerSeries. Confirm zone/partition capacity and codes.",
+         "Entry-level PowerSeries; same *8 section grammar. Capacity from general "
+         "knowledge (clean guide text not obtained) -- confirm per panel.",
          aliases=("pc1555", "1555")),
     _dsc("dsc_pc1555mx", "DSC PC1555MX", 32, 2,
-         "Confirm max zones (base is smaller, expandable) against the manual.",
+         "Grammar + expandable-to-32-zone capacity guide-confirmed 2026-07-05 "
+         "(PC1555MX Installation Manual): [*][8][code] entry, sections "
+         "[001]-[004] zone definitions, [005] timing.",
          aliases=("pc1555mx", "1555mx")),
-    _dsc("dsc_pc1575", "DSC PC1575", 32, 2,
-         "Model identifier and capacity unconfirmed -- verify against the panel.",
+    _dsc("dsc_pc1575", "DSC PC1575", 6, 2,
+         "PowerSeries 6-zone panel (max_zones corrected from 32 to 6, 2026-07-05). "
+         "Same *8 section grammar. Partition count not yet guide-confirmed.",
          aliases=("pc1575", "1575")),
     _dsc("dsc_pc5010", "DSC PC5010 (Power832)", 32, 2,
-         "Marketing name Power832. Confirm capacity and section codes.",
+         "Power832. Same *8 section grammar. The obtained guide PDF is a scanned "
+         "image (no extractable text) -- capacity is from general knowledge.",
          aliases=("pc5010", "5010", "power832", "832")),
     _dsc("dsc_pc5020", "DSC PC5020 (Power864)", 64, 8,
-         "Marketing name Power864. Confirm capacity and section codes.",
+         "Power864. 64 zones / 8 partitions guide-confirmed 2026-07-05 (PC5020 "
+         "manual); same *8 section grammar and [001]-[004] zone definitions.",
          aliases=("pc5020", "5020", "power864", "864")),
     _dsc("dsc_pc1616", "DSC PC1616", 16, 2,
-         "16-zone PowerSeries. Zone-definition codes are 3-digit on this "
-         "generation -- verify the table before use.",
+         "16 zones / 2 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
+         "v4.6). Zone-definition reference table taken from this guide.",
          aliases=("pc1616", "1616")),
     _dsc("dsc_pc1832", "DSC PC1832", 32, 4,
-         "32-zone PowerSeries. Same 3-digit zone-definition caveat as the 1616.",
+         "32 zones / 4 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
+         "v4.6).",
          aliases=("pc1832", "1832")),
     _dsc("dsc_pc1864", "DSC PC1864", 64, 8,
-         "64-zone PowerSeries. Same 3-digit zone-definition caveat as the 1616.",
+         "64 zones / 8 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
+         "v4.6).",
          aliases=("pc1864", "1864")),
 )
