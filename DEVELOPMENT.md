@@ -275,3 +275,28 @@ Two safety invariants the tests enforce (`tests/test_panels.py`), keep them:
   must match that family's real installer-mode trigger (VISTA `<code>800`, DSC
   `*8<code>`) and *not* the other family's, so the guard can't be bypassed by
   selecting the wrong dialect. Prefer an over-cautious false positive to a miss.
+
+## Guided-programming capabilities per dialect
+
+Guided programming is expressed per *operation*, not as one on/off switch. A
+dialect declares `supported_guided_ops: frozenset[GuidedOp]` (subset of
+`ZONE`, `TIMING`, `FUNCTION_KEY`), and each service refuses an operation the
+dialect doesn't list:
+
+- **Residential VISTA** supports all three (`*56` zones, `*34`-style timing,
+  `*57` function keys).
+- **Commercial VISTA** (`CommercialVistaDialect`, `dialect_id="vista_commercial"`
+  on the 128BP/250BP) supports **TIMING only** — `<code>8000` entry and the
+  partition-specific `*09`-`*12` fields. Its `#93` zone menu is deeply
+  conditional and is deliberately not driven without hardware.
+- **DSC** supports **none** yet: the section keystroke builders
+  (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) are pure,
+  unit-tested functions, but the client transport is Honeywell-TPI-only, so
+  there's no path to send them. Wiring DSC needs a DSC transport handler + a DSC
+  fake server, then real-hardware verification before flipping on any GuidedOp.
+
+A model normally uses its family's dialect; set `PanelModel.dialect_id` to point
+at a different one (as the commercial VISTA models do). Timing is dialect-owned:
+`timing_fields()` lists the valid field ids and `build_timing_keystrokes(field,
+value, partition)` does the translation + range validation, so the
+`set_system_timing` service stays panel-agnostic.

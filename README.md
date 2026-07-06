@@ -355,14 +355,15 @@ confirmations.
 | **VISTA-21iP** | Honeywell VISTA | ✅ Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
 | **VISTA-20P / 15P** | Honeywell VISTA | ✅ Verified | Cross-checked field-by-field against the VISTA-15P/20P Programming Guide (2026-07-05): program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. |
 | **VISTA-10P** | Honeywell VISTA | ✅ Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar/zone types; zones 1-6 hardwired + 9-24 RF (no zones 7-8), single partition. |
-| VISTA-128BP / 250BP | Honeywell VISTA | ⚠ Provisional — guided **disabled** | Confirmed against K5894PRV6 that these commercial panels use a *different* language (`<code>8000` entry, `#93` zone menu, `*09`-`*12` timing). Guided programming is refused for them so the residential builder can't send wrong keystrokes; arm/disarm/bypass/model selection still work. A commercial-VISTA dialect is future work. |
-| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | ⚠ Provisional — guided **disabled** | Section-based (`*8` + code) grammar and the zone-definition reference table are checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020), and the installer-mode guard works. Guided *per-zone* programming is intentionally **not** driven for DSC (its positional whole-section programming would risk overwriting a zone block blind, and the transport still speaks Honeywell TPI); model selection, the zone-type reference, and the guard are available. |
+| VISTA-128BP / 250BP | Honeywell VISTA | ⚠ Provisional — timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** *is* supported (its own dialect); guided **zone** programming is refused — the `#93` flow is too conditional to drive without hardware. Timing is guide-derived not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
+| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | ⚠ Provisional — guided **disabled** | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); installer-mode guard works. Section keystroke *builders* (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them — the transport still speaks Honeywell TPI, so guided DSC programming needs a DSC transport (and hardware verification) before it can be enabled. |
 
-The four **Verified** residential VISTA panels are the ones you can fully
-field-program. The commercial VISTA and DSC panels are selectable and safe
-(guided programming is refused rather than done wrong); completing their guided
-programming is future work — a commercial-VISTA `#93` dialect, and a DSC
-section-programming path plus DSC transport. Contributions welcome.
+The four **Verified** residential VISTA panels are fully field-programmable. The
+commercial VISTA panels add guided **timing** (Provisional — verify at the
+keypad); their `#93` zone flow and the DSC panels remain selectable-and-safe
+(the DSC keystroke builders exist and are tested, but unwired). What's left is
+genuinely hardware-gated: a conditional commercial `#93` zone builder, and a DSC
+transport layer — both need a real panel to trust. Contributions welcome.
 
 ## Development
 
