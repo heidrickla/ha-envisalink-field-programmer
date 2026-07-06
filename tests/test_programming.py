@@ -38,6 +38,19 @@ def test_program_mode_sequence_blocked_with_known_installer_code():
         validate_keystrokes("4112800*56", installer_code="4112")
 
 
+def test_program_mode_error_redacts_the_installer_code():
+    # The refusal message reaches HA logs and the Lovelace card verbatim, so it
+    # must not leak the installer/user code embedded in the keystrokes. Runs of
+    # 4+ digits are masked; the *56/*99 operators are kept for context.
+    with pytest.raises(KeystrokeGuardError) as exc:
+        validate_keystrokes("4112800*56", installer_code="4112")
+    message = str(exc.value)
+    assert "4112" not in message
+    assert "4112800" not in message
+    assert "[code]" in message
+    assert "*56" in message  # non-secret operator preserved for debuggability
+
+
 def test_program_mode_sequence_allowed_when_confirmed():
     validate_keystrokes(
         "4112800*56", installer_code="4112", allow_installer_mode=True
