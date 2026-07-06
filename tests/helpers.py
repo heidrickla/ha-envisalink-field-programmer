@@ -18,6 +18,12 @@ class FakeEnvisalinkServer:
         # (code, data) pairs received from the client, code without its "^"
         # sentinel, e.g. ("03", "1,4") for a keypress of "4" to partition 1.
         self.received: list[tuple[str, str]] = []
+        # Like the real EVL, acknowledge every command with "^<code>,00$".
+        # Tests can disable this to simulate an unresponsive EVL, or script
+        # specific responses per command code (each entry consumed once,
+        # then back to "00") to simulate buffer overruns / rejections.
+        self.ack_commands = True
+        self.scripted_responses: dict[str, list[str]] = {}
         self._server: asyncio.AbstractServer | None = None
         self._writer: asyncio.StreamWriter | None = None
         self.port: int = 0
@@ -77,15 +83,30 @@ class FakeEnvisalinkServer:
                 frames = buffer.split("$")
                 buffer = frames.pop()
                 for raw_frame in frames:
-                    self._record_frame(raw_frame)
+                    parsed = self._record_frame(raw_frame)
+                    if parsed is not None and self.ack_commands:
+                        code, _ = parsed
+                        writer.write(
+                            f"^{code},{self._next_response(code)}$".encode("ascii")
+                        )
+                        await writer.drain()
         except (asyncio.IncompleteReadError, ConnectionResetError):
             pass
 
-    def _record_frame(self, raw_frame: str) -> None:
+    def _next_response(self, code: str) -> str:
+        queue = self.scripted_responses.get(code)
+        if queue:
+            return queue.pop(0)
+        return "00"
+
+    def _record_frame(self, raw_frame: str) -> tuple[str, str] | None:
         frame = raw_frame
         for idx, char in enumerate(raw_frame):
             if char in "%^":
                 frame = raw_frame[idx:]
                 break
         if len(frame) >= 4 and frame[3] == ",":
-            self.received.append((frame[1:3], frame[4:]))
+            parsed = (frame[1:3], frame[4:])
+            self.received.append(parsed)
+            return parsed
+        return None

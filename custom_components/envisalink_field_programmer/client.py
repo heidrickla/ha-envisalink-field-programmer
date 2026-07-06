@@ -15,6 +15,14 @@ actively maintained `pyenvisalink` library:
     ``^CODE,DATA$`` (client -> EVL), terminated by ``$``. There is no
     checksum.
   * Keystrokes go one character at a time via ``^03,<partition>,<char>$``.
+  * The EVL processes exactly ONE command at a time: every command is
+    answered with a ``^CODE,<response>$`` acknowledgement, and a command
+    sent while the previous one is still being processed is rejected with
+    response code 01 ("Receive Buffer Overrun"). ``_send()`` therefore
+    serializes commands and waits for each ack (retrying on overrun),
+    mirroring `pyenvisalink`'s command queue -- without this, only the
+    first keystroke of a multi-key sequence (an arm/disarm code, a bypass)
+    ever reaches the panel.
 
 This module has no dependency on Home Assistant and can be unit tested with
 plain asyncio streams (e.g. a loopback socket or ``asyncio.StreamReader``
@@ -32,7 +40,10 @@ from .const import (
     CMD_DUMP_ZONE_TIMERS,
     CMD_KEYPRESS,
     CMD_POLL,
+    COMMAND_ACK_TIMEOUT,
     COMMAND_NAMES,
+    COMMAND_RETRY_ATTEMPTS,
+    COMMAND_RETRY_DELAY,
     EVT_KEYPAD_UPDATE,
     EVT_REALTIME_CID_EVENT,
     FRAME_SENTINELS,
@@ -41,6 +52,9 @@ from .const import (
     LOGIN_PROMPT,
     LOGIN_SUCCESS,
     LOGIN_TIMEOUT_MESSAGE,
+    RESPONSE_ACCEPTED,
+    RESPONSE_BUFFER_OVERRUN,
+    TPI_RESPONSE_CODES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,6 +76,10 @@ class TPIAuthError(TPIError):
 
 class TPIProtocolError(TPIError):
     """Raised when a frame is malformed."""
+
+
+class TPICommandError(TPIError):
+    """Raised when the EVL rejects a command or never acknowledges it."""
 
 
 @dataclass
@@ -149,6 +167,7 @@ class EnvisalinkClient:
         event_callback: EventCallback,
         disconnect_callback: DisconnectCallback | None = None,
         login_timeout: float = 10,
+        ack_timeout: float = COMMAND_ACK_TIMEOUT,
         open_connection: Callable[[str, int], Awaitable[tuple]] | None = None,
     ) -> None:
         self._host = host
@@ -157,11 +176,16 @@ class EnvisalinkClient:
         self._event_callback = event_callback
         self._disconnect_callback = disconnect_callback
         self._login_timeout = login_timeout
+        self._ack_timeout = ack_timeout
         self._open_connection = open_connection or asyncio.open_connection
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._read_task: asyncio.Task | None = None
-        self._write_lock = asyncio.Lock()
+        # Serializes whole command round-trips (write + wait for ack), not
+        # just the writes -- the EVL only processes one command at a time.
+        self._command_lock = asyncio.Lock()
+        self._pending_ack: asyncio.Future[str] | None = None
+        self._pending_ack_code = ""
         self._buffer = ""
 
     @property
@@ -213,6 +237,12 @@ class EnvisalinkClient:
             self._writer.close()
             self._writer = None
         self._reader = None
+        self._abort_pending_ack("disconnected while awaiting command acknowledgement")
+
+    def _abort_pending_ack(self, reason: str) -> None:
+        """Fail a command waiting on its ack so it doesn't hang to timeout."""
+        if self._pending_ack is not None and not self._pending_ack.done():
+            self._pending_ack.set_exception(TPIConnectionError(reason))
 
     async def _read_loop(self) -> None:
         error: Exception | None = None
@@ -230,6 +260,7 @@ class EnvisalinkClient:
             error = err
             _LOGGER.debug("TPI read loop ended with error", exc_info=err)
         finally:
+            self._abort_pending_ack("connection lost while awaiting command acknowledgement")
             if self._disconnect_callback is not None:
                 self._disconnect_callback(error)
 
@@ -247,6 +278,14 @@ class EnvisalinkClient:
                 _LOGGER.warning("Dropping malformed TPI frame: %r", frame)
                 continue
             event = build_event(code, data)
+            if (
+                self._pending_ack is not None
+                and not self._pending_ack.done()
+                and event.code == self._pending_ack_code
+            ):
+                self._pending_ack.set_result(
+                    str(event.fields.get("response_code", event.raw_data))
+                )
             self._event_callback(event)
         return remainder
 
@@ -265,12 +304,49 @@ class EnvisalinkClient:
         return raw.decode("ascii", errors="ignore").strip("\r\n")
 
     async def _send(self, code: str, data: str = "") -> None:
-        if self._writer is None:
-            raise TPIConnectionError("not connected")
-        payload = f"^{code},{data}$".encode("ascii")
-        async with self._write_lock:
-            self._writer.write(payload)
-            await self._writer.drain()
+        """Send one command frame and wait for the EVL's acknowledgement.
+
+        The EVL processes exactly one command at a time and answers every
+        command with ``^<code>,<response>$``; a command sent while the
+        previous one is still in flight is rejected with response 01
+        ("Receive Buffer Overrun"). So the full round-trip is serialized
+        under the command lock -- write, await ack, retry on overrun --
+        matching the reference `pyenvisalink` command queue. The trailing
+        CRLF after the ``$`` terminator also matches that reference
+        implementation.
+        """
+        payload = f"^{code},{data}$\r\n".encode("ascii")
+        async with self._command_lock:
+            for attempt in range(COMMAND_RETRY_ATTEMPTS + 1):
+                if self._writer is None:
+                    raise TPIConnectionError("not connected")
+                future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+                self._pending_ack_code = f"^{code}"
+                self._pending_ack = future
+                try:
+                    self._writer.write(payload)
+                    await self._writer.drain()
+                    try:
+                        response = await asyncio.wait_for(future, self._ack_timeout)
+                    except TimeoutError as err:
+                        raise TPICommandError(
+                            f"no acknowledgement for command ^{code} within"
+                            f" {self._ack_timeout}s"
+                        ) from err
+                finally:
+                    self._pending_ack = None
+                    self._pending_ack_code = ""
+                if response == RESPONSE_ACCEPTED:
+                    return
+                if response == RESPONSE_BUFFER_OVERRUN and attempt < COMMAND_RETRY_ATTEMPTS:
+                    # EVL still busy with the previous command (e.g. still
+                    # clocking a keypress onto the keybus) -- back off and retry.
+                    await asyncio.sleep(COMMAND_RETRY_DELAY * (2**attempt))
+                    continue
+                meaning = TPI_RESPONSE_CODES.get(response, "unrecognized response code")
+                raise TPICommandError(
+                    f"EVL rejected command ^{code}: response {response} ({meaning})"
+                )
 
     # -- Outbound commands ------------------------------------------------
 

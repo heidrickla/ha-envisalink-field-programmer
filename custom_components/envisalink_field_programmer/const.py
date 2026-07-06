@@ -30,6 +30,11 @@ DEFAULT_KEEPALIVE_INTERVAL: Final = 30
 ZONE_TIMER_DUMP_INTERVAL: Final = 30
 LOGIN_TIMEOUT: Final = 10
 COMMAND_ACK_TIMEOUT: Final = 5
+# Retries for a command the EVL rejects with "Receive Buffer Overrun" (it
+# was still busy processing the previous command -- e.g. still clocking a
+# keypress onto the keybus). Delay doubles each attempt.
+COMMAND_RETRY_ATTEMPTS: Final = 3
+COMMAND_RETRY_DELAY: Final = 0.25
 RECONNECT_BACKOFF_MIN: Final = 5
 RECONNECT_BACKOFF_MAX: Final = 300
 
@@ -79,6 +84,20 @@ EVT_PARTITION_STATE_CHANGE: Final = "%02"
 EVT_REALTIME_CID_EVENT: Final = "%03"
 EVT_DEBUG_MESSAGE: Final = "%20"
 EVT_ZONE_TIMER_DUMP: Final = "%FF"
+
+# Response codes the EVL sends back as "^<code>,<response>$" after every
+# command. Taken from the reference `pyenvisalink` Honeywell response table
+# (verified working against this same hardware); the EVL processes exactly
+# one command at a time and answers 01 if a new one arrives while the
+# previous is still being processed.
+RESPONSE_ACCEPTED: Final = "00"
+RESPONSE_BUFFER_OVERRUN: Final = "01"
+TPI_RESPONSE_CODES: Final[dict[str, str]] = {
+    "00": "Command Accepted",
+    "01": "Receive Buffer Overrun (command received while another is still being processed)",
+    "02": "Unknown Command",
+    "03": "Syntax Error (data appended to the command is incorrect)",
+}
 
 COMMAND_NAMES: Final[dict[str, str]] = {
     EVT_KEYPAD_UPDATE: "keypad_update",
