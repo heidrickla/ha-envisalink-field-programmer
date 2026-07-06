@@ -149,9 +149,12 @@ program_zone:
 set_system_timing:
   name: Set system timing
   description: >-
-    Guided edit of a single numbered timing/behavior data field (exit
-    delay, entry delay 1/2, auto-stay-arm). Always opens Program Mode, so an
-    installer code must be configured and confirm must be true.
+    Guided edit of a single timing data field. Valid field numbers and value
+    encodings depend on the panel model: residential VISTA uses 34 (exit
+    delay), 35/36 (entry delay 1/2) in seconds and 84 (auto-stay 0-3);
+    commercial VISTA-128BP/250BP use 09-12 (entry/exit delay 1/2) in units of
+    15 seconds (0, or 2-15), which are partition-specific. Always opens Program
+    Mode, so an installer code must be configured and confirm must be true.
   fields:
     entry_id:
       name: Config entry
@@ -162,22 +165,36 @@ set_system_timing:
           integration: envisalink_field_programmer
     field:
       name: Field
-      description: Which timing field to set.
+      description: >-
+        Timing field id for this panel. Residential VISTA: 34/35/36/84.
+        Commercial VISTA (128BP/250BP): 09/10/11/12. An invalid id for the
+        selected model is refused.
       required: true
       selector:
-        select:
-          options: ["34", "35", "36", "84"]
+        text:
     value:
       name: Value
       description: >-
-        New value. Exit delay (34) and entry delays (35/36): seconds
-        (0-96), or the field's special extended-time codes (see the
-        integration's SYSTEM_TIMING_DESCRIPTIONS). Auto-stay-arm (84): 0-3.
+        New value. Residential exit/entry delays (34/35/36): seconds (0-96)
+        or the field's extended-time codes; auto-stay (84): 0-3. Commercial
+        (09-12): units of 15 seconds, 0 or 2-15 (e.g. 4 = 60 seconds).
       required: true
       selector:
         number:
           min: 0
           max: 240
+          mode: box
+    partition:
+      name: Partition
+      description: >-
+        Partition to program (1-8). Only used by panels with partition-specific
+        timing fields (commercial VISTA 09-12); ignored for residential.
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 8
           mode: box
     confirm:
       name: Confirm

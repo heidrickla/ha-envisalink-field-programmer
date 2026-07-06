@@ -181,11 +181,9 @@ async def test_guided_programming_refused_for_dsc(hass, fake_server):
     await _unload(hass, entry)
 
 
-async def test_guided_programming_refused_for_commercial_vista(hass, fake_server):
-    # The commercial VISTA-128BP is in the guided-capable VISTA family but uses
-    # a different programming language (#93 menu, *09-*12 timing, <code>8000),
-    # so its per-model override disables guided programming -- the residential
-    # *56/*34 builder would send wrong keystrokes.
+async def test_zone_programming_refused_for_commercial_vista(hass, fake_server):
+    # The commercial VISTA-128BP supports guided *timing* but not zone
+    # programming (its #93 zone menu is not driven), so program_zone is refused.
     entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
     with pytest.raises(Exception, match="not available"):
         await hass.services.async_call(
@@ -196,6 +194,50 @@ async def test_guided_programming_refused_for_commercial_vista(hass, fake_server
                 "zone_number": 3,
                 "zone_type": 3,
                 "partition": 1,
+                "confirm": True,
+                "confirm_unverified_model": True,
+            },
+            blocking=True,
+        )
+    await _unload(hass, entry)
+
+
+async def test_commercial_vista_timing_sends_expected_keystrokes(hass, fake_server):
+    # Commercial timing IS supported: set Exit Delay #1 (*10) = 4 units (60s) on
+    # partition 1. Requires confirm_unverified_model (128BP is provisional).
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
+    await hass.services.async_call(
+        DOMAIN,
+        "set_system_timing",
+        {
+            "entry_id": entry.entry_id,
+            "field": "10",
+            "value": 4,
+            "partition": 1,
+            "confirm": True,
+            "confirm_unverified_model": True,
+        },
+        blocking=True,
+    )
+    await asyncio.sleep(0.05)
+    frames = [d for c, d in fake_server.received if c == "03"]
+    full = "".join(d.split(",", 1)[1] for d in frames)
+    # <code>8000 (commercial entry) + *91<p> (select partition) + *10<vv> + *99
+    assert full == "41128000*911*1004*99"
+    await _unload(hass, entry)
+
+
+async def test_commercial_vista_timing_rejects_residential_field(hass, fake_server):
+    # Residential field number 34 is not valid on a commercial panel.
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
+    with pytest.raises(Exception, match="not valid"):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_system_timing",
+            {
+                "entry_id": entry.entry_id,
+                "field": "34",
+                "value": 45,
                 "confirm": True,
                 "confirm_unverified_model": True,
             },

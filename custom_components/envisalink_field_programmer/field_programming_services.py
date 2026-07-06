@@ -24,13 +24,11 @@ from .field_programming import (
     FunctionKeyLetter,
     HardwireType,
     ResponseTime,
-    SystemTimingField,
     ZoneProgram,
     build_function_key_keystrokes,
-    build_system_timing_keystrokes,
     build_zone_program_keystrokes,
 )
-from .panels import Verification
+from .panels import GuidedOp, Verification
 from .programming import KeystrokeGuardError, validate_keystrokes
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,11 +71,18 @@ PROGRAM_ZONE_SCHEMA = vol.Schema(
     }
 )
 
+# The valid timing field ids and value ranges differ by dialect (residential
+# *34/*35/*36/*84 vs. commercial *09-*12), so ``field`` is a plain string here
+# and is validated at runtime against the selected model's dialect. ``partition``
+# matters only for dialects with partition-specific timing (commercial).
 SET_SYSTEM_TIMING_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTRY_ID): cv.string,
-        vol.Required(ATTR_FIELD): vol.In([f.value for f in SystemTimingField]),
+        vol.Required(ATTR_FIELD): cv.string,
         vol.Required(ATTR_VALUE): vol.Coerce(int),
+        vol.Optional(ATTR_PARTITION, default=1): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=8)
+        ),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
@@ -113,29 +118,20 @@ def _require_installer_code(coordinator) -> str:
     return coordinator.installer_code
 
 
-def _require_guided_support(coordinator) -> None:
-    """Refuse guided programming for families this flow doesn't drive.
+def _require_guided_support(coordinator, op: GuidedOp) -> None:
+    """Refuse a guided operation the selected model's dialect doesn't drive.
 
-    DSC PowerSeries uses positional whole-section programming rather than
-    VISTA's per-zone *56 menu, so its dialect reports
-    ``supports_guided_field_programming = False``. Attempting the VISTA-shaped
-    guided services against it would build meaningless (and potentially
-    destructive) keystrokes, so refuse loudly instead.
+    Each dialect declares which of ZONE / TIMING / FUNCTION_KEY it supports.
+    E.g. commercial VISTA supports TIMING only (its #93 zone menu is not driven
+    blind), and DSC supports none (positional whole-section programming +
+    Honeywell-only transport). Refuse loudly rather than build meaningless (and
+    potentially destructive) keystrokes.
     """
-    # A model may override its family dialect's support (e.g. commercial VISTA
-    # panels live in the guided-capable VISTA family but use a different
-    # programming language, so they set the flag False on the model itself).
-    model_override = coordinator.panel_model.supports_guided_field_programming
-    supported = (
-        model_override
-        if model_override is not None
-        else coordinator.dialect.supports_guided_field_programming
-    )
-    if not supported:
+    if op not in coordinator.dialect.supported_guided_ops:
         raise HomeAssistantError(
-            "Guided field programming is not available for "
+            f"Guided {op.value} programming is not available for "
             f"{coordinator.panel_model.label}. "
-            + (coordinator.panel_model.notes or coordinator.dialect.guided_field_programming_note)
+            + coordinator.dialect.guided_field_programming_note
         )
 
 
@@ -167,9 +163,10 @@ async def _send_program_mode_sequence(
     partition: int,
     action_keystrokes: str,
     *,
+    op: GuidedOp,
     confirm_unverified: bool,
 ) -> None:
-    _require_guided_support(coordinator)
+    _require_guided_support(coordinator, op)
     _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
     full_sequence = coordinator.dialect.program_mode_wrapper(
@@ -215,20 +212,32 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             coordinator,
             program.partition,
             keystrokes,
+            op=GuidedOp.ZONE,
             confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
     async def _handle_set_system_timing(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
-        field = SystemTimingField(call.data[ATTR_FIELD])
-        keystrokes = build_system_timing_keystrokes(field, call.data[ATTR_VALUE])
-        # System data fields aren't partition-scoped the way *56 zone entry
-        # is; partition 1 is used for the keystroke send itself (the field
-        # covers both partitions internally where applicable).
+        # Guard the operation early so the error is "not available for <model>"
+        # rather than an unknown-field ValueError from an empty timing table.
+        _require_guided_support(coordinator, GuidedOp.TIMING)
+        field = call.data[ATTR_FIELD]
+        valid = coordinator.dialect.timing_fields()
+        if field not in valid:
+            raise HomeAssistantError(
+                f"Timing field {field!r} is not valid for "
+                f"{coordinator.panel_model.label}. Valid fields: "
+                f"{', '.join(sorted(valid))}."
+            )
+        partition = call.data[ATTR_PARTITION]
+        keystrokes = coordinator.dialect.build_timing_keystrokes(
+            field, call.data[ATTR_VALUE], partition
+        )
         await _send_program_mode_sequence(
             coordinator,
-            1,
+            partition,
             keystrokes,
+            op=GuidedOp.TIMING,
             confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
@@ -244,6 +253,7 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             coordinator,
             partition,
             keystrokes,
+            op=GuidedOp.FUNCTION_KEY,
             confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
