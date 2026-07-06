@@ -122,11 +122,20 @@ def _require_guided_support(coordinator) -> None:
     guided services against it would build meaningless (and potentially
     destructive) keystrokes, so refuse loudly instead.
     """
-    if not coordinator.dialect.supports_guided_field_programming:
+    # A model may override its family dialect's support (e.g. commercial VISTA
+    # panels live in the guided-capable VISTA family but use a different
+    # programming language, so they set the flag False on the model itself).
+    model_override = coordinator.panel_model.supports_guided_field_programming
+    supported = (
+        model_override
+        if model_override is not None
+        else coordinator.dialect.supports_guided_field_programming
+    )
+    if not supported:
         raise HomeAssistantError(
             "Guided field programming is not available for "
             f"{coordinator.panel_model.label}. "
-            + coordinator.dialect.guided_field_programming_note
+            + (coordinator.panel_model.notes or coordinator.dialect.guided_field_programming_note)
         )
 
 

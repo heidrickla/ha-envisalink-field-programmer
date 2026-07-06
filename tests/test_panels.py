@@ -138,3 +138,46 @@ def test_guard_blocks_vista_program_mode_only_under_vista_dialect():
         validate_keystrokes("4112800*56", dialect=VISTA_DIALECT)
     # ...but is not the DSC trigger, so DSC's guard leaves it alone.
     validate_keystrokes("4112800*56", dialect=DSC_DIALECT)  # must not raise
+
+
+# --- verification-acknowledgment gate -------------------------------------
+# Currently every registered model is either fully VERIFIED or has guided
+# programming disabled, so no live model trips this gate -- but it must stay
+# correct for any future model added as GRAMMAR_VERIFIED/PROVISIONAL *with*
+# guided programming enabled. Tested directly against the helper.
+
+def _fake_coordinator(model):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(panel_model=model)
+
+
+def test_verified_or_ack_allows_verified_model_without_ack():
+    from custom_components.envisalink_field_programmer.field_programming_services import (
+        _require_verified_or_ack,
+    )
+
+    model = get_model("vista_21ip")
+    assert model.verification == Verification.VERIFIED
+    _require_verified_or_ack(_fake_coordinator(model), confirm_unverified=False)  # no raise
+
+
+def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with():
+    from custom_components.envisalink_field_programmer.field_programming_services import (
+        _require_verified_or_ack,
+    )
+    from custom_components.envisalink_field_programmer.panels import PanelModel
+
+    provisional = PanelModel(
+        model_id="hypothetical",
+        family=PanelFamily.VISTA,
+        label="Hypothetical unverified panel",
+        max_zones=8,
+        max_partitions=1,
+        verification=Verification.PROVISIONAL,
+        notes="not checked yet",
+    )
+    with pytest.raises(KeystrokeGuardError, match="not verified"):
+        _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=False)
+    # With the explicit acknowledgment it proceeds.
+    _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=True)

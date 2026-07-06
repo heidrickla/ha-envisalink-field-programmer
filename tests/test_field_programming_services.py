@@ -159,12 +159,12 @@ async def test_program_zone_requires_installer_code_configured(hass, fake_server
     await _unload(hass, entry)
 
 
-async def test_program_zone_unverified_model_requires_ack(hass, fake_server):
-    # A non-verified model (here the 128BP commercial panel, provisional) must
-    # be explicitly acknowledged before it will field-program, since its field
-    # numbers are not verified against its own guide.
-    entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
-    with pytest.raises(Exception, match="not verified"):
+async def test_guided_programming_refused_for_dsc(hass, fake_server):
+    # DSC PowerSeries uses positional whole-section programming, not the
+    # VISTA *56 per-zone menu, so the guided service refuses outright rather
+    # than building meaningless (and potentially destructive) keystrokes.
+    entry = await _setup_entry(hass, fake_server, panel_model="dsc_pc1864")
+    with pytest.raises(Exception, match="not available"):
         await hass.services.async_call(
             DOMAIN,
             "program_zone",
@@ -174,38 +174,19 @@ async def test_program_zone_unverified_model_requires_ack(hass, fake_server):
                 "zone_type": 3,
                 "partition": 1,
                 "confirm": True,
+                "confirm_unverified_model": True,
             },
             blocking=True,
         )
     await _unload(hass, entry)
 
 
-async def test_program_zone_unverified_model_proceeds_when_acked(hass, fake_server):
+async def test_guided_programming_refused_for_commercial_vista(hass, fake_server):
+    # The commercial VISTA-128BP is in the guided-capable VISTA family but uses
+    # a different programming language (#93 menu, *09-*12 timing, <code>8000),
+    # so its per-model override disables guided programming -- the residential
+    # *56/*34 builder would send wrong keystrokes.
     entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
-    await hass.services.async_call(
-        DOMAIN,
-        "program_zone",
-        {
-            "entry_id": entry.entry_id,
-            "zone_number": 3,
-            "zone_type": 3,
-            "partition": 1,
-            "confirm": True,
-            "confirm_unverified_model": True,
-        },
-        blocking=True,
-    )
-    await asyncio.sleep(0.05)
-    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
-    assert keystroke_frames  # something was sent
-    await _unload(hass, entry)
-
-
-async def test_guided_programming_refused_for_dsc(hass, fake_server):
-    # DSC PowerSeries uses positional whole-section programming, not the
-    # VISTA *56 per-zone menu, so the guided service refuses outright rather
-    # than building meaningless (and potentially destructive) keystrokes.
-    entry = await _setup_entry(hass, fake_server, panel_model="dsc_pc1864")
     with pytest.raises(Exception, match="not available"):
         await hass.services.async_call(
             DOMAIN,
