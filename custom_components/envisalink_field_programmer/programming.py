@@ -31,6 +31,7 @@ goes through, so that safety logic lives in exactly one place:
 from __future__ import annotations
 
 import logging
+import re
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -55,6 +56,18 @@ ATTR_CONFIRM_INSTALLER_RISK = "confirm_installer_risk"
 # Only digits, *, and # are valid ECP keystrokes per the TPI spec (true for
 # both the Honeywell and DSC keypad character sets).
 _VALID_KEYSTROKE_CHARS = set("0123456789*#")
+
+# A keystroke string can embed a secret: the installer code (4-6 digits) or a
+# user/arm-disarm code. Any run of 4+ consecutive digits is a code; mask it
+# before the string reaches a log, service error, or the Lovelace card, which
+# surfaces guard errors verbatim. The `*`/`#`/`800`/`*56` operators (<4 digits)
+# are kept so the message still explains *why* a sequence was refused.
+_CODE_RUN = re.compile(r"\d{4,}")
+
+
+def _redact_codes(keys: str) -> str:
+    """Mask runs of 4+ digits (installer/user codes) for safe display."""
+    return _CODE_RUN.sub("[code]", keys)
 
 SEND_KEYSTROKES_SCHEMA = vol.Schema(
     {
@@ -106,8 +119,8 @@ def validate_keystrokes(
 
     if not allow_installer_mode and dialect.opens_program_mode(keys, installer_code):
         raise KeystrokeGuardError(
-            f"Refusing to send {keys!r}: this looks like it opens installer "
-            "Program Mode on this panel. Program Mode gives access to every "
+            f"Refusing to send {_redact_codes(keys)!r}: this looks like it opens "
+            "installer Program Mode on this panel. Program Mode gives access to every "
             "data field on the panel, including fire-zone and "
             "UL-listing-relevant settings, and the TPI protocol has no way to "
             "read back what's actually on the keypad display while there. "
