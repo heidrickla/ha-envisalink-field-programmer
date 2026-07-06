@@ -28,13 +28,17 @@ Per-model honesty (see :class:`~.base.Verification`):
     correct for every zone that physically exists. Single partition, 22 zones.
     Only cosmetic difference: ``*84`` auto-stay factory default is 1, not 3
     (a default value, not a field-number or keystroke change).
-  * **VISTA-128BP / 250BP** -- PROVISIONAL. The commercial panels enter Program
-    Mode the same way but use a materially larger and different data-field set
-    (and a different guide entirely, K5894PRV6). Their zone-type table is reused
-    from the residential set as a best effort **and must not be trusted** until
-    checked against the 128BP/250BP programming guide. They are included so the
-    model can be selected and basic arm/disarm/bypass works; guided field
-    programming against them should be treated as unverified.
+  * **VISTA-128BP / 250BP** -- PROVISIONAL, and guided programming is **disabled**
+    for them (``supports_guided_field_programming=False``). Checked against the
+    K5894PRV6 guide (2026-07-05): these commercial panels genuinely use a
+    *different* programming language -- program mode opens with ``<code>8000``
+    (not ``<code>800``), zones are programmed through ``#93`` menu mode (not
+    ``*56``), and entry/exit timing lives in fields ``*09``-``*12`` in 15-second
+    units (not ``*34``/``*35``/``*36`` in raw seconds). Driving the residential
+    ``*56``/``*34`` builder against them would send wrong keystrokes, so the
+    guided services refuse them (arm/disarm/bypass and model selection still
+    work). A proper commercial-VISTA dialect (#93 + ``*09``-``*12``) is a
+    separate future effort.
 """
 from __future__ import annotations
 
@@ -165,12 +169,14 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         max_zones=128,
         max_partitions=8,
         verification=Verification.PROVISIONAL,
+        supports_guided_field_programming=False,
         notes=(
-            "Commercial panel. Opens Program Mode the same way, but its data "
-            "field set differs substantially from the residential guide. Guided "
-            "field programming is UNVERIFIED for this model -- treat zone types "
-            "and field numbers as placeholders until checked against the 128BP "
-            "programming guide. Arm/disarm/bypass are unaffected."
+            "Commercial panel. Confirmed against K5894PRV6 (2026-07-05) to use a "
+            "different programming language than the residential line: <code>8000 "
+            "entry, #93 menu zone programming, *09-*12 timing in 15-second units. "
+            "Guided programming is disabled (the residential *56/*34 builder would "
+            "send wrong keystrokes); arm/disarm/bypass/model selection work. Needs "
+            "a dedicated commercial-VISTA dialect."
         ),
         default_zones=8,
         default_partitions=1,
@@ -183,9 +189,13 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         max_zones=250,
         max_partitions=8,
         verification=Verification.PROVISIONAL,
+        supports_guided_field_programming=False,
         notes=(
-            "Large commercial panel; same caveat as the 128BP. Guided field "
-            "programming is UNVERIFIED -- verify against the 250BP guide."
+            "Large commercial panel; shares the 128BP's K5894PRV6 programming "
+            "language (#93 zone programming, *09-*12 timing, <code>8000 entry), "
+            "not the residential *56/*34 flow. Guided programming disabled; "
+            "arm/disarm/bypass/model selection work. Needs the same dedicated "
+            "commercial-VISTA dialect as the 128BP."
         ),
         default_zones=8,
         default_partitions=1,

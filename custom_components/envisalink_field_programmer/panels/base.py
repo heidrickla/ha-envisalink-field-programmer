@@ -122,6 +122,16 @@ class PanelModel:
     aliases: tuple[str, ...] = field(default_factory=tuple)
     """Alternate model spellings that should resolve to this entry."""
 
+    supports_guided_field_programming: bool | None = None
+    """Per-model override of the family dialect's guided-programming support.
+
+    ``None`` means "defer to the dialect." Set ``False`` for a model that lives
+    in a guided-capable family but whose own programming language differs enough
+    that the family's guided builder would emit wrong keystrokes -- e.g. the
+    commercial VISTA-128BP/250BP, which use ``#93`` menu zone programming and
+    ``*09``-``*12`` timing fields rather than the residential ``*56``/``*34``
+    flow this integration's guided services drive."""
+
 
 @runtime_checkable
 class PanelDialect(Protocol):
