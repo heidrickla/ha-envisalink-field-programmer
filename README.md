@@ -353,15 +353,16 @@ confirmations.
 | Model | Family | Verification | Notes |
 |---|---|---|---|
 | **VISTA-21iP** | Honeywell VISTA | ✅ Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
-| VISTA-20P / 15P | Honeywell VISTA | ◑ Grammar-verified | Residential siblings; share the 21iP's `*56`/`*57`/`800`/`*99` grammar and zone types. Field numbers inherited, not individually reconfirmed. |
-| VISTA-10P | Honeywell VISTA | ⚠ Provisional | Older generation; some field numbers differ — verify against the 10P guide. |
-| VISTA-128BP / 250BP | Honeywell VISTA | ⚠ Provisional | Commercial panels; open Program Mode the same way but use a materially different data-field set. Guided programming is **unverified** for these. |
-| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | ⚠ Provisional | Section-based (`*8` + code) grammar is supported and the installer-mode guard works, but per-model codes/capacities are **not** verified. Guided *per-zone* programming is intentionally **not** driven for DSC (its positional whole-section programming would risk overwriting a whole zone block blind); model selection, the zone-type reference, and the safety guard are available. Note the current transport speaks Honeywell TPI, so DSC arm/disarm/zone wiring is separate future work. |
+| **VISTA-20P / 15P** | Honeywell VISTA | ✅ Verified | Cross-checked field-by-field against the VISTA-15P/20P Programming Guide (2026-07-05): program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. |
+| **VISTA-10P** | Honeywell VISTA | ✅ Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar/zone types; zones 1-6 hardwired + 9-24 RF (no zones 7-8), single partition. |
+| VISTA-128BP / 250BP | Honeywell VISTA | ⚠ Provisional — guided **disabled** | Confirmed against K5894PRV6 that these commercial panels use a *different* language (`<code>8000` entry, `#93` zone menu, `*09`-`*12` timing). Guided programming is refused for them so the residential builder can't send wrong keystrokes; arm/disarm/bypass/model selection still work. A commercial-VISTA dialect is future work. |
+| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | ⚠ Provisional — guided **disabled** | Section-based (`*8` + code) grammar and the zone-definition reference table are checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020), and the installer-mode guard works. Guided *per-zone* programming is intentionally **not** driven for DSC (its positional whole-section programming would risk overwriting a zone block blind, and the transport still speaks Honeywell TPI); model selection, the zone-type reference, and the guard are available. |
 
-**If you have the programming guide for a Provisional/Grammar-verified model**,
-that's exactly what's needed to promote it to Verified — the field numbers and
-zone-type codes just need checking against that panel's own document (and,
-ideally, the real panel in review-only mode). Contributions welcome.
+The four **Verified** residential VISTA panels are the ones you can fully
+field-program. The commercial VISTA and DSC panels are selectable and safe
+(guided programming is refused rather than done wrong); completing their guided
+programming is future work — a commercial-VISTA `#93` dialect, and a DSC
+section-programming path plus DSC transport. Contributions welcome.
 
 ## Development
 
