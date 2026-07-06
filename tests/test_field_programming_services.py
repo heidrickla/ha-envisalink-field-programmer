@@ -160,10 +160,10 @@ async def test_program_zone_requires_installer_code_configured(hass, fake_server
 
 
 async def test_program_zone_unverified_model_requires_ack(hass, fake_server):
-    # A non-VISTA-21iP model (here the 20P, grammar-verified) must be
-    # explicitly acknowledged before it will field-program, since its field
-    # numbers are inherited, not verified against its own guide.
-    entry = await _setup_entry(hass, fake_server, panel_model="vista_20p")
+    # A non-verified model (here the 128BP commercial panel, provisional) must
+    # be explicitly acknowledged before it will field-program, since its field
+    # numbers are not verified against its own guide.
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
     with pytest.raises(Exception, match="not verified"):
         await hass.services.async_call(
             DOMAIN,
@@ -181,7 +181,7 @@ async def test_program_zone_unverified_model_requires_ack(hass, fake_server):
 
 
 async def test_program_zone_unverified_model_proceeds_when_acked(hass, fake_server):
-    entry = await _setup_entry(hass, fake_server, panel_model="vista_20p")
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
     await hass.services.async_call(
         DOMAIN,
         "program_zone",
