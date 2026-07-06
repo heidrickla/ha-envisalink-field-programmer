@@ -31,7 +31,6 @@ goes through, so that safety logic lives in exactly one place:
 from __future__ import annotations
 
 import logging
-import re
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -39,7 +38,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .client import EnvisalinkClient
-from .const import DOMAIN, PROGRAM_MODE_SUFFIX
+from .const import DOMAIN
+from .panels import PanelDialect, get_dialect
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,13 +52,8 @@ ATTR_KEYS = "keys"
 ATTR_ZONE = "zone"
 ATTR_CONFIRM_INSTALLER_RISK = "confirm_installer_risk"
 
-# Generic fallback for when the configured installer code isn't available to
-# check against directly: any run of 4-6 digits immediately followed by the
-# Program Mode suffix. This is what an installer-code entry actually looks
-# like on the wire, regardless of which code is in use.
-_GENERIC_PROGRAM_MODE_PATTERN = re.compile(r"\d{4,6}" + re.escape(PROGRAM_MODE_SUFFIX))
-
-# Only digits, *, and # are valid ECP keystrokes per the TPI spec.
+# Only digits, *, and # are valid ECP keystrokes per the TPI spec (true for
+# both the Honeywell and DSC keypad character sets).
 _VALID_KEYSTROKE_CHARS = set("0123456789*#")
 
 SEND_KEYSTROKES_SCHEMA = vol.Schema(
@@ -82,19 +77,20 @@ class KeystrokeGuardError(HomeAssistantError):
     """Raised when a keystroke sequence is refused by the safety guard."""
 
 
-def _contains_program_mode_entry(keys: str, installer_code: str | None) -> bool:
-    if installer_code and f"{installer_code}{PROGRAM_MODE_SUFFIX}" in keys:
-        return True
-    return bool(_GENERIC_PROGRAM_MODE_PATTERN.search(keys))
-
-
 def validate_keystrokes(
     keys: str,
     *,
     allow_installer_mode: bool = False,
     installer_code: str | None = None,
+    dialect: PanelDialect | None = None,
 ) -> None:
-    """Raise KeystrokeGuardError if ``keys`` is unsafe to send unattended."""
+    """Raise KeystrokeGuardError if ``keys`` is unsafe to send unattended.
+
+    ``dialect`` selects the panel family whose Program-Mode trigger to guard
+    against (VISTA's ``<code>800`` vs. DSC's ``*8<code>``). It defaults to the
+    VISTA dialect, preserving the original single-panel behaviour for callers
+    that don't pass one.
+    """
     if not keys:
         raise KeystrokeGuardError("Keystroke string must not be empty")
 
@@ -102,14 +98,17 @@ def validate_keystrokes(
     if invalid_chars:
         raise KeystrokeGuardError(
             f"Invalid keystroke characters {sorted(invalid_chars)!r}; "
-            "only digits, '*', and '#' are valid on a Vista keypad"
+            "only digits, '*', and '#' are valid keypad characters"
         )
 
-    if not allow_installer_mode and _contains_program_mode_entry(keys, installer_code):
+    if dialect is None:
+        dialect = get_dialect(None)  # VISTA-21iP default
+
+    if not allow_installer_mode and dialect.opens_program_mode(keys, installer_code):
         raise KeystrokeGuardError(
-            f"Refusing to send {keys!r}: this looks like it opens Program Mode "
-            "(installer code followed by 800). Program Mode gives access to "
-            "every data field on the panel, including fire-zone and "
+            f"Refusing to send {keys!r}: this looks like it opens installer "
+            "Program Mode on this panel. Program Mode gives access to every "
+            "data field on the panel, including fire-zone and "
             "UL-listing-relevant settings, and the TPI protocol has no way to "
             "read back what's actually on the keypad display while there. "
             "Pass confirm_installer_risk: true if you deliberately intend this "
@@ -124,10 +123,14 @@ async def async_send_guarded_keystrokes(
     *,
     allow_installer_mode: bool = False,
     installer_code: str | None = None,
+    dialect: PanelDialect | None = None,
 ) -> None:
     """Validate ``keys`` against the safety guard, then send them."""
     validate_keystrokes(
-        keys, allow_installer_mode=allow_installer_mode, installer_code=installer_code
+        keys,
+        allow_installer_mode=allow_installer_mode,
+        installer_code=installer_code,
+        dialect=dialect,
     )
     await client.send_keystrokes(partition, keys)
 

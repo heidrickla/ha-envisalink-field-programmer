@@ -133,6 +133,18 @@ program_zone:
       default: false
       selector:
         boolean:
+    confirm_unverified_model:
+      name: Confirm unverified panel model
+      description: >-
+        Must be true if this config entry's panel model is anything other than
+        the VISTA-21iP. Every other model's field numbers/zone-type codes are
+        inherited or provisional and not verified against that panel's own
+        programming guide -- acknowledge that and verify the result at the
+        keypad.
+      required: false
+      default: false
+      selector:
+        boolean:
 
 set_system_timing:
   name: Set system timing
@@ -171,6 +183,15 @@ set_system_timing:
       name: Confirm
       description: Must be true. This always opens Program Mode.
       required: true
+      selector:
+        boolean:
+    confirm_unverified_model:
+      name: Confirm unverified panel model
+      description: >-
+        Must be true for any panel model other than the VISTA-21iP (field
+        numbers are inherited/provisional for the rest). Verify at the keypad.
+      required: false
+      default: false
       selector:
         boolean:
 
@@ -220,6 +241,15 @@ program_function_key:
       name: Confirm
       description: Must be true. This always opens Program Mode.
       required: true
+      selector:
+        boolean:
+    confirm_unverified_model:
+      name: Confirm unverified panel model
+      description: >-
+        Must be true for any panel model other than the VISTA-21iP (field
+        numbers are inherited/provisional for the rest). Verify at the keypad.
+      required: false
+      default: false
       selector:
         boolean:
 

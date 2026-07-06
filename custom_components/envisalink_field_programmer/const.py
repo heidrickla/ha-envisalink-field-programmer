@@ -12,12 +12,16 @@ CONF_PORT: Final = "port"
 CONF_PASSWORD: Final = "password"
 CONF_USER_CODE: Final = "user_code"
 CONF_INSTALLER_CODE: Final = "installer_code"
+CONF_PANEL_MODEL: Final = "panel_model"
 CONF_NUM_PARTITIONS: Final = "num_partitions"
 CONF_NUM_ZONES: Final = "num_zones"
 CONF_ZONE_NAMES: Final = "zone_names"
 CONF_KEEPALIVE_INTERVAL: Final = "keepalive_interval"
 
 DEFAULT_PORT: Final = 4025
+# The panel this integration was originally built and hardware-tested against;
+# the default so existing installs and single-panel users are unaffected.
+DEFAULT_PANEL_MODEL: Final = "vista_21ip"
 DEFAULT_NUM_PARTITIONS: Final = 1
 DEFAULT_NUM_ZONES: Final = 8
 DEFAULT_KEEPALIVE_INTERVAL: Final = 30
@@ -155,6 +159,17 @@ PROGRAM_MODE_SUFFIX: Final = "800"
 EXIT_PROGRAM_MODE: Final = "*99"
 ENTER_ZONE_PROGRAMMING: Final = "*56"
 ENTER_FUNCTION_KEY_PROGRAMMING: Final = "*57"
+
+# ---------------------------------------------------------------------------
+# DSC PowerSeries programming conventions (section-based, not *56 field menus)
+# ---------------------------------------------------------------------------
+# DSC opens installer programming with "*8" followed by the installer code
+# (factory default 5555), navigates by 3-digit section number, and exits by
+# keying out with "#". See panels/dsc.py for the full grammar and the honest
+# per-model verification caveats. Kept here alongside the Vista constants so
+# the two families' program-mode triggers live in one place.
+DSC_PROGRAM_MODE_PREFIX: Final = "*8"
+DSC_EXIT_PROGRAM_MODE: Final = "##"
 
 ATTR_PARTITION = "partition"
 ATTR_ZONE = "zone"
