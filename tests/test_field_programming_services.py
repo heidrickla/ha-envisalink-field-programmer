@@ -58,6 +58,23 @@ async def _unload(hass, entry):
     await hass.async_block_till_done()
 
 
+async def test_send_keystrokes_guards_dsc_installer_mode_by_dialect(hass, fake_server):
+    # Security regression: send_keystrokes must guard against the *selected
+    # panel's* installer-mode trigger. On a DSC entry, *8<code> opens installer
+    # programming and must be refused without confirm_installer_risk -- it would
+    # slip through if the service defaulted to the VISTA 800 rule (the bug this
+    # test locks down).
+    entry = await _setup_entry(hass, fake_server, panel_model="dsc_pc1864")
+    with pytest.raises(Exception, match="Program Mode"):
+        await hass.services.async_call(
+            DOMAIN,
+            "send_keystrokes",
+            {"entry_id": entry.entry_id, "partition": 1, "keys": "*84112500"},
+            blocking=True,
+        )
+    await _unload(hass, entry)
+
+
 async def test_program_zone_sends_expected_keystrokes(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
     await hass.services.async_call(
