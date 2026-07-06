@@ -42,6 +42,20 @@ class PanelFamily(StrEnum):
     """DSC PowerSeries -- ``*8``-style section-based programming."""
 
 
+class GuidedOp(StrEnum):
+    """The guided-programming operations a dialect may or may not support.
+
+    A dialect can support some but not all: e.g. the commercial VISTA panels
+    use simple ``*09``-``*12`` data-field edits for timing (supported) but a
+    complex, conditional ``#93`` menu for zones (not driven here), so they
+    support ``TIMING`` only.
+    """
+
+    ZONE = "zone"
+    TIMING = "timing"
+    FUNCTION_KEY = "function_key"
+
+
 class Verification(StrEnum):
     """How much of a model's per-model programming data has been confirmed.
 
@@ -102,6 +116,23 @@ class ZoneTypeDef:
 
 
 @dataclass(frozen=True)
+class TimingFieldDef:
+    """One editable system-timing field, for the guided timing UI/validation.
+
+    ``key`` is the dialect-native field identifier (e.g. VISTA residential
+    ``"34"`` for exit delay, or commercial ``"10"``). ``partition_specific``
+    is True for fields that must be scoped to a partition before editing (the
+    commercial panels' ``*09``-``*12`` are). The actual keystroke translation
+    and range validation live in :meth:`PanelDialect.build_timing_keystrokes`.
+    """
+
+    key: str
+    label: str
+    description: str
+    partition_specific: bool = False
+
+
+@dataclass(frozen=True)
 class PanelModel:
     """Static metadata describing one concrete panel model."""
 
@@ -122,15 +153,12 @@ class PanelModel:
     aliases: tuple[str, ...] = field(default_factory=tuple)
     """Alternate model spellings that should resolve to this entry."""
 
-    supports_guided_field_programming: bool | None = None
-    """Per-model override of the family dialect's guided-programming support.
-
-    ``None`` means "defer to the dialect." Set ``False`` for a model that lives
-    in a guided-capable family but whose own programming language differs enough
-    that the family's guided builder would emit wrong keystrokes -- e.g. the
-    commercial VISTA-128BP/250BP, which use ``#93`` menu zone programming and
-    ``*09``-``*12`` timing fields rather than the residential ``*56``/``*34``
-    flow this integration's guided services drive."""
+    dialect_id: str | None = None
+    """Which dialect drives this model. ``None`` means "use the family's
+    default dialect." Set explicitly when a model in a family needs a distinct
+    dialect -- e.g. the commercial VISTA-128BP/250BP use ``"vista_commercial"``
+    (``<code>8000`` entry, ``#93`` zones, ``*09``-``*12`` timing) rather than the
+    residential VISTA dialect, even though both are in the VISTA family."""
 
 
 @runtime_checkable
@@ -144,18 +172,19 @@ class PanelDialect(Protocol):
 
     family: PanelFamily
 
-    supports_guided_field_programming: bool
-    """Whether this integration's guided *per-zone* programming flow
-    (``program_zone`` / ``set_system_timing`` / ``program_function_key``)
-    applies to this family. VISTA's ``*56`` menu is per-zone and maps cleanly;
-    DSC's section-based programming rewrites a whole 8-zone block positionally,
-    which is a different shape this integration does not yet drive -- so DSC
-    exposes model metadata, zone-type reference, and the safety guard, but not
-    the guided per-zone services."""
+    supported_guided_ops: frozenset[GuidedOp]
+    """Which guided-programming operations this dialect actually drives.
+
+    The three services (``program_zone`` -> ZONE, ``set_system_timing`` ->
+    TIMING, ``program_function_key`` -> FUNCTION_KEY) each check membership
+    here and refuse operations not in the set. VISTA residential supports all
+    three; the commercial VISTA dialect supports only TIMING (its ``#93`` zone
+    flow is too conditional to drive blind); DSC supports none (positional
+    whole-section programming + a Honeywell-only transport)."""
 
     guided_field_programming_note: str
-    """Human-facing explanation shown when guided programming is unavailable
-    or unverified for the selected model."""
+    """Human-facing explanation shown when a guided operation is unavailable
+    for the selected model."""
 
     def zone_types(self) -> dict[int, ZoneTypeDef]:
         """Return the code -> :class:`ZoneTypeDef` table for this family."""
@@ -173,3 +202,17 @@ class PanelDialect(Protocol):
         acknowledged. Must be conservative: prefer a false positive (an
         over-cautious refusal) to letting an installer-mode sequence through.
         """
+
+    def timing_fields(self) -> dict[str, TimingFieldDef]:
+        """Editable system-timing fields, keyed by dialect-native field id.
+
+        Empty if this dialect doesn't support guided timing (GuidedOp.TIMING
+        not in :attr:`supported_guided_ops`)."""
+
+    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+        """Translate a timing-field edit into in-Program-Mode keystrokes.
+
+        ``partition`` is used only for ``partition_specific`` fields; dialects
+        with system-wide timing ignore it. Raises ``ValueError`` for an unknown
+        field or out-of-range value; raises ``NotImplementedError`` if this
+        dialect doesn't support guided timing at all."""

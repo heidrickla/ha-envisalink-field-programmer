@@ -46,7 +46,13 @@ from __future__ import annotations
 
 import re
 
-from .base import PanelFamily, PanelModel, Verification, ZoneTypeDef
+from .base import (
+    PanelFamily,
+    PanelModel,
+    TimingFieldDef,
+    Verification,
+    ZoneTypeDef,
+)
 
 DSC_PROGRAM_MODE_PREFIX = "*8"
 DSC_EXIT_PROGRAM_MODE = "##"
@@ -119,14 +125,15 @@ class DscPowerSeriesDialect:
     """Shared dialect for every DSC PowerSeries model."""
 
     family = PanelFamily.DSC_POWERSERIES
-    supports_guided_field_programming = False
+    supported_guided_ops = frozenset()  # no guided ops driven for DSC yet
     guided_field_programming_note = (
         "DSC PowerSeries uses positional, whole-section zone programming rather "
         "than VISTA's per-zone *56 menu, and the current transport speaks "
-        "Honeywell TPI. Model selection, the zone-type reference, and the "
-        "installer-mode safety guard are available; guided per-zone programming "
-        "is not driven for DSC (it would risk overwriting an entire 8-zone "
-        "block blind). Verify any DSC programming against the panel's manual."
+        "Honeywell TPI. Model selection, the zone-type reference, the section "
+        "keystroke builders (see build_*), and the installer-mode safety guard "
+        "are available; no guided operation is wired to send to a DSC panel yet "
+        "(that needs a DSC transport). Verify any DSC programming against the "
+        "panel's manual."
     )
 
     def zone_types(self) -> dict[int, ZoneTypeDef]:
@@ -134,6 +141,17 @@ class DscPowerSeriesDialect:
 
     def life_safety_zone_codes(self) -> frozenset[int]:
         return _DSC_LIFE_SAFETY_CODES
+
+    def timing_fields(self) -> dict[str, TimingFieldDef]:
+        # No guided timing is driven for DSC (no transport); the section [005]
+        # timing builder exists as a pure function (see build_dsc_partition_timing).
+        return {}
+
+    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+        raise NotImplementedError(
+            "DSC guided timing is not driven (no DSC transport yet); use "
+            "build_dsc_partition_timing() directly for the keystroke string."
+        )
 
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         """Wrap section keystrokes: ``*8`` + code + <sections> + ``##``."""

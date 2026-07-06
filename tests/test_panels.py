@@ -67,8 +67,13 @@ def test_verified_models_are_the_guide_checked_residential_vistas():
 # --- VISTA dialect --------------------------------------------------------
 
 def test_vista_dialect_family_and_guided_support():
+    from custom_components.envisalink_field_programmer.panels import GuidedOp
+
     assert VISTA_DIALECT.family == PanelFamily.VISTA
-    assert VISTA_DIALECT.supports_guided_field_programming is True
+    # Residential VISTA drives all three guided operations.
+    assert VISTA_DIALECT.supported_guided_ops == frozenset(
+        {GuidedOp.ZONE, GuidedOp.TIMING, GuidedOp.FUNCTION_KEY}
+    )
 
 
 def test_vista_program_mode_wrapper():
@@ -87,13 +92,60 @@ def test_vista_zone_types_flag_life_safety():
     assert 3 not in codes
 
 
+def test_vista_residential_timing_builder():
+    # Residential timing is system-wide (partition ignored) -- same output as
+    # the underlying field_programming builder: exit delay (34) = 45 seconds.
+    assert VISTA_DIALECT.build_timing_keystrokes("34", 45, partition=1) == "*3445*"
+
+
+# --- Commercial VISTA dialect ---------------------------------------------
+
+def test_commercial_vista_dialect_supports_timing_only():
+    from custom_components.envisalink_field_programmer.panels import GuidedOp, get_dialect
+
+    dialect = get_dialect("vista_128bp")
+    assert dialect.supported_guided_ops == frozenset({GuidedOp.TIMING})
+    # 250BP shares the same commercial dialect.
+    assert get_dialect("vista_250bp") is dialect
+
+
+def test_commercial_vista_program_mode_uses_8000():
+    from custom_components.envisalink_field_programmer.panels import get_dialect
+
+    dialect = get_dialect("vista_128bp")
+    assert dialect.program_mode_wrapper("1234", "X") == "12348000X*99"
+    assert dialect.opens_program_mode("12348000*0902", "1234") is True
+    # Residential <code>800 is not the commercial trigger's full form, but the
+    # generic guard still catches any 4-6 digits + 8000.
+    assert dialect.opens_program_mode("99998000", None) is True
+
+
+def test_commercial_vista_timing_builder_partition_specific():
+    from custom_components.envisalink_field_programmer.panels import get_dialect
+
+    dialect = get_dialect("vista_128bp")
+    # Entry Delay #1 (*09) = 2 units (30s) on partition 1: select partition, edit field.
+    assert dialect.build_timing_keystrokes("09", 2, partition=1) == "*911*0902"
+    assert dialect.build_timing_keystrokes("12", 15, partition=3) == "*913*1215"
+
+
+def test_commercial_vista_timing_rejects_out_of_range():
+    from custom_components.envisalink_field_programmer.panels import get_dialect
+
+    dialect = get_dialect("vista_128bp")
+    for bad in (1, 16, -1):  # valid is 0 or 2-15
+        with pytest.raises(ValueError):
+            dialect.build_timing_keystrokes("09", bad, partition=1)
+    with pytest.raises(ValueError):
+        dialect.build_timing_keystrokes("99", 2, partition=1)  # unknown field
+
+
 # --- DSC dialect ----------------------------------------------------------
 
 def test_dsc_dialect_family_and_no_guided_support():
     assert DSC_DIALECT.family == PanelFamily.DSC_POWERSERIES
-    # DSC uses positional whole-section programming; the VISTA-shaped guided
-    # per-zone flow deliberately does not drive it.
-    assert DSC_DIALECT.supports_guided_field_programming is False
+    # DSC drives no guided operation yet (no DSC transport).
+    assert DSC_DIALECT.supported_guided_ops == frozenset()
     assert DSC_DIALECT.guided_field_programming_note
 
 

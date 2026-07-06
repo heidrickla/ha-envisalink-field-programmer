@@ -10,22 +10,27 @@ Public entry points:
 from __future__ import annotations
 
 from .base import (
+    GuidedOp,
     PanelDialect,
     PanelFamily,
     PanelModel,
+    TimingFieldDef,
     Verification,
     ZoneTypeDef,
 )
 from .dsc import DSC_DIALECT, DSC_MODELS
-from .vista import VISTA_DIALECT, VISTA_MODELS
+from .vista import COMMERCIAL_VISTA_DIALECT, VISTA_DIALECT, VISTA_MODELS
 
 MODELS: tuple[PanelModel, ...] = VISTA_MODELS + DSC_MODELS
 
 DEFAULT_MODEL_ID = "vista_21ip"
 
-_DIALECTS: dict[PanelFamily, PanelDialect] = {
-    PanelFamily.VISTA: VISTA_DIALECT,
-    PanelFamily.DSC_POWERSERIES: DSC_DIALECT,
+# Dialects are keyed by dialect id. A model uses its own ``dialect_id`` if set,
+# otherwise its family's default (family value == that dialect's key).
+_DIALECTS: dict[str, PanelDialect] = {
+    PanelFamily.VISTA.value: VISTA_DIALECT,
+    "vista_commercial": COMMERCIAL_VISTA_DIALECT,
+    PanelFamily.DSC_POWERSERIES.value: DSC_DIALECT,
 }
 
 # Build a lookup covering canonical ids and every alias, case/spacing tolerant.
@@ -66,7 +71,8 @@ def get_model(model_id: str | None) -> PanelModel:
 
 def get_dialect(model_id: str | None) -> PanelDialect:
     """Return the dialect for a model id (default panel for ``None``)."""
-    return _DIALECTS[get_model(model_id).family]
+    model = get_model(model_id)
+    return _DIALECTS[model.dialect_id or model.family.value]
 
 
 def model_choices() -> dict[str, str]:
@@ -77,9 +83,11 @@ def model_choices() -> dict[str, str]:
 __all__ = [
     "DEFAULT_MODEL_ID",
     "MODELS",
+    "GuidedOp",
     "PanelDialect",
     "PanelFamily",
     "PanelModel",
+    "TimingFieldDef",
     "Verification",
     "ZoneTypeDef",
     "get_dialect",
