@@ -16,29 +16,38 @@ from .const import (
     CONF_KEEPALIVE_INTERVAL,
     CONF_NUM_PARTITIONS,
     CONF_NUM_ZONES,
+    CONF_PANEL_MODEL,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_USER_CODE,
     DEFAULT_KEEPALIVE_INTERVAL,
     DEFAULT_NUM_PARTITIONS,
     DEFAULT_NUM_ZONES,
+    DEFAULT_PANEL_MODEL,
     DEFAULT_PORT,
     DOMAIN,
 )
+from .panels import get_model, model_choices
 
 _LOGGER = logging.getLogger(__name__)
 
+# Zones/partitions ranges here are the widest any supported panel allows; the
+# actual per-model maximum is enforced against the selected model after submit
+# (see async_step_user), so the form can stay a single step.
 STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
         vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
+            model_choices()
+        ),
         vol.Optional(CONF_USER_CODE, default=""): str,
         vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=8)
         ),
         vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=64)
+            vol.Coerce(int), vol.Range(min=1, max=250)
         ),
     }
 )
@@ -73,6 +82,15 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             self._async_abort_entries_match(
                 {CONF_HOST: user_input[CONF_HOST], CONF_PORT: user_input[CONF_PORT]}
             )
+            model = get_model(user_input[CONF_PANEL_MODEL])
+            if user_input[CONF_NUM_ZONES] > model.max_zones:
+                errors[CONF_NUM_ZONES] = "too_many_zones"
+            if user_input[CONF_NUM_PARTITIONS] > model.max_partitions:
+                errors[CONF_NUM_PARTITIONS] = "too_many_partitions"
+            if errors:
+                return self.async_show_form(
+                    step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
+                )
             try:
                 await _test_connection(
                     user_input[CONF_HOST],

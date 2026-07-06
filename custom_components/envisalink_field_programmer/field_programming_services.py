@@ -27,10 +27,10 @@ from .field_programming import (
     SystemTimingField,
     ZoneProgram,
     build_function_key_keystrokes,
-    build_program_mode_wrapper,
     build_system_timing_keystrokes,
     build_zone_program_keystrokes,
 )
+from .panels import Verification
 from .programming import KeystrokeGuardError, validate_keystrokes
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ SERVICE_PROGRAM_FUNCTION_KEY = "program_function_key"
 ATTR_ENTRY_ID = "entry_id"
 ATTR_CONFIRM = "confirm"
 ATTR_CONFIRM_LIFE_SAFETY = "confirm_life_safety"
+ATTR_CONFIRM_UNVERIFIED_MODEL = "confirm_unverified_model"
 ATTR_ZONE_NUMBER = "zone_number"
 ATTR_ZONE_TYPE = "zone_type"
 ATTR_PARTITION = "partition"
@@ -68,6 +69,7 @@ PROGRAM_ZONE_SCHEMA = vol.Schema(
         ),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_LIFE_SAFETY, default=False): cv.boolean,
+        vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
 )
 
@@ -77,6 +79,7 @@ SET_SYSTEM_TIMING_SCHEMA = vol.Schema(
         vol.Required(ATTR_FIELD): vol.In([f.value for f in SystemTimingField]),
         vol.Required(ATTR_VALUE): vol.Coerce(int),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
+        vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
 )
 
@@ -87,6 +90,7 @@ PROGRAM_FUNCTION_KEY_SCHEMA = vol.Schema(
         vol.Required(ATTR_PARTITION): vol.All(vol.Coerce(int), vol.Range(min=1, max=3)),
         vol.Required(ATTR_ACTION): vol.All(vol.Coerce(int), vol.In([a.value for a in FunctionKeyAction])),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
+        vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
 )
 
@@ -109,15 +113,66 @@ def _require_installer_code(coordinator) -> str:
     return coordinator.installer_code
 
 
+def _require_guided_support(coordinator) -> None:
+    """Refuse guided programming for families this flow doesn't drive.
+
+    DSC PowerSeries uses positional whole-section programming rather than
+    VISTA's per-zone *56 menu, so its dialect reports
+    ``supports_guided_field_programming = False``. Attempting the VISTA-shaped
+    guided services against it would build meaningless (and potentially
+    destructive) keystrokes, so refuse loudly instead.
+    """
+    if not coordinator.dialect.supports_guided_field_programming:
+        raise HomeAssistantError(
+            "Guided field programming is not available for "
+            f"{coordinator.panel_model.label}. "
+            + coordinator.dialect.guided_field_programming_note
+        )
+
+
+def _require_verified_or_ack(coordinator, confirm_unverified: bool) -> None:
+    """Gate non-VERIFIED models behind an explicit acknowledgment.
+
+    Only the VISTA-21iP is built from its own programming guide. Every other
+    model's field data is inherited or provisional (see panels/), so field
+    programming against it must be explicitly acknowledged -- keystrokes that
+    are wrong for the actual panel can disable a fire zone or lock up the
+    panel, and there's no read-back over TPI to catch it.
+    """
+    model = coordinator.panel_model
+    if model.verification == Verification.VERIFIED:
+        return
+    if not confirm_unverified:
+        raise KeystrokeGuardError(
+            f"{model.label} is not verified against its own programming guide "
+            f"({model.verification.value}): {model.notes} Field numbers/zone-type "
+            "codes may be wrong for this exact panel, and this integration "
+            "cannot read back the panel to catch a mistake. Pass "
+            "confirm_unverified_model: true to proceed anyway, and verify the "
+            "result at the physical keypad."
+        )
+
+
 async def _send_program_mode_sequence(
-    coordinator, partition: int, action_keystrokes: str
+    coordinator,
+    partition: int,
+    action_keystrokes: str,
+    *,
+    confirm_unverified: bool,
 ) -> None:
+    _require_guided_support(coordinator)
+    _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
-    full_sequence = build_program_mode_wrapper(installer_code, action_keystrokes)
+    full_sequence = coordinator.dialect.program_mode_wrapper(
+        installer_code, action_keystrokes
+    )
     # allow_installer_mode=True: every one of these services always opens
     # Program Mode by design, gated on the service's own required `confirm`
-    # field instead of the generic send_keystrokes confirmation flag.
-    validate_keystrokes(full_sequence, allow_installer_mode=True)
+    # field instead of the generic send_keystrokes confirmation flag. The
+    # coordinator's dialect selects the correct family guard.
+    validate_keystrokes(
+        full_sequence, allow_installer_mode=True, dialect=coordinator.dialect
+    )
     await coordinator.client.send_keystrokes(partition, full_sequence)
 
 
@@ -147,7 +202,12 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             response_time=ResponseTime(call.data[ATTR_RESPONSE_TIME]),
         )
         keystrokes = build_zone_program_keystrokes(program)
-        await _send_program_mode_sequence(coordinator, program.partition, keystrokes)
+        await _send_program_mode_sequence(
+            coordinator,
+            program.partition,
+            keystrokes,
+            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+        )
 
     async def _handle_set_system_timing(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
@@ -156,7 +216,12 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
         # System data fields aren't partition-scoped the way *56 zone entry
         # is; partition 1 is used for the keystroke send itself (the field
         # covers both partitions internally where applicable).
-        await _send_program_mode_sequence(coordinator, 1, keystrokes)
+        await _send_program_mode_sequence(
+            coordinator,
+            1,
+            keystrokes,
+            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+        )
 
     async def _handle_program_function_key(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
@@ -166,7 +231,12 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             partition,
             FunctionKeyAction(call.data[ATTR_ACTION]),
         )
-        await _send_program_mode_sequence(coordinator, partition, keystrokes)
+        await _send_program_mode_sequence(
+            coordinator,
+            partition,
+            keystrokes,
+            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+        )
 
     hass.services.async_register(
         DOMAIN, SERVICE_PROGRAM_ZONE, _handle_program_zone, schema=PROGRAM_ZONE_SCHEMA

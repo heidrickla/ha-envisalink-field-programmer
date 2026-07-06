@@ -27,13 +27,20 @@ async def fake_server():
     await server.stop()
 
 
-async def _setup_entry(hass, fake_server, *, installer_code: str | None = "4112"):
+async def _setup_entry(
+    hass,
+    fake_server,
+    *,
+    installer_code: str | None = "4112",
+    panel_model: str = "vista_21ip",
+):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
             "host": "127.0.0.1",
             "port": fake_server.port,
             "password": "user",
+            "panel_model": panel_model,
             "user_code": "1234",
             "num_partitions": 1,
             "num_zones": 8,
@@ -149,6 +156,48 @@ async def test_program_zone_requires_installer_code_configured(hass, fake_server
             },
             blocking=True,
         )
+    await _unload(hass, entry)
+
+
+async def test_program_zone_unverified_model_requires_ack(hass, fake_server):
+    # A non-VISTA-21iP model (here the 20P, grammar-verified) must be
+    # explicitly acknowledged before it will field-program, since its field
+    # numbers are inherited, not verified against its own guide.
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_20p")
+    with pytest.raises(Exception, match="not verified"):
+        await hass.services.async_call(
+            DOMAIN,
+            "program_zone",
+            {
+                "entry_id": entry.entry_id,
+                "zone_number": 3,
+                "zone_type": 3,
+                "partition": 1,
+                "confirm": True,
+            },
+            blocking=True,
+        )
+    await _unload(hass, entry)
+
+
+async def test_program_zone_unverified_model_proceeds_when_acked(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_20p")
+    await hass.services.async_call(
+        DOMAIN,
+        "program_zone",
+        {
+            "entry_id": entry.entry_id,
+            "zone_number": 3,
+            "zone_type": 3,
+            "partition": 1,
+            "confirm": True,
+            "confirm_unverified_model": True,
+        },
+        blocking=True,
+    )
+    await asyncio.sleep(0.05)
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
+    assert keystroke_frames  # something was sent
     await _unload(hass, entry)
 
 

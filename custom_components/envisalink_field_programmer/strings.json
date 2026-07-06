@@ -8,6 +8,7 @@
           "host": "Host or IP address",
           "port": "Port",
           "password": "Envisalink password",
+          "panel_model": "Alarm panel model",
           "user_code": "Default user code for arming/disarming (optional)",
           "num_partitions": "Number of partitions",
           "num_zones": "Number of zones"
@@ -17,6 +18,8 @@
     "error": {
       "cannot_connect": "Could not connect to the Envisalink at that host/port.",
       "invalid_auth": "The Envisalink rejected that password.",
+      "too_many_zones": "That is more zones than the selected panel model supports.",
+      "too_many_partitions": "That is more partitions than the selected panel model supports.",
       "unknown": "Unexpected error while connecting."
     },
     "abort": {

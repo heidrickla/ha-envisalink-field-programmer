@@ -30,6 +30,7 @@ from .const import (
     ZONE_TIMER_DUMP_INTERVAL,
 )
 from .models import VistaState
+from .panels import get_dialect, get_model
 from .state_machine import apply_event
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         num_zones: int,
         keepalive_interval: int = DEFAULT_KEEPALIVE_INTERVAL,
         installer_code: str | None = None,
+        panel_model: str | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -65,6 +67,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # Only needed for the field-programming layer (opening Program Mode);
         # arm/disarm/status/bypass never use it. See programming.py.
         self.installer_code = installer_code
+        # Which panel model/dialect this entry drives. Defaults to the
+        # VISTA-21iP (see panels/) so pre-existing entries with no stored
+        # model behave exactly as before.
+        self.panel_model = get_model(panel_model)
+        self.dialect = get_dialect(panel_model)
         self.data = VistaState.create(num_partitions, num_zones)
 
         self.client = EnvisalinkClient(
@@ -198,7 +205,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         from .programming import async_send_guarded_keystrokes  # avoid import cycle
 
         await async_send_guarded_keystrokes(
-            self.client, partition, keys, installer_code=self.installer_code
+            self.client,
+            partition,
+            keys,
+            installer_code=self.installer_code,
+            dialect=self.dialect,
         )
 
     async def async_toggle_zone_bypass(self, zone_number: int) -> None:
@@ -213,6 +224,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
         zone = self.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(self.client, zone.partition, keys)
+        await async_send_guarded_keystrokes(
+            self.client, zone.partition, keys, dialect=self.dialect
+        )
         zone.bypassed = not zone.bypassed
         self.async_set_updated_data(self.data)
