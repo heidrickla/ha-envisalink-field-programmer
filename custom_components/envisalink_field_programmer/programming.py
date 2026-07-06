@@ -156,6 +156,11 @@ def async_register_services(hass: HomeAssistant) -> None:
             call.data[ATTR_KEYS],
             allow_installer_mode=call.data[ATTR_CONFIRM_INSTALLER_RISK],
             installer_code=coordinator.installer_code,
+            # Use the entry's actual dialect so the guard checks *this* panel's
+            # installer-mode trigger (DSC ``*8<code>`` vs. VISTA ``<code>800``).
+            # Without this the guard would default to VISTA and let a DSC
+            # installer-mode sequence through unconfirmed.
+            dialect=coordinator.dialect,
         )
 
     async def _handle_toggle_zone_bypass(call: ServiceCall) -> None:
@@ -163,7 +168,9 @@ def async_register_services(hass: HomeAssistant) -> None:
         zone_number = call.data[ATTR_ZONE]
         zone = coordinator.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(coordinator.client, zone.partition, keys)
+        await async_send_guarded_keystrokes(
+            coordinator.client, zone.partition, keys, dialect=coordinator.dialect
+        )
 
     hass.services.async_register(
         DOMAIN,
