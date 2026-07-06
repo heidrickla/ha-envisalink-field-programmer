@@ -247,3 +247,31 @@ colors) came from fetching `https://www.eyezon.com/assets/css/main.min.css`
 directly and grepping for `--*-accent-*` custom properties and their hex
 values, rather than trusting a generic web search (which turned up nothing
 useful) or visual inspection (`WebFetch` strips CSS from rendered pages).
+
+## Adding or promoting a panel model
+
+Panel support lives in `custom_components/envisalink_field_programmer/panels/`:
+
+- `base.py` — the `PanelDialect` protocol, the `PanelModel` dataclass, and the
+  `Verification` enum (`VERIFIED` / `GRAMMAR_VERIFIED` / `PROVISIONAL`).
+- `vista.py` / `dsc.py` — one dialect per family plus that family's model
+  registry. A dialect is data + a few small methods (program-mode wrapper,
+  zone-type table, and `opens_program_mode()` for the safety guard).
+- `__init__.py` — the combined registry and `get_model()` / `get_dialect()`
+  lookups (canonical id, aliases, and punctuation-insensitive matching).
+
+To **add a model within an existing family**, append a `PanelModel` to that
+family's registry with an honest `verification` level and `notes`. To **promote**
+a model from Provisional/Grammar-verified to Verified, check its field numbers
+and zone-type codes against that panel's own programming guide (same method as
+the original 21iP work — see the previous section), correct anything the family
+default gets wrong, and only then bump its `verification`.
+
+Two safety invariants the tests enforce (`tests/test_panels.py`), keep them:
+
+- Only genuinely-verified models carry `Verification.VERIFIED`. The guided
+  services refuse anything less without an explicit `confirm_unverified_model`.
+- The keystroke guard is family-aware: each dialect's `opens_program_mode()`
+  must match that family's real installer-mode trigger (VISTA `<code>800`, DSC
+  `*8<code>`) and *not* the other family's, so the guard can't be bypassed by
+  selecting the wrong dialect. Prefer an over-cautious false positive to a miss.

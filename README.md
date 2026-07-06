@@ -27,9 +27,11 @@ point.
 
 ## Features
 
-- Config flow setup (host/port/password/user code/zone & partition counts);
-  an optional installer code (set later, in the integration's options) turns
-  on field programming
+- Config flow setup (host/port/password/panel model/user code/zone & partition
+  counts); an optional installer code (set later, in the integration's options)
+  turns on field programming. Panel model defaults to the VISTA-21iP — see
+  [Panel model support](#panel-model-support) for the full model list and what
+  each one's support level actually means
 - One `alarm_control_panel` entity per partition: arm away/home/night, disarm
 - One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities
   for bypass (disabled by default in the entity registry — enable the ones
@@ -334,15 +336,32 @@ client at a time" above.
   verify the result at the physical keypad** (installer code + `#` + `56`,
   the review-only mode) before trusting it on a real fire/security zone.
 
-## Roadmap
+## Panel model support
 
-Planned: broader panel support beyond the VISTA-21iP this was built
-against — the rest of the Honeywell VISTA family (20P, 15P, 10P, 128P,
-250P), which likely shares the same `*56`-style field-programming language
-with per-model differences to verify, and DSC PowerSeries panels (1555,
-1555MX, 1575, 5010/832, 5020/864, 1616, 1832, 1864), which use an entirely
-different section-based programming language and would need its own
-dialect layer alongside this one, not a small extension of it.
+You pick your panel model in the config flow. Support is delivered through a
+**dialect** layer (`custom_components/envisalink_field_programmer/panels/`) that
+separates the panel-agnostic guided UI from the family-specific keystroke
+grammar and zone-type data.
+
+Because sending the *wrong* keystrokes to a real fire/security panel can
+silence a smoke detector or lock the panel up — and the TPI protocol gives no
+read-back to catch it — every model carries an honest **verification level**,
+and guided programming against anything less than fully verified requires an
+explicit `confirm_unverified_model: true` acknowledgment on top of the normal
+confirmations.
+
+| Model | Family | Verification | Notes |
+|---|---|---|---|
+| **VISTA-21iP** | Honeywell VISTA | ✅ Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
+| VISTA-20P / 15P | Honeywell VISTA | ◑ Grammar-verified | Residential siblings; share the 21iP's `*56`/`*57`/`800`/`*99` grammar and zone types. Field numbers inherited, not individually reconfirmed. |
+| VISTA-10P | Honeywell VISTA | ⚠ Provisional | Older generation; some field numbers differ — verify against the 10P guide. |
+| VISTA-128BP / 250BP | Honeywell VISTA | ⚠ Provisional | Commercial panels; open Program Mode the same way but use a materially different data-field set. Guided programming is **unverified** for these. |
+| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | ⚠ Provisional | Section-based (`*8` + code) grammar is supported and the installer-mode guard works, but per-model codes/capacities are **not** verified. Guided *per-zone* programming is intentionally **not** driven for DSC (its positional whole-section programming would risk overwriting a whole zone block blind); model selection, the zone-type reference, and the safety guard are available. Note the current transport speaks Honeywell TPI, so DSC arm/disarm/zone wiring is separate future work. |
+
+**If you have the programming guide for a Provisional/Grammar-verified model**,
+that's exactly what's needed to promote it to Verified — the field numbers and
+zone-type codes just need checking against that panel's own document (and,
+ideally, the real panel in review-only mode). Contributions welcome.
 
 ## Development
 
