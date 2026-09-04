@@ -12,7 +12,7 @@ you're on Linux/Mac.
 py install 3.12          # if not already installed
 py -3.12 -m venv .venv
 source .venv/Scripts/activate   # .venv/bin/activate on Linux/Mac
-pip install pytest pytest-asyncio pytest-homeassistant-custom-component ruff
+pip install pytest-homeassistant-custom-component pytest-cov ruff mypy
 ```
 
 **Why 3.12 and not the newer 3.13**: `homeassistant` pins `lru-dict==1.3.0`
@@ -24,7 +24,20 @@ problem entirely. If a future `homeassistant` release bumps its `lru-dict`
 pin to something with a `cp313` wheel, 3.13 should work fine too -- check
 `pip show homeassistant | grep -i lru` if you want to retry it.
 
-## Why `tests/conftest.py` does two unusual things
+## Test layout: a pure suite and a Home Assistant layer
+
+`tests/` holds the pure tests: the TPI client, the models, the state
+machine and the field-programming keystroke builders. None of those
+modules imports Home Assistant, but the package `__init__` does, so the
+pure tests load them by path through `tests/pure.py` and run on a bare
+interpreter (`python -m pytest tests -q` skips `tests/ha` when the
+harness is absent; CI runs them with `-p no:homeassistant` so the
+harness plugin cannot interfere). `tests/ha/` holds everything that
+needs `pytest-homeassistant-custom-component`: config flow, setup and
+unload, entities, the actions, diagnostics. Its `conftest.py` skips the
+whole directory when the harness is not installed.
+
+## Why `tests/ha/conftest.py` does two unusual things
 
 Both are explained inline in the file itself, but the short version:
 
@@ -71,12 +84,30 @@ repeating `"reconnect attempt failed"` log lines -- that's the signature of
 a coordinator's background reconnect loop never getting cancelled, which
 these two gotchas can both cause indirectly.
 
-## Running tests and lint
+## Running tests, lint, mypy and the validator
 
 ```bash
-pytest tests/ -v            # 70 tests as of this writing, ~9s
-ruff check custom_components tests
+python -m pytest tests -q                 # both suites; tests/ha needs the harness
+ruff check . && ruff format --check .
+python -m mypy custom_components/envisalink_field_programmer
+python tools/validate_local.py
 ```
+
+`mypy --strict` only means something with Home Assistant installed in the
+interpreter running it: without it every Home Assistant class is `Any`,
+so subclassing an entity and decorating with `@callback` are reported
+and the real checks are skipped. Run it from the venv that has the
+harness. `.github/workflows/tests.yml` runs all four steps on every push
+with Home Assistant 2026.8 on Python 3.14, with `pytest-cov` reporting
+coverage for `tests/ha`; that run is the one that counts.
+
+`tools/validate_local.py` is the offline stand-in for hassfest and the
+cross-file checks nothing else does: `services.yaml` and the README
+against the action names in `const.py`, every translated exception key
+against `strings.json`, `strings.json` against `translations/en.json`,
+the manifest against the components the code imports, and
+`quality_scale.yaml` against the pinned list of 54 rules. Run it before
+a push.
 
 ## hassfest / HACS validation: why they're not run locally
 
@@ -284,7 +315,7 @@ and zone-type codes against that panel's own programming guide (same method as
 the original 21iP work — see the previous section), correct anything the family
 default gets wrong, and only then bump its `verification`.
 
-Two safety invariants the tests enforce (`tests/test_panels.py`), keep them:
+Two safety invariants the tests enforce (`tests/ha/test_panels.py`), keep them:
 
 - Only genuinely-verified models carry `Verification.VERIFIED`. The guided
   services refuse anything less without an explicit `confirm_unverified_model`.

@@ -41,5 +41,13 @@ Only the latest release on `main` receives security fixes.
 - The Envisalink TPI protocol itself is plaintext TCP on your LAN. This
   integration does not and cannot add encryption to it; keep the
   Envisalink on a trusted network segment.
+- A stored **default user code** lets the alarm control panel entity disarm
+  without a code, so anyone or anything that can call
+  `alarm_control_panel.alarm_disarm` in that Home Assistant instance can
+  disarm the panel. That is the documented behaviour, not a vulnerability;
+  leave the default code blank if it is not acceptable. The password and
+  both codes are stored in Home Assistant's config entry store in plain
+  text, as every integration's credentials are, and are never prefilled in
+  a form, logged, or included unredacted in diagnostics.
 - Home Assistant's own authentication and access control are outside this
   project's scope; report those to the Home Assistant project.

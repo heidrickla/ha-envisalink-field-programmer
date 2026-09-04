@@ -95,6 +95,27 @@ unrelated to credentials at all — see the "Protocol correction" note in
 [README.md](README.md#whats-verified-vs-what-needs-your-hardware) if
 you're curious how deep that rabbit hole went.
 
+### The entry asks you to re-authenticate
+
+The Envisalink rejected the stored password at setup, so the entry stops
+retrying and opens a repair-style prompt asking for the current password.
+Enter the password from the Envisalink's local web page (Settings tab);
+the flow tests it before storing it and reloads the entry on success. If
+the old password still works from the web page, check that nothing else
+changed it, and see the single-TPI-client gotcha above, because a busy
+port is reported separately as "Could not connect", never as a
+rejected password.
+
+### An action is refused with "is not loaded" or "No Envisalink Field Programmer entry has the id"
+
+The actions are registered as soon as the integration loads, whether or
+not an entry is connected, so a call while the entry is failing to set
+up, is disabled, or is mid-reload is refused with a message naming the
+entry rather than sent nowhere. Fix the entry first (Settings, Devices &
+services). The id message means the `entry_id` in the call matches no
+entry of this integration; use the config entry picker in the UI, or read
+the `config_entry_id` attribute off any of the integration's entities.
+
 ### Integration shows "Failed to set up" after installing or after a Home Assistant update
 
 Check the log for an `ImportError` or `AttributeError` naming something
