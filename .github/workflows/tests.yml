@@ -13,7 +13,7 @@ permissions:
 # not an ordinary-push cost.
 
 jobs:
-  tests:
+  python-tests:
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     steps:
