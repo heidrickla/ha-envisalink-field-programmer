@@ -21,7 +21,7 @@ and a fix or mitigation as quickly as the severity warrants.
 ## What counts as a security issue
 
 - Any way to reach installer-mode programming without the explicit
-  `allow_installer_mode` confirmation, or to bypass the keystroke guard.
+  `confirm_installer_risk` confirmation, or to bypass the keystroke guard.
 - Installer codes, user codes, or the Envisalink password appearing in
   logs, diagnostics downloads, error messages, or entity attributes.
 - Keystrokes being sent to a partition, zone, or panel other than the one
