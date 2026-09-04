@@ -7,6 +7,7 @@ Public entry points:
   * :func:`get_dialect` -- the :class:`PanelDialect` for a model id.
   * :data:`DEFAULT_MODEL_ID` -- the VISTA-21iP, this integration's origin panel.
 """
+
 from __future__ import annotations
 
 from .base import (

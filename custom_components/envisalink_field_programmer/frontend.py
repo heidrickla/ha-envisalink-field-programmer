@@ -13,6 +13,7 @@ Registering it here means users get the card automatically after
 installing/reloading the integration -- no manual "add Lovelace resource"
 step.
 """
+
 from __future__ import annotations
 
 import logging
@@ -75,7 +76,6 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         hass.data[_REGISTERED_KEY] = True
     except Exception:  # noqa: BLE001
         _LOGGER.warning(
-            "Could not register the frontend card asset; entities and "
-            "services are unaffected.",
+            "Could not register the frontend card asset; entities and services are unaffected.",
             exc_info=True,
         )

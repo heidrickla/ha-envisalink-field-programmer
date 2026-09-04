@@ -2,6 +2,7 @@
 and event field tokenizing. No Home Assistant or asyncio event loop
 required for these -- pure functions.
 """
+
 from __future__ import annotations
 
 import pytest

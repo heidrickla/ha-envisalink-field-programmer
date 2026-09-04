@@ -16,6 +16,7 @@ Nothing in this module talks to the panel. It only describes *what a field
 means* and, given validated values, *what keystrokes express that meaning*.
 Actually sending anything still goes through programming.py's guard.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -127,8 +128,7 @@ ZONE_TYPES: dict[int, ZoneType] = {
     7: ZoneType(
         7,
         "Panic button (audible)",
-        "An emergency button. Notifies the monitoring station and sounds "
-        "the keypad and siren.",
+        "An emergency button. Notifies the monitoring station and sounds the keypad and siren.",
         FieldCategory.PANIC_EMERGENCY,
     ),
     8: ZoneType(
@@ -172,9 +172,7 @@ ZONE_TYPES: dict[int, ZoneType] = {
     ),
 }
 
-LIFE_SAFETY_ZONE_TYPE_CODES = frozenset(
-    code for code, zt in ZONE_TYPES.items() if zt.life_safety
-)
+LIFE_SAFETY_ZONE_TYPE_CODES = frozenset(code for code, zt in ZONE_TYPES.items() if zt.life_safety)
 
 
 class HardwireType(StrEnum):
@@ -338,9 +336,7 @@ def build_system_timing_keystrokes(field: SystemTimingField, value: int) -> str:
         digits = f"{value:02d}"
     else:
         allowed = ", ".join(f"{k} ({v})" for k, v in specials.items())
-        raise ValueError(
-            f"{field.name} must be {low}-{high} seconds, or one of: {allowed}"
-        )
+        raise ValueError(f"{field.name} must be {low}-{high} seconds, or one of: {allowed}")
     return f"*{field.value}{digits}*"
 
 

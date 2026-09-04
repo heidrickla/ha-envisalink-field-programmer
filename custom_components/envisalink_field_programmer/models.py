@@ -19,6 +19,7 @@ partition's ``bypass`` icon flag reports no bypass active (e.g. after a
 disarm/rearm cycle). It will not reflect a bypass toggled from the
 physical keypad rather than through this integration.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

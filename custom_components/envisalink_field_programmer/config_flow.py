@@ -1,4 +1,5 @@
 """Config flow for Envisalink Field Programmer."""
+
 from __future__ import annotations
 
 import logging
@@ -39,9 +40,7 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
         vol.Required(CONF_PASSWORD): str,
-        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
-            model_choices()
-        ),
+        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(model_choices()),
         vol.Optional(CONF_USER_CODE, default=""): str,
         vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=8)
@@ -74,9 +73,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             self._async_abort_entries_match(
@@ -104,21 +101,19 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             except OSError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected error validating Envisalink Field Programmer connection")
+                _LOGGER.exception(
+                    "Unexpected error validating Envisalink Field Programmer connection"
+                )
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(
-                    f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
-                )
+                await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=f"Envisalink Field Programmer ({user_input[CONF_HOST]})",
                     data=user_input,
                 )
 
-        return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
-        )
+        return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)
 
     @staticmethod
     @callback
@@ -132,9 +127,7 @@ class VistaConsoleOptionsFlow(OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
@@ -148,15 +141,11 @@ class VistaConsoleOptionsFlow(OptionsFlow):
                 ): str,
                 vol.Optional(
                     CONF_INSTALLER_CODE,
-                    default=options.get(
-                        CONF_INSTALLER_CODE, data.get(CONF_INSTALLER_CODE, "")
-                    ),
+                    default=options.get(CONF_INSTALLER_CODE, data.get(CONF_INSTALLER_CODE, "")),
                 ): str,
                 vol.Optional(
                     CONF_KEEPALIVE_INTERVAL,
-                    default=options.get(
-                        CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
-                    ),
+                    default=options.get(CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL),
                 ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
             }
         )

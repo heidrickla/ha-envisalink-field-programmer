@@ -1,4 +1,5 @@
 """The Envisalink Field Programmer integration."""
+
 from __future__ import annotations
 
 import logging
@@ -40,9 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         password=entry.data[CONF_PASSWORD],
         num_partitions=entry.data[CONF_NUM_PARTITIONS],
         num_zones=entry.data[CONF_NUM_ZONES],
-        keepalive_interval=entry.options.get(
-            CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
-        ),
+        keepalive_interval=entry.options.get(CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL),
         installer_code=entry.options.get(CONF_INSTALLER_CODE) or None,
         panel_model=entry.data.get(CONF_PANEL_MODEL, DEFAULT_PANEL_MODEL),
     )

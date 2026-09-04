@@ -4,6 +4,7 @@ Verifies the services are wired correctly (schema validation, the confirm/
 confirm_life_safety gates, and that the exact expected keystroke sequence
 reaches the panel) against a real fake TPI server, not mocks.
 """
+
 from __future__ import annotations
 
 import asyncio

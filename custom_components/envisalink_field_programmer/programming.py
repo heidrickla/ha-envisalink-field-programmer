@@ -28,6 +28,7 @@ goes through, so that safety logic lives in exactly one place:
     deliberately no way to do this from the Lovelace card's normal UI
     without an explicit confirmation step.
 """
+
 from __future__ import annotations
 
 import logging
@@ -68,6 +69,7 @@ _CODE_RUN = re.compile(r"\d{4,}")
 def _redact_codes(keys: str) -> str:
     """Mask runs of 4+ digits (installer/user codes) for safe display."""
     return _CODE_RUN.sub("[code]", keys)
+
 
 SEND_KEYSTROKES_SCHEMA = vol.Schema(
     {
@@ -160,7 +162,9 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str):
     domain_data = hass.data.get(DOMAIN, {})
     coordinator = domain_data.get(entry_id)
     if coordinator is None:
-        raise HomeAssistantError(f"No Envisalink Field Programmer config entry with id {entry_id!r}")
+        raise HomeAssistantError(
+            f"No Envisalink Field Programmer config entry with id {entry_id!r}"
+        )
     return coordinator
 
 

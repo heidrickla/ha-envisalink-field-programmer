@@ -7,6 +7,7 @@ Setting a zone to (or off of) a fire/CO zone type additionally requires
 ``confirm_life_safety``, since the TPI protocol cannot read back a zone's
 *current* type before overwriting it (see field_programming.py).
 """
+
 from __future__ import annotations
 
 import logging
@@ -80,9 +81,7 @@ SET_SYSTEM_TIMING_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTRY_ID): cv.string,
         vol.Required(ATTR_FIELD): cv.string,
         vol.Required(ATTR_VALUE): vol.Coerce(int),
-        vol.Optional(ATTR_PARTITION, default=1): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=8)
-        ),
+        vol.Optional(ATTR_PARTITION, default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=8)),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
@@ -93,7 +92,9 @@ PROGRAM_FUNCTION_KEY_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTRY_ID): cv.string,
         vol.Required(ATTR_KEY): vol.In([k.value for k in FunctionKeyLetter]),
         vol.Required(ATTR_PARTITION): vol.All(vol.Coerce(int), vol.Range(min=1, max=3)),
-        vol.Required(ATTR_ACTION): vol.All(vol.Coerce(int), vol.In([a.value for a in FunctionKeyAction])),
+        vol.Required(ATTR_ACTION): vol.All(
+            vol.Coerce(int), vol.In([a.value for a in FunctionKeyAction])
+        ),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
@@ -104,7 +105,9 @@ def _get_coordinator(hass: HomeAssistant, entry_id: str):
     domain_data = hass.data.get(DOMAIN, {})
     coordinator = domain_data.get(entry_id)
     if coordinator is None:
-        raise HomeAssistantError(f"No Envisalink Field Programmer config entry with id {entry_id!r}")
+        raise HomeAssistantError(
+            f"No Envisalink Field Programmer config entry with id {entry_id!r}"
+        )
     return coordinator
 
 
@@ -130,8 +133,7 @@ def _require_guided_support(coordinator, op: GuidedOp) -> None:
     if op not in coordinator.dialect.supported_guided_ops:
         raise HomeAssistantError(
             f"Guided {op.value} programming is not available for "
-            f"{coordinator.panel_model.label}. "
-            + coordinator.dialect.guided_field_programming_note
+            f"{coordinator.panel_model.label}. " + coordinator.dialect.guided_field_programming_note
         )
 
 
@@ -169,16 +171,12 @@ async def _send_program_mode_sequence(
     _require_guided_support(coordinator, op)
     _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
-    full_sequence = coordinator.dialect.program_mode_wrapper(
-        installer_code, action_keystrokes
-    )
+    full_sequence = coordinator.dialect.program_mode_wrapper(installer_code, action_keystrokes)
     # allow_installer_mode=True: every one of these services always opens
     # Program Mode by design, gated on the service's own required `confirm`
     # field instead of the generic send_keystrokes confirmation flag. The
     # coordinator's dialect selects the correct family guard.
-    validate_keystrokes(
-        full_sequence, allow_installer_mode=True, dialect=coordinator.dialect
-    )
+    validate_keystrokes(full_sequence, allow_installer_mode=True, dialect=coordinator.dialect)
     await coordinator.client.send_keystrokes(partition, full_sequence)
 
 

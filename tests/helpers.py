@@ -5,6 +5,7 @@ correction history): a plain-text ``Login:``/``OK``/``FAILED`` handshake,
 then ``%CODE,DATA$`` (server -> client) / ``^CODE,DATA$`` (client -> server)
 framing with no checksum.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -52,9 +53,7 @@ class FakeEnvisalinkServer:
         self._writer.write(f"%{code},{data}$".encode("ascii"))
         await self._writer.drain()
 
-    async def _handle(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._writer = writer
         writer.write(b"Login:\r\n")
         await writer.drain()
@@ -86,9 +85,7 @@ class FakeEnvisalinkServer:
                     parsed = self._record_frame(raw_frame)
                     if parsed is not None and self.ack_commands:
                         code, _ = parsed
-                        writer.write(
-                            f"^{code},{self._next_response(code)}$".encode("ascii")
-                        )
+                        writer.write(f"^{code},{self._next_response(code)}$".encode("ascii"))
                         await writer.drain()
         except (asyncio.IncompleteReadError, ConnectionResetError):
             pass

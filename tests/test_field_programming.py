@@ -4,6 +4,7 @@ Pure logic, no HA/asyncio required. Verifies the keystroke sequences built
 from structured (validated) input match the *56/*57/numbered-field
 conventions documented in the Vista programming guide.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -104,9 +105,7 @@ def test_build_system_timing_exit_delay_out_of_range_rejected():
 
 
 def test_build_system_timing_entry_delay_allows_extended_specials():
-    assert (
-        build_system_timing_keystrokes(SystemTimingField.ENTRY_DELAY_1, 99) == "*3599*"
-    )
+    assert build_system_timing_keystrokes(SystemTimingField.ENTRY_DELAY_1, 99) == "*3599*"
 
 
 def test_build_system_timing_auto_stay_arm_valid_values():

@@ -1,4 +1,5 @@
 """Alarm control panel entities, one per Vista partition."""
+
 from __future__ import annotations
 
 from homeassistant.components.alarm_control_panel import (

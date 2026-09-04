@@ -42,6 +42,7 @@ framing, so wiring DSC arm/disarm/zone state is a separate future effort. This
 dialect is the programming-language reference + safety guard half of that work;
 the code table is inventory/reference, not a keystroke source.
 """
+
 from __future__ import annotations
 
 import re
@@ -70,12 +71,8 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     4: ZoneTypeDef(
         4, "Interior", "Interior follower; delayed only if an entry door tripped first."
     ),
-    5: ZoneTypeDef(
-        5, "Interior Stay/Away", "Interior zone auto-bypassed when armed in Stay mode."
-    ),
-    6: ZoneTypeDef(
-        6, "Delay Stay/Away", "Delay-1 zone auto-bypassed when armed in Stay mode."
-    ),
+    5: ZoneTypeDef(5, "Interior Stay/Away", "Interior zone auto-bypassed when armed in Stay mode."),
+    6: ZoneTypeDef(6, "Delay Stay/Away", "Delay-1 zone auto-bypassed when armed in Stay mode."),
     7: ZoneTypeDef(
         7,
         "Delayed 24-Hour Fire",
@@ -95,13 +92,9 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
         "24-Hour Supervision",
         "Instant alarm/communication; does not sound the bell or keypad buzzer.",
     ),
-    10: ZoneTypeDef(
-        10, "24-Hour Supervisory Buzzer", "Instant alarm; sounds the keypad buzzer."
-    ),
+    10: ZoneTypeDef(10, "24-Hour Supervisory Buzzer", "Instant alarm; sounds the keypad buzzer."),
     11: ZoneTypeDef(11, "24-Hour Burglary", "Always-armed burglary zone; audible alarm."),
-    16: ZoneTypeDef(
-        16, "24-Hour Panic", "Hold-up/panic zone; reports to the monitoring station."
-    ),
+    16: ZoneTypeDef(16, "24-Hour Panic", "Hold-up/panic zone; reports to the monitoring station."),
     41: ZoneTypeDef(
         41,
         "24-Hour Carbon Monoxide (hardwired)",
@@ -116,9 +109,7 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     ),
 }
 
-_DSC_LIFE_SAFETY_CODES = frozenset(
-    code for code, zt in _DSC_ZONE_TYPES.items() if zt.life_safety
-)
+_DSC_LIFE_SAFETY_CODES = frozenset(code for code, zt in _DSC_ZONE_TYPES.items() if zt.life_safety)
 
 
 class DscPowerSeriesDialect:
@@ -156,8 +147,7 @@ class DscPowerSeriesDialect:
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         """Wrap section keystrokes: ``*8`` + code + <sections> + ``##``."""
         return (
-            f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}"
-            f"{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
+            f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
         )
 
     def opens_program_mode(self, keys: str, installer_code: str | None) -> bool:
@@ -253,42 +243,80 @@ def _dsc(model_id, label, max_zones, max_partitions, notes, aliases=()):
 # still awaiting a per-panel check. The whole DSC family stays PROVISIONAL
 # because guided programming is disabled for it regardless (see the dialect).
 DSC_MODELS: tuple[PanelModel, ...] = (
-    _dsc("dsc_pc1555", "DSC PC1555", 32, 2,
-         "PowerSeries 6-32 zone panel (max corrected from 8 to 32, 2026-07-05, "
-         "per the official 'PC1555 ... PowerSeries 6-32 Zone Control Panel' "
-         "manual title); same *8 section grammar as the PC1555MX.",
-         aliases=("pc1555", "1555")),
-    _dsc("dsc_pc1555mx", "DSC PC1555MX", 32, 2,
-         "Grammar + expandable-to-32-zone capacity guide-confirmed 2026-07-05 "
-         "(PC1555MX Installation Manual): [*][8][code] entry, sections "
-         "[001]-[004] zone definitions, [005] timing.",
-         aliases=("pc1555mx", "1555mx")),
-    _dsc("dsc_pc1575", "DSC PC1575", 6, 1,
-         "PowerSeries 6-zone single-partition panel, guide-confirmed 2026-07-05 "
-         "(official JCI PC1575 v1.0 Installation Manual): 6 zones, *8 section "
-         "grammar, section 5.2 zone definitions. Corrected from 32 zones / 2 "
-         "partitions.",
-         aliases=("pc1575", "1575")),
-    _dsc("dsc_pc5010", "DSC PC5010 (Power832)", 32, 2,
-         "Power832. 32 zones / 2 partitions confirmed 2026-07-05 (Power832 "
-         "instruction manual); same *8 section grammar. The installer-manual "
-         "PDFs found are scanned images, so the zone-definition table is taken "
-         "from the newer PowerSeries guides.",
-         aliases=("pc5010", "5010", "power832", "832")),
-    _dsc("dsc_pc5020", "DSC PC5020 (Power864)", 64, 8,
-         "Power864. 64 zones / 8 partitions guide-confirmed 2026-07-05 (PC5020 "
-         "manual); same *8 section grammar and [001]-[004] zone definitions.",
-         aliases=("pc5020", "5020", "power864", "864")),
-    _dsc("dsc_pc1616", "DSC PC1616", 16, 2,
-         "16 zones / 2 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
-         "v4.6). Zone-definition reference table taken from this guide.",
-         aliases=("pc1616", "1616")),
-    _dsc("dsc_pc1832", "DSC PC1832", 32, 4,
-         "32 zones / 4 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
-         "v4.6).",
-         aliases=("pc1832", "1832")),
-    _dsc("dsc_pc1864", "DSC PC1864", 64, 8,
-         "64 zones / 8 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
-         "v4.6).",
-         aliases=("pc1864", "1864")),
+    _dsc(
+        "dsc_pc1555",
+        "DSC PC1555",
+        32,
+        2,
+        "PowerSeries 6-32 zone panel (max corrected from 8 to 32, 2026-07-05, "
+        "per the official 'PC1555 ... PowerSeries 6-32 Zone Control Panel' "
+        "manual title); same *8 section grammar as the PC1555MX.",
+        aliases=("pc1555", "1555"),
+    ),
+    _dsc(
+        "dsc_pc1555mx",
+        "DSC PC1555MX",
+        32,
+        2,
+        "Grammar + expandable-to-32-zone capacity guide-confirmed 2026-07-05 "
+        "(PC1555MX Installation Manual): [*][8][code] entry, sections "
+        "[001]-[004] zone definitions, [005] timing.",
+        aliases=("pc1555mx", "1555mx"),
+    ),
+    _dsc(
+        "dsc_pc1575",
+        "DSC PC1575",
+        6,
+        1,
+        "PowerSeries 6-zone single-partition panel, guide-confirmed 2026-07-05 "
+        "(official JCI PC1575 v1.0 Installation Manual): 6 zones, *8 section "
+        "grammar, section 5.2 zone definitions. Corrected from 32 zones / 2 "
+        "partitions.",
+        aliases=("pc1575", "1575"),
+    ),
+    _dsc(
+        "dsc_pc5010",
+        "DSC PC5010 (Power832)",
+        32,
+        2,
+        "Power832. 32 zones / 2 partitions confirmed 2026-07-05 (Power832 "
+        "instruction manual); same *8 section grammar. The installer-manual "
+        "PDFs found are scanned images, so the zone-definition table is taken "
+        "from the newer PowerSeries guides.",
+        aliases=("pc5010", "5010", "power832", "832"),
+    ),
+    _dsc(
+        "dsc_pc5020",
+        "DSC PC5020 (Power864)",
+        64,
+        8,
+        "Power864. 64 zones / 8 partitions guide-confirmed 2026-07-05 (PC5020 "
+        "manual); same *8 section grammar and [001]-[004] zone definitions.",
+        aliases=("pc5020", "5020", "power864", "864"),
+    ),
+    _dsc(
+        "dsc_pc1616",
+        "DSC PC1616",
+        16,
+        2,
+        "16 zones / 2 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 "
+        "v4.6). Zone-definition reference table taken from this guide.",
+        aliases=("pc1616", "1616"),
+    ),
+    _dsc(
+        "dsc_pc1832",
+        "DSC PC1832",
+        32,
+        4,
+        "32 zones / 4 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 v4.6).",
+        aliases=("pc1832", "1832"),
+    ),
+    _dsc(
+        "dsc_pc1864",
+        "DSC PC1864",
+        64,
+        8,
+        "64 zones / 8 partitions guide-confirmed 2026-07-05 (PC1616/1832/1864 v4.6).",
+        aliases=("pc1864", "1864"),
+    ),
 )

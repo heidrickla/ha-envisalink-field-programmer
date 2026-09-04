@@ -1,5 +1,6 @@
 """Tests for the config flow, against a fake TPI server (no mocking of our
 own connection logic -- this exercises the real login handshake)."""
+
 from __future__ import annotations
 
 import pytest

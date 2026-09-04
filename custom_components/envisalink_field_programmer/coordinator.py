@@ -11,6 +11,7 @@ still sent on a timer, since the protocol offers no better alternative:
     zone open/closed state for a Honeywell panel over this protocol (see
     state_machine.py) -- the panel doesn't push zone changes on its own.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -224,8 +225,6 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
         zone = self.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(
-            self.client, zone.partition, keys, dialect=self.dialect
-        )
+        await async_send_guarded_keystrokes(self.client, zone.partition, keys, dialect=self.dialect)
         zone.bypassed = not zone.bypassed
         self.async_set_updated_data(self.data)

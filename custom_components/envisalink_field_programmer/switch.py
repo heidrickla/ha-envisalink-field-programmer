@@ -6,6 +6,7 @@ programming, it requires no installer code and carries no risk of a
 lockout. It still goes through the same keystroke guard as everything else
 (see programming.py) for defense in depth.
 """
+
 from __future__ import annotations
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
@@ -23,8 +24,7 @@ async def async_setup_entry(
 ) -> None:
     coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
-        VistaZoneBypassSwitch(coordinator, number)
-        for number in sorted(coordinator.data.zones)
+        VistaZoneBypassSwitch(coordinator, number) for number in sorted(coordinator.data.zones)
     )
 
 

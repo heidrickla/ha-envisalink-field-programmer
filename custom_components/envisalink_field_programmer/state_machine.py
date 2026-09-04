@@ -19,6 +19,7 @@ Honeywell panels in the reference `pyenvisalink` implementation -- Honeywell
 only ever reports state through keypad updates and CID events, not those
 two message types -- so they're intentionally ignored here too.
 """
+
 from __future__ import annotations
 
 import logging

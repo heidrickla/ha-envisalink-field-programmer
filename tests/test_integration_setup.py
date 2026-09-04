@@ -1,5 +1,6 @@
 """End-to-end test: set up the config entry against a fake TPI server and
 verify entities are created and react to pushed panel events."""
+
 from __future__ import annotations
 
 import asyncio

@@ -9,6 +9,7 @@ Note: Program Mode on a real Vista panel opens via
 a DSC-style "*8" sequence -- see programming.py's module docstring for why
 that distinction matters and was corrected.
 """
+
 from __future__ import annotations
 
 import pytest

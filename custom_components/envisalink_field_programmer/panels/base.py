@@ -25,6 +25,7 @@ Nothing in this module (or any dialect) talks to the panel. Dialects only
 describe *what a field means* and *what keystrokes express it*; sending still
 goes through :func:`programming.async_send_guarded_keystrokes`.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

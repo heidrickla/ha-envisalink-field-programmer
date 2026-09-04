@@ -8,6 +8,7 @@ that directory before the test session starts so ``enable_custom_integrations``
 can discover it as ``envisalink_field_programmer``, same as it would in a
 real HA config dir.
 """
+
 from __future__ import annotations
 
 import shutil

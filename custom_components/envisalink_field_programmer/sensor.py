@@ -1,4 +1,5 @@
 """Diagnostic sensors: last raw TPI event and per-partition last user."""
+
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
@@ -18,8 +19,7 @@ async def async_setup_entry(
     coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[SensorEntity] = [VistaLastEventSensor(coordinator)]
     entities.extend(
-        VistaLastUserSensor(coordinator, number)
-        for number in sorted(coordinator.data.partitions)
+        VistaLastUserSensor(coordinator, number) for number in sorted(coordinator.data.partitions)
     )
     async_add_entities(entities)
 

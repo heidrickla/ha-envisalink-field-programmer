@@ -17,6 +17,7 @@ programming menu itself (walk each field at the keypad and record it) or a
 Honeywell-side tool (Compass Downloader / Total Connect installer access),
 neither of which this integration can reach.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -58,8 +59,7 @@ async def async_get_config_entry_diagnostics(
             for number, partition in sorted(state.partitions.items())
         },
         "zones": {
-            str(number): dataclasses.asdict(zone)
-            for number, zone in sorted(state.zones.items())
+            str(number): dataclasses.asdict(zone) for number, zone in sorted(state.zones.items())
         },
         "last_event": (
             {

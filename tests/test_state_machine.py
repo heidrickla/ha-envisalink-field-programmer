@@ -5,6 +5,7 @@ scenario documents exactly which flags are set. See const.py for the bit
 assignments and client.py/state_machine.py module docstrings for how this
 maps to a real keypad update.
 """
+
 from __future__ import annotations
 
 from custom_components.envisalink_field_programmer.client import build_event

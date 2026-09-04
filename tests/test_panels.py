@@ -4,6 +4,7 @@ Covers the registry lookup, both family dialects' Program-Mode grammar and
 installer-mode detection, and the honesty invariants (verification levels,
 which family supports guided per-zone programming).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -25,6 +26,7 @@ from custom_components.envisalink_field_programmer.programming import (
 )
 
 # --- registry -------------------------------------------------------------
+
 
 def test_default_model_is_vista_21ip_and_verified():
     model = get_model(None)
@@ -66,6 +68,7 @@ def test_verified_models_are_the_guide_checked_residential_vistas():
 
 # --- VISTA dialect --------------------------------------------------------
 
+
 def test_vista_dialect_family_and_guided_support():
     from custom_components.envisalink_field_programmer.panels import GuidedOp
 
@@ -99,6 +102,7 @@ def test_vista_residential_timing_builder():
 
 
 # --- Commercial VISTA dialect ---------------------------------------------
+
 
 def test_commercial_vista_dialect_supports_timing_only():
     from custom_components.envisalink_field_programmer.panels import GuidedOp, get_dialect
@@ -142,6 +146,7 @@ def test_commercial_vista_timing_rejects_out_of_range():
 
 # --- DSC dialect ----------------------------------------------------------
 
+
 def test_dsc_dialect_family_and_no_guided_support():
     assert DSC_DIALECT.family == PanelFamily.DSC_POWERSERIES
     # DSC drives no guided operation yet (no DSC transport).
@@ -177,6 +182,7 @@ def test_all_dsc_models_are_provisional():
 
 
 # --- DSC section-programming pure builders (not wired to any transport) ----
+
 
 def test_dsc_zone_definitions_builder():
     from custom_components.envisalink_field_programmer.panels.dsc import (
@@ -226,6 +232,7 @@ def test_dsc_partition_timing_builder_validation():
 
 # --- guard is family-aware ------------------------------------------------
 
+
 def test_guard_blocks_dsc_program_mode_only_under_dsc_dialect():
     # Under the DSC dialect, *8<code> is refused...
     with pytest.raises(KeystrokeGuardError):
@@ -248,6 +255,7 @@ def test_guard_blocks_vista_program_mode_only_under_vista_dialect():
 # programming disabled, so no live model trips this gate -- but it must stay
 # correct for any future model added as GRAMMAR_VERIFIED/PROVISIONAL *with*
 # guided programming enabled. Tested directly against the helper.
+
 
 def _fake_coordinator(model):
     from types import SimpleNamespace

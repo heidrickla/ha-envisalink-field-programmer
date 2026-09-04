@@ -28,6 +28,7 @@ This module has no dependency on Home Assistant and can be unit tested with
 plain asyncio streams (e.g. a loopback socket or ``asyncio.StreamReader``
 fed by hand).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -109,9 +110,7 @@ def parse_frame(frame: str) -> tuple[str, str]:
     """Split a de-sentineled chunk like ``%00,1,...`` into (code, data)."""
     frame = strip_leading_garbage(frame)
     if len(frame) < 4 or frame[3] != ",":
-        raise TPIProtocolError(
-            f"malformed frame (expected %xx,... or ^xx,...): {frame!r}"
-        )
+        raise TPIProtocolError(f"malformed frame (expected %xx,... or ^xx,...): {frame!r}")
     return frame[:3], frame[4:]
 
 
@@ -202,9 +201,7 @@ class EnvisalinkClient:
             if prompt is None:
                 raise TPIConnectionError("connection closed before login prompt")
             if prompt != LOGIN_PROMPT:
-                raise TPIConnectionError(
-                    f"expected {LOGIN_PROMPT!r} login prompt, got {prompt!r}"
-                )
+                raise TPIConnectionError(f"expected {LOGIN_PROMPT!r} login prompt, got {prompt!r}")
 
             writer.write(f"{self._password}\r\n".encode("ascii"))
             await writer.drain()
@@ -283,9 +280,7 @@ class EnvisalinkClient:
                 and not self._pending_ack.done()
                 and event.code == self._pending_ack_code
             ):
-                self._pending_ack.set_result(
-                    str(event.fields.get("response_code", event.raw_data))
-                )
+                self._pending_ack.set_result(str(event.fields.get("response_code", event.raw_data)))
             self._event_callback(event)
         return remainder
 
@@ -330,8 +325,7 @@ class EnvisalinkClient:
                         response = await asyncio.wait_for(future, self._ack_timeout)
                     except TimeoutError as err:
                         raise TPICommandError(
-                            f"no acknowledgement for command ^{code} within"
-                            f" {self._ack_timeout}s"
+                            f"no acknowledgement for command ^{code} within {self._ack_timeout}s"
                         ) from err
                 finally:
                     self._pending_ack = None
