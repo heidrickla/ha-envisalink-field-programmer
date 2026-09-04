@@ -18,10 +18,20 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from homeassistant.components.frontend import add_extra_js_url
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+
+# Home Assistant 2026.x defines StaticPathConfig in http.server and only
+# re-imports it into the http package, which strict mypy refuses to read
+# through; releases before the split have no http.server module at all. So
+# the type checker sees the defining module and the runtime import stays on
+# the package, which every supported release exports.
+if TYPE_CHECKING:
+    from homeassistant.components.http.server import StaticPathConfig
+else:
+    from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 
