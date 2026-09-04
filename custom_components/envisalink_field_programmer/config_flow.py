@@ -1,16 +1,23 @@
-"""Config flow for Envisalink Field Programmer."""
+"""Config flow for Envisalink Field Programmer: setup, reauth and options."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import selector
 
-from .client import EnvisalinkClient, TPIAuthError, TPIConnectionError
+from .client import EnvisalinkClient, TPIAuthError, TPIError
 from .const import (
     CONF_HOST,
     CONF_INSTALLER_CODE,
@@ -20,6 +27,8 @@ from .const import (
     CONF_PANEL_MODEL,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_REMOVE_INSTALLER_CODE,
+    CONF_REMOVE_USER_CODE,
     CONF_USER_CODE,
     DEFAULT_KEEPALIVE_INTERVAL,
     DEFAULT_NUM_PARTITIONS,
@@ -32,16 +41,22 @@ from .panels import get_model, model_choices
 
 _LOGGER = logging.getLogger(__name__)
 
+_PASSWORD = selector.TextSelector(
+    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+)
+# Both alarm codes are secrets too: they arm, disarm and open Program Mode.
+_SECRETS = {CONF_PASSWORD, CONF_USER_CODE, CONF_INSTALLER_CODE}
+
 # Zones/partitions ranges here are the widest any supported panel allows; the
 # actual per-model maximum is enforced against the selected model after submit
 # (see async_step_user), so the form can stay a single step.
 STEP_USER_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
-        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
+        vol.Required(CONF_PASSWORD): _PASSWORD,
         vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(model_choices()),
-        vol.Optional(CONF_USER_CODE, default=""): str,
+        vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
         vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=8)
         ),
@@ -50,6 +65,8 @@ STEP_USER_SCHEMA = vol.Schema(
         ),
     }
 )
+
+STEP_REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): _PASSWORD})
 
 
 async def _test_connection(host: str, port: int, password: str) -> None:
@@ -68,12 +85,31 @@ async def _test_connection(host: str, port: int, password: str) -> None:
         await client.disconnect()
 
 
+async def _async_try(host: str, port: int, password: str) -> dict[str, str]:
+    """Validate against the Envisalink. Returns the form errors, empty on success."""
+    try:
+        await _test_connection(host, port, password)
+    except TPIAuthError:
+        return {"base": "invalid_auth"}
+    except (TPIError, OSError):
+        return {"base": "cannot_connect"}
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Unexpected error validating the Envisalink connection")
+        return {"base": "unknown"}
+    return {}
+
+
+def _without_secrets(values: Mapping[str, Any]) -> dict[str, Any]:
+    """What may go back to the browser as a suggested value after an error."""
+    return {k: v for k, v in values.items() if k not in _SECRETS}
+
+
 class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Envisalink Field Programmer."""
+    """Handle setup and reauth for one Envisalink."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             self._async_abort_entries_match(
@@ -84,28 +120,11 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_NUM_ZONES] = "too_many_zones"
             if user_input[CONF_NUM_PARTITIONS] > model.max_partitions:
                 errors[CONF_NUM_PARTITIONS] = "too_many_partitions"
-            if errors:
-                return self.async_show_form(
-                    step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
+            if not errors:
+                errors = await _async_try(
+                    user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_PASSWORD]
                 )
-            try:
-                await _test_connection(
-                    user_input[CONF_HOST],
-                    user_input[CONF_PORT],
-                    user_input[CONF_PASSWORD],
-                )
-            except TPIAuthError:
-                errors["base"] = "invalid_auth"
-            except TPIConnectionError:
-                errors["base"] = "cannot_connect"
-            except OSError:
-                errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "Unexpected error validating Envisalink Field Programmer connection"
-                )
-                errors["base"] = "unknown"
-            else:
+            if not errors:
                 await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -113,40 +132,96 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_SCHEMA, _without_secrets(user_input or {})
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """The Envisalink rejected the stored password; ask for a new one."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = await _async_try(
+                entry.data[CONF_HOST], entry.data[CONF_PORT], user_input[CONF_PASSWORD]
+            )
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data={**entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]}
+                )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=STEP_REAUTH_SCHEMA,
+            description_placeholders={"host": entry.data[CONF_HOST]},
+            errors=errors,
+        )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> VistaConsoleOptionsFlow:
-        return VistaConsoleOptionsFlow(config_entry)
+        return VistaConsoleOptionsFlow()
 
 
 class VistaConsoleOptionsFlow(OptionsFlow):
-    """Adjust keepalive interval and default user code after setup."""
+    """Adjust the default user code, installer code and keepalive interval.
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self._config_entry = config_entry
+    The stored codes never go back to the browser, so the code fields are
+    shown empty: a blank field keeps the stored code, the remove switches
+    clear it.
+    """
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        options = self.config_entry.options
+        data = self.config_entry.data
+        stored_user_code: str = options.get(CONF_USER_CODE, data.get(CONF_USER_CODE, ""))
+        stored_installer_code: str = options.get(CONF_INSTALLER_CODE, "")
+
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            user_code = (
+                ""
+                if user_input[CONF_REMOVE_USER_CODE]
+                else (user_input.get(CONF_USER_CODE) or stored_user_code)
+            )
+            installer_code = (
+                ""
+                if user_input[CONF_REMOVE_INSTALLER_CODE]
+                else (user_input.get(CONF_INSTALLER_CODE) or stored_installer_code)
+            )
+            return self.async_create_entry(
+                title="",
+                data={
+                    **options,
+                    CONF_USER_CODE: user_code,
+                    CONF_INSTALLER_CODE: installer_code,
+                    CONF_KEEPALIVE_INTERVAL: user_input[CONF_KEEPALIVE_INTERVAL],
+                },
+            )
 
-        options = self._config_entry.options
-        data = self._config_entry.data
         schema = vol.Schema(
             {
-                vol.Optional(
-                    CONF_USER_CODE,
-                    default=options.get(CONF_USER_CODE, data.get(CONF_USER_CODE, "")),
-                ): str,
-                vol.Optional(
-                    CONF_INSTALLER_CODE,
-                    default=options.get(CONF_INSTALLER_CODE, data.get(CONF_INSTALLER_CODE, "")),
-                ): str,
-                vol.Optional(
+                vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
+                vol.Optional(CONF_REMOVE_USER_CODE, default=False): bool,
+                vol.Optional(CONF_INSTALLER_CODE, default=""): _PASSWORD,
+                vol.Optional(CONF_REMOVE_INSTALLER_CODE, default=False): bool,
+                vol.Required(
                     CONF_KEEPALIVE_INTERVAL,
                     default=options.get(CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL),
                 ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            description_placeholders={
+                "user_code_state": "set" if stored_user_code else "not set",
+                "installer_code_state": "set" if stored_installer_code else "not set",
+            },
+        )
