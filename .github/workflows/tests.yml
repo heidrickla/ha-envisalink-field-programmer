@@ -1,0 +1,51 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Gitea's act_runner also picks up .github/workflows, so the job is gated to
+# GitHub: the forge runner is shared and installing Home Assistant on it is
+# not an ordinary-push cost.
+
+jobs:
+  tests:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Home Assistant 2026.x needs Python 3.14.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      # 0.13.357 pins Home Assistant 2026.8.3 and brings pytest, its asyncio
+      # and aiohttp plugins and PyYAML with it (pinning those again makes
+      # pip's resolution impossible). pytest-cov is the one addition.
+      - name: Install the Home Assistant test harness (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "mypy==1.18.2" "ruff==0.15.21" "pytest-cov==6.0.0" \
+            "pytest-homeassistant-custom-component==0.13.357"
+      - name: Ruff
+        run: |
+          ruff check .
+          ruff format --check .
+      # The pure suite is the client, models, state machine and keystroke
+      # builders, loaded by path; it must pass with the harness plugin off.
+      - name: Pure tests
+        run: python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
+      - name: Home Assistant layer tests
+        run: >-
+          python -m pytest tests/ha -q
+          --cov=custom_components/envisalink_field_programmer
+          --cov-report=term-missing
+      # strict-typing only means something with Home Assistant installed,
+      # which is the case here and not on a bare workstation.
+      - name: mypy --strict
+        run: python -m mypy custom_components/envisalink_field_programmer
+      - name: Offline validator
+        run: python tools/validate_local.py
