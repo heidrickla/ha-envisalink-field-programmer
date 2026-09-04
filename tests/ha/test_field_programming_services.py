@@ -11,8 +11,12 @@ import asyncio
 
 import pytest
 import voluptuous as vol
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
+from custom_components.envisalink_field_programmer.client import (
+    EnvisalinkClient,
+    TPICommandError,
+)
 from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import setup_entry, unload_entry
@@ -259,6 +263,55 @@ async def test_set_system_timing_sends_expected_keystrokes(hass, fake_server):
     keystroke_frames = [d for c, d in fake_server.received if c == "03"]
     full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)
     assert full_sent == "4112800*3445**99"
+    await _unload(hass, entry)
+
+
+async def test_set_system_timing_rejects_value_out_of_range(hass, fake_server):
+    # The value range depends on the field and dialect, so the schema cannot
+    # check it. An out-of-range value is the caller's mistake and must surface
+    # as a validation error, not the builder's raw ValueError with a traceback.
+    entry = await _setup_entry(hass, fake_server)
+    with pytest.raises(ServiceValidationError, match="EXIT_DELAY"):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_system_timing",
+            {
+                "entry_id": entry.entry_id,
+                "field": "34",
+                "value": 999,
+                "confirm": True,
+            },
+            blocking=True,
+        )
+    keystroke_frames = [d for c, d in fake_server.received if c == "03"]
+    assert not keystroke_frames  # nothing reached the panel
+    await _unload(hass, entry)
+
+
+async def test_guided_action_reports_device_refusal_as_device_error(hass, fake_server, monkeypatch):
+    # A refused or unacknowledged command is a device failure, not bad input:
+    # HomeAssistantError, and not the ServiceValidationError subclass. The
+    # fake server always acknowledges, so the client is made to refuse here.
+    entry = await _setup_entry(hass, fake_server)
+
+    async def _refuse(self, partition, keys):
+        raise TPICommandError("Unknown Command")
+
+    monkeypatch.setattr(EnvisalinkClient, "send_keystrokes", _refuse)
+    with pytest.raises(HomeAssistantError, match="Unknown Command") as excinfo:
+        await hass.services.async_call(
+            DOMAIN,
+            "program_function_key",
+            {
+                "entry_id": entry.entry_id,
+                "key": "A",
+                "partition": 1,
+                "action": 3,
+                "confirm": True,
+            },
+            blocking=True,
+        )
+    assert not isinstance(excinfo.value, ServiceValidationError)
     await _unload(hass, entry)
 
 

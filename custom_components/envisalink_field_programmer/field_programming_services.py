@@ -36,7 +36,11 @@ from .field_programming import (
     build_zone_program_keystrokes,
 )
 from .panels import GuidedOp, Verification
-from .programming import KeystrokeGuardError, get_loaded_coordinator, validate_keystrokes
+from .programming import (
+    KeystrokeGuardError,
+    async_send_guarded_keystrokes,
+    get_loaded_coordinator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,9 +173,15 @@ async def _send_program_mode_sequence(
     # allow_installer_mode=True: every one of these services always opens
     # Program Mode by design, gated on the service's own required `confirm`
     # field instead of the generic send_keystrokes confirmation flag. The
-    # coordinator's dialect selects the correct family guard.
-    validate_keystrokes(full_sequence, allow_installer_mode=True, dialect=coordinator.dialect)
-    await coordinator.client.send_keystrokes(partition, full_sequence)
+    # coordinator's dialect selects the correct family guard, and the guarded
+    # sender turns a refused or unacknowledged command into HomeAssistantError.
+    await async_send_guarded_keystrokes(
+        coordinator.client,
+        partition,
+        full_sequence,
+        allow_installer_mode=True,
+        dialect=coordinator.dialect,
+    )
 
 
 @callback
@@ -221,9 +231,14 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
                 f"{', '.join(sorted(valid))}."
             )
         partition = call.data[ATTR_PARTITION]
-        keystrokes = coordinator.dialect.build_timing_keystrokes(
-            field, call.data[ATTR_VALUE], partition
-        )
+        # The value range depends on the field and the dialect, so the schema
+        # cannot check it; the builder's ValueError is the user's mistake.
+        try:
+            keystrokes = coordinator.dialect.build_timing_keystrokes(
+                field, call.data[ATTR_VALUE], partition
+            )
+        except ValueError as err:
+            raise ServiceValidationError(str(err)) from err
         await _send_program_mode_sequence(
             coordinator,
             partition,
