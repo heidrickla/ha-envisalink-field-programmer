@@ -35,7 +35,7 @@ rules:
       Every field has a data_description; the password and both codes use a
       password selector and are never sent back to the browser.
   dependency-transparency:
-    status: exempt
+    status: done
     comment: |
       No external dependency. requirements is empty; the TPI client is
       asyncio streams plus the standard library.
