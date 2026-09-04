@@ -29,8 +29,9 @@ class FakeEnvisalinkServer:
         self._writer: asyncio.StreamWriter | None = None
         self.port: int = 0
 
-    async def start(self) -> None:
-        self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+    async def start(self, port: int = 0) -> None:
+        """Listen on a free loopback port, or on ``port`` to stand in for a restarted EVL."""
+        self._server = await asyncio.start_server(self._handle, "127.0.0.1", port)
         self.port = self._server.sockets[0].getsockname()[1]
 
     async def stop(self) -> None:

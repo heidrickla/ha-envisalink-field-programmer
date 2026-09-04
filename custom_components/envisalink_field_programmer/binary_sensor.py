@@ -2,23 +2,30 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_ZONE_NAMES, DOMAIN
-from .coordinator import VistaConsoleCoordinator
+from .const import CONF_ZONE_NAMES
+from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
+from .models import ZoneState
+
+# Push-driven; the coordinator delivers every update.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: VistaConsoleConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     zone_names: dict[str, str] = entry.options.get(
         CONF_ZONE_NAMES, entry.data.get(CONF_ZONE_NAMES, {})
     )
@@ -43,7 +50,7 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
         self._attr_name = name or f"Zone {zone_number}"
 
     @property
-    def _zone(self):
+    def _zone(self) -> ZoneState:
         return self.coordinator.data.zone(self._zone_number)
 
     @property
@@ -51,7 +58,7 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
         return self._zone.open
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         zone = self._zone
         return {
             "zone_number": self._zone_number,
@@ -88,7 +95,7 @@ class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
         )
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         system = self.coordinator.data.system
         return {
             "installers_mode": system.installers_mode,

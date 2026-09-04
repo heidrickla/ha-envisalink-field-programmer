@@ -2,27 +2,34 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
     CodeFormat,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_USER_CODE, DOMAIN
-from .coordinator import VistaConsoleCoordinator
+from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
+from .models import PartitionState
+
+# Push-driven; the coordinator delivers every update.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: VistaConsoleConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
-    default_code = entry.options.get(CONF_USER_CODE, entry.data.get(CONF_USER_CODE, ""))
+    coordinator = entry.runtime_data
+    default_code: str = entry.options.get(CONF_USER_CODE, entry.data.get(CONF_USER_CODE, ""))
     async_add_entities(
         VistaPartitionAlarmPanel(coordinator, number, default_code)
         for number in sorted(coordinator.data.partitions)
@@ -58,7 +65,7 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         self._attr_code_format = CodeFormat.NUMBER if default_code == "" else None
 
     @property
-    def _partition(self):
+    def _partition(self) -> PartitionState:
         return self.coordinator.data.partition(self._partition_number)
 
     @property
@@ -77,7 +84,7 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         return AlarmControlPanelState.DISARMED
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         partition = self._partition
         return {
             "partition_number": self._partition_number,
@@ -94,10 +101,9 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
     def _require_code(self, code: str | None) -> str:
         use_code = code or self._default_code
         if not use_code:
-            raise HomeAssistantError(
-                "No user code provided and no default user code configured for"
-                " this integration's entry. A real Vista panel has no"
-                " code-free way to arm or disarm."
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_code",
             )
         return use_code
 

@@ -33,20 +33,22 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .client import EnvisalinkClient, TPIError
-from .const import DOMAIN
+from .const import DOMAIN, SERVICE_SEND_KEYSTROKES, SERVICE_TOGGLE_ZONE_BYPASS
 from .panels import PanelDialect, get_dialect
 
-_LOGGER = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from .coordinator import VistaConsoleCoordinator
 
-SERVICE_SEND_KEYSTROKES = "send_keystrokes"
-SERVICE_TOGGLE_ZONE_BYPASS = "toggle_zone_bypass"
+_LOGGER = logging.getLogger(__name__)
 
 ATTR_ENTRY_ID = "entry_id"
 ATTR_PARTITION = "partition"
@@ -88,8 +90,12 @@ TOGGLE_ZONE_BYPASS_SCHEMA = vol.Schema(
 )
 
 
-class KeystrokeGuardError(HomeAssistantError):
-    """Raised when a keystroke sequence is refused by the safety guard."""
+class KeystrokeGuardError(ServiceValidationError):
+    """Raised when a keystroke sequence is refused by the safety guard.
+
+    A refusal is a verdict on the caller's input, not a device failure, so it
+    is a validation error: Home Assistant shows it without a traceback.
+    """
 
 
 def validate_keystrokes(
@@ -158,23 +164,31 @@ async def async_send_guarded_keystrokes(
         ) from err
 
 
-def _get_coordinator(hass: HomeAssistant, entry_id: str):
-    domain_data = hass.data.get(DOMAIN, {})
-    coordinator = domain_data.get(entry_id)
-    if coordinator is None:
-        raise HomeAssistantError(
-            f"No Envisalink Field Programmer config entry with id {entry_id!r}"
+def get_loaded_coordinator(hass: HomeAssistant, entry_id: str) -> VistaConsoleCoordinator:
+    """The loaded coordinator an action call names, or a translated refusal."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None or entry.domain != DOMAIN:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="entry_not_found",
+            translation_placeholders={"entry_id": entry_id},
         )
+    if entry.state is not ConfigEntryState.LOADED:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="not_loaded",
+            translation_placeholders={"name": entry.title},
+        )
+    coordinator: VistaConsoleCoordinator = entry.runtime_data
     return coordinator
 
 
+@callback
 def async_register_services(hass: HomeAssistant) -> None:
-    """Register the envisalink_field_programmer.* services, if not already registered."""
-    if hass.services.has_service(DOMAIN, SERVICE_SEND_KEYSTROKES):
-        return
+    """Register send_keystrokes and toggle_zone_bypass, once, from async_setup."""
 
     async def _handle_send_keystrokes(call: ServiceCall) -> None:
-        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         await async_send_guarded_keystrokes(
             coordinator.client,
             call.data[ATTR_PARTITION],
@@ -189,7 +203,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         )
 
     async def _handle_toggle_zone_bypass(call: ServiceCall) -> None:
-        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         zone_number = call.data[ATTR_ZONE]
         zone = coordinator.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"

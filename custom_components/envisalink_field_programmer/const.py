@@ -5,7 +5,14 @@ from __future__ import annotations
 from typing import Final
 
 DOMAIN: Final = "envisalink_field_programmer"
-PLATFORMS: Final = ["alarm_control_panel", "binary_sensor", "sensor", "switch"]
+
+# Action names. Registered once in async_setup; tools/validate_local.py pins
+# services.yaml against this list.
+SERVICE_SEND_KEYSTROKES: Final = "send_keystrokes"
+SERVICE_TOGGLE_ZONE_BYPASS: Final = "toggle_zone_bypass"
+SERVICE_PROGRAM_ZONE: Final = "program_zone"
+SERVICE_SET_SYSTEM_TIMING: Final = "set_system_timing"
+SERVICE_PROGRAM_FUNCTION_KEY: Final = "program_function_key"
 
 # Config entry keys
 CONF_HOST: Final = "host"
@@ -18,6 +25,10 @@ CONF_NUM_PARTITIONS: Final = "num_partitions"
 CONF_NUM_ZONES: Final = "num_zones"
 CONF_ZONE_NAMES: Final = "zone_names"
 CONF_KEEPALIVE_INTERVAL: Final = "keepalive_interval"
+# Options-form switches. The stored codes are never sent back to the browser,
+# so a blank code field keeps the stored one and these are how it is cleared.
+CONF_REMOVE_USER_CODE: Final = "remove_user_code"
+CONF_REMOVE_INSTALLER_CODE: Final = "remove_installer_code"
 
 DEFAULT_PORT: Final = 4025
 # The panel this integration was originally built and hardware-tested against;

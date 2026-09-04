@@ -25,20 +25,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_INSTALLER_CODE, CONF_PASSWORD, CONF_USER_CODE, DOMAIN
-from .coordinator import VistaConsoleCoordinator
+from .const import CONF_INSTALLER_CODE, CONF_PASSWORD, CONF_USER_CODE
+from .coordinator import VistaConsoleConfigEntry
 
 TO_REDACT = {CONF_PASSWORD, CONF_USER_CODE, CONF_INSTALLER_CODE}
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
 ) -> dict[str, Any]:
     """Return a redacted config plus a live state snapshot."""
-    coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     state = coordinator.data
 
     return {

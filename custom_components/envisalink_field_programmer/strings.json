@@ -2,40 +2,87 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Envisalink",
-        "description": "Enter the connection details for your Envisalink EVL-3/EVL-4 module. The password is the same one used to log into the Envisalink's local web page.",
+        "title": "Connect to the Envisalink",
+        "description": "Enter the connection details for your Envisalink EVL-3/EVL-4 module. The Envisalink admits one TPI client at a time, so disable any other Envisalink integration first.",
         "data": {
-          "host": "Host or IP address",
+          "host": "Host",
           "port": "Port",
           "password": "Envisalink password",
           "panel_model": "Alarm panel model",
-          "user_code": "Default user code for arming/disarming (optional)",
+          "user_code": "Default user code",
           "num_partitions": "Number of partitions",
           "num_zones": "Number of zones"
+        },
+        "data_description": {
+          "host": "The Envisalink's IP address or hostname on your LAN. Give it a DHCP reservation; a changed address means reconfiguring.",
+          "port": "The TPI port. 4025 unless you changed it on the Envisalink's web page.",
+          "password": "The password for the Envisalink's local web page, not a panel code.",
+          "panel_model": "The alarm panel behind the Envisalink. It sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified.",
+          "user_code": "Optional. A panel user code Home Assistant will type to arm and disarm when a call does not supply one. Leaving it blank means every arm and disarm needs a code. It can be changed or removed later in the options.",
+          "num_partitions": "How many partitions the panel has configured (1 to 8). One alarm control panel entity is created per partition.",
+          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Unused zones simply stay closed."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Envisalink password rejected",
+        "description": "The Envisalink at {host} rejected the stored password. Enter the current one.",
+        "data": {
+          "password": "Envisalink password"
+        },
+        "data_description": {
+          "password": "The password for the Envisalink's local web page."
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not connect to the Envisalink at that host/port.",
+      "cannot_connect": "Could not connect to the Envisalink at that host and port. If another Envisalink integration or app is connected, it holds the only TPI session.",
       "invalid_auth": "The Envisalink rejected that password.",
       "too_many_zones": "That is more zones than the selected panel model supports.",
       "too_many_partitions": "That is more partitions than the selected panel model supports.",
       "unknown": "Unexpected error while connecting."
     },
     "abort": {
-      "already_configured": "This Envisalink is already configured."
+      "already_configured": "This Envisalink is already configured.",
+      "reauth_successful": "The new password was accepted."
     }
   },
   "options": {
     "step": {
       "init": {
-        "description": "The installer code is optional and only needed for the field-programming console (zone types, timing, function keys). Leave it blank to keep programming disabled -- zone bypass never needs it. A real Vista panel arms and disarms by typing a user code, so set a default user code here if you don't want to pass one on every arm/disarm call.",
+        "title": "Envisalink Field Programmer options",
+        "description": "Codes are never shown here. Default user code: {user_code_state}. Installer code: {installer_code_state}. Leave a code field blank to keep the stored code; tick its remove switch to clear it.",
         "data": {
-          "user_code": "Default user code for arming/disarming",
-          "installer_code": "Installer code (enables field programming)",
-          "keepalive_interval": "Keepalive poll interval (seconds)"
+          "user_code": "Default user code",
+          "remove_user_code": "Remove the stored default user code",
+          "installer_code": "Installer code",
+          "remove_installer_code": "Remove the stored installer code",
+          "keepalive_interval": "Keepalive interval"
+        },
+        "data_description": {
+          "user_code": "A panel user code Home Assistant types to arm and disarm when a call does not supply one. With one set, the alarm panel entity disarms without asking anyone for a code.",
+          "remove_user_code": "Clears the stored default user code, so every arm and disarm needs a code again.",
+          "installer_code": "Enables the field-programming actions. Every guided action types this code followed by 800 to open Program Mode. Leave it unset if you never program the panel from Home Assistant; arming, disarming and bypass never use it.",
+          "remove_installer_code": "Clears the stored installer code and disables field programming.",
+          "keepalive_interval": "Seconds between keepalive polls that detect a silently dead connection (10 to 300). Zone state is refreshed every 30 seconds regardless."
         }
       }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "No Envisalink Field Programmer entry has the id {entry_id}."
+    },
+    "not_loaded": {
+      "message": "{name} is not loaded, so this action cannot run."
+    },
+    "cannot_connect": {
+      "message": "Could not connect to the Envisalink at {host}: {error}"
+    },
+    "invalid_auth": {
+      "message": "The Envisalink at {host} rejected the stored password."
+    },
+    "no_code": {
+      "message": "No user code was given and no default user code is configured. A Vista panel has no code-free way to arm or disarm."
     }
   }
 }

@@ -20,6 +20,7 @@ import logging
 from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
@@ -62,16 +63,9 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         return
 
     try:
-        try:
-            from homeassistant.components.http import StaticPathConfig
-
-            await hass.http.async_register_static_paths(
-                [StaticPathConfig(URL_BASE, str(www_dir), cache_headers=True)]
-            )
-        except ImportError:
-            # Home Assistant core < 2024.7 does not have StaticPathConfig.
-            hass.http.register_static_path(URL_BASE, str(www_dir), cache_headers=True)
-
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(URL_BASE, str(www_dir), cache_headers=True)]
+        )
         add_extra_js_url(hass, f"{URL_BASE}/{CARD_FILENAME}")
         hass.data[_REGISTERED_KEY] = True
     except Exception:  # noqa: BLE001

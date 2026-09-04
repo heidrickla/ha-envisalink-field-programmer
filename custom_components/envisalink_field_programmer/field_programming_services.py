@@ -13,11 +13,17 @@ from __future__ import annotations
 import logging
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    SERVICE_PROGRAM_FUNCTION_KEY,
+    SERVICE_PROGRAM_ZONE,
+    SERVICE_SET_SYSTEM_TIMING,
+)
+from .coordinator import VistaConsoleCoordinator
 from .field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
     ZONE_TYPES,
@@ -30,13 +36,9 @@ from .field_programming import (
     build_zone_program_keystrokes,
 )
 from .panels import GuidedOp, Verification
-from .programming import KeystrokeGuardError, validate_keystrokes
+from .programming import KeystrokeGuardError, get_loaded_coordinator, validate_keystrokes
 
 _LOGGER = logging.getLogger(__name__)
-
-SERVICE_PROGRAM_ZONE = "program_zone"
-SERVICE_SET_SYSTEM_TIMING = "set_system_timing"
-SERVICE_PROGRAM_FUNCTION_KEY = "program_function_key"
 
 ATTR_ENTRY_ID = "entry_id"
 ATTR_CONFIRM = "confirm"
@@ -101,27 +103,17 @@ PROGRAM_FUNCTION_KEY_SCHEMA = vol.Schema(
 )
 
 
-def _get_coordinator(hass: HomeAssistant, entry_id: str):
-    domain_data = hass.data.get(DOMAIN, {})
-    coordinator = domain_data.get(entry_id)
-    if coordinator is None:
-        raise HomeAssistantError(
-            f"No Envisalink Field Programmer config entry with id {entry_id!r}"
-        )
-    return coordinator
-
-
-def _require_installer_code(coordinator) -> str:
+def _require_installer_code(coordinator: VistaConsoleCoordinator) -> str:
     if not coordinator.installer_code:
-        raise HomeAssistantError(
+        raise ServiceValidationError(
             "Field programming needs an installer code. Set one in this "
-            "integration's options (Settings -> Devices & Services -> Vista "
-            "Console -> Configure) first."
+            "integration's options (Settings -> Devices & Services -> "
+            "Envisalink Field Programmer -> Configure) first."
         )
     return coordinator.installer_code
 
 
-def _require_guided_support(coordinator, op: GuidedOp) -> None:
+def _require_guided_support(coordinator: VistaConsoleCoordinator, op: GuidedOp) -> None:
     """Refuse a guided operation the selected model's dialect doesn't drive.
 
     Each dialect declares which of ZONE / TIMING / FUNCTION_KEY it supports.
@@ -131,13 +123,15 @@ def _require_guided_support(coordinator, op: GuidedOp) -> None:
     potentially destructive) keystrokes.
     """
     if op not in coordinator.dialect.supported_guided_ops:
-        raise HomeAssistantError(
+        raise ServiceValidationError(
             f"Guided {op.value} programming is not available for "
             f"{coordinator.panel_model.label}. " + coordinator.dialect.guided_field_programming_note
         )
 
 
-def _require_verified_or_ack(coordinator, confirm_unverified: bool) -> None:
+def _require_verified_or_ack(
+    coordinator: VistaConsoleCoordinator, confirm_unverified: bool
+) -> None:
     """Gate non-VERIFIED models behind an explicit acknowledgment.
 
     Only the VISTA-21iP is built from its own programming guide. Every other
@@ -161,7 +155,7 @@ def _require_verified_or_ack(coordinator, confirm_unverified: bool) -> None:
 
 
 async def _send_program_mode_sequence(
-    coordinator,
+    coordinator: VistaConsoleCoordinator,
     partition: int,
     action_keystrokes: str,
     *,
@@ -180,13 +174,12 @@ async def _send_program_mode_sequence(
     await coordinator.client.send_keystrokes(partition, full_sequence)
 
 
+@callback
 def async_register_field_programming_services(hass: HomeAssistant) -> None:
-    """Register the guided field-programming services, if not already done."""
-    if hass.services.has_service(DOMAIN, SERVICE_PROGRAM_ZONE):
-        return
+    """Register the guided field-programming services, once, from async_setup."""
 
     async def _handle_program_zone(call: ServiceCall) -> None:
-        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         zone_type = call.data[ATTR_ZONE_TYPE]
         if zone_type in LIFE_SAFETY_ZONE_TYPE_CODES and not call.data[ATTR_CONFIRM_LIFE_SAFETY]:
             raise KeystrokeGuardError(
@@ -215,14 +208,14 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
         )
 
     async def _handle_set_system_timing(call: ServiceCall) -> None:
-        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         # Guard the operation early so the error is "not available for <model>"
         # rather than an unknown-field ValueError from an empty timing table.
         _require_guided_support(coordinator, GuidedOp.TIMING)
         field = call.data[ATTR_FIELD]
         valid = coordinator.dialect.timing_fields()
         if field not in valid:
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 f"Timing field {field!r} is not valid for "
                 f"{coordinator.panel_model.label}. Valid fields: "
                 f"{', '.join(sorted(valid))}."
@@ -240,7 +233,7 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
         )
 
     async def _handle_program_function_key(call: ServiceCall) -> None:
-        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         partition = call.data[ATTR_PARTITION]
         keystrokes = build_function_key_keystrokes(
             FunctionKeyLetter(call.data[ATTR_KEY]),

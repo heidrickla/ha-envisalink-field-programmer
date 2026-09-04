@@ -9,20 +9,25 @@ lockout. It still goes through the same keystroke guard as everything else
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .coordinator import VistaConsoleCoordinator
+from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
+
+# Push-driven; the coordinator delivers every update.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: VistaConsoleConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     async_add_entities(
         VistaZoneBypassSwitch(coordinator, number) for number in sorted(coordinator.data.zones)
     )
@@ -44,16 +49,16 @@ class VistaZoneBypassSwitch(VistaConsoleEntity, SwitchEntity):
         return self.coordinator.data.zone(self._zone_number).bypassed
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "zone_number": self._zone_number,
             "config_entry_id": self.coordinator.config_entry.entry_id,
         }
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         if not self.is_on:
             await self.coordinator.async_toggle_zone_bypass(self._zone_number)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         if self.is_on:
             await self.coordinator.async_toggle_zone_bypass(self._zone_number)

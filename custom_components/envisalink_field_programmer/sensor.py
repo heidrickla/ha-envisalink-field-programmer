@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .coordinator import VistaConsoleCoordinator
+from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
+
+# Push-driven; the coordinator delivers every update.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: VistaConsoleConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: VistaConsoleCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     entities: list[SensorEntity] = [VistaLastEventSensor(coordinator)]
     entities.extend(
         VistaLastUserSensor(coordinator, number) for number in sorted(coordinator.data.partitions)
@@ -39,7 +44,7 @@ class VistaLastEventSensor(VistaConsoleEntity, SensorEntity):
         return event.name if event else None
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         event = self.coordinator.last_event
         if event is None:
             return {}

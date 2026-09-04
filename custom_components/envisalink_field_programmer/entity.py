@@ -30,4 +30,4 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
 
     @property
     def available(self) -> bool:
-        return super().available and self.coordinator.data.system.connected
+        return bool(super().available and self.coordinator.data.system.connected)

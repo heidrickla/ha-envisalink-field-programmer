@@ -23,7 +23,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .client import EnvisalinkClient, TPIEvent
+from .client import EnvisalinkClient, TPIError, TPIEvent
 from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     RECONNECT_BACKOFF_MAX,
@@ -35,6 +35,8 @@ from .panels import get_dialect, get_model
 from .state_machine import apply_event
 
 _LOGGER = logging.getLogger(__name__)
+
+type VistaConsoleConfigEntry = ConfigEntry[VistaConsoleCoordinator]
 
 
 class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
@@ -61,6 +63,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             config_entry=entry,
             update_interval=None,
         )
+        self._entry = entry
         self._host = host
         self._port = port
         self._password = password
@@ -83,19 +86,33 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             disconnect_callback=self._handle_disconnect,
         )
 
-        self._periodic_task: asyncio.Task | None = None
-        self._reconnect_task: asyncio.Task | None = None
+        self._periodic_task: asyncio.Task[None] | None = None
+        self._reconnect_task: asyncio.Task[None] | None = None
         self._backoff = RECONNECT_BACKOFF_MIN
         self._shutting_down = False
         self.last_event: TPIEvent | None = None
         self._remove_stop_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
-        """Establish the initial connection. Raises on failure."""
+        """Establish the initial connection. Raises on failure.
+
+        A failure after login closes the socket before re-raising: the
+        Envisalink admits one TPI client at a time, so a half-open session
+        left behind would make every retry fail as "cannot connect".
+        """
         await self.client.connect()
         self.data.system.connected = True
-        await self.client.dump_zone_timers()
-        self._periodic_task = self.hass.loop.create_task(self._periodic_loop())
+        try:
+            await self.client.dump_zone_timers()
+        except (TPIError, OSError):
+            # Through async_shutdown so the read loop's disconnect callback
+            # sees the shutting-down flag and does not start a reconnect.
+            self.data.system.connected = False
+            await self.async_shutdown()
+            raise
+        self._periodic_task = self._entry.async_create_background_task(
+            self.hass, self._periodic_loop(), name=f"{self.name} periodic"
+        )
         # Belt-and-suspenders: async_shutdown() is normally reached via
         # async_unload_entry(), but that isn't guaranteed on every teardown
         # path (e.g. a core stop without an explicit entry unload). Without
@@ -133,8 +150,12 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.async_set_updated_data(self.data)
         if self._shutting_down:
             return
-        _LOGGER.warning("Envisalink Field Programmer lost connection to %s: %s", self._host, error)
-        self._reconnect_task = self.hass.loop.create_task(self._reconnect_loop())
+        # Once per outage; the retries below log at debug and the recovery
+        # is logged once when it happens.
+        _LOGGER.info("Lost the connection to the Envisalink at %s: %s", self._host, error)
+        self._reconnect_task = self._entry.async_create_background_task(
+            self.hass, self._reconnect_loop(), name=f"{self.name} reconnect"
+        )
 
     async def _periodic_loop(self) -> None:
         """Keepalive + zone timer dump, both on their own cadence."""
@@ -175,7 +196,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     continue
                 self._backoff = RECONNECT_BACKOFF_MIN
                 self.data.system.connected = True
-                await self.client.dump_zone_timers()
+                _LOGGER.info("Reconnected to the Envisalink at %s", self._host)
+                try:
+                    await self.client.dump_zone_timers()
+                except (TPIError, OSError):
+                    _LOGGER.debug("Zone timer dump after reconnect failed", exc_info=True)
                 self.async_set_updated_data(self.data)
                 return
         except asyncio.CancelledError:
