@@ -1,0 +1,219 @@
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: |
+      The five actions are registered in async_setup, not per entry, so a
+      call while the entry is unloaded gets a translated refusal.
+  appropriate-polling:
+    status: done
+    comment: |
+      Push-driven (local_push) over a long-lived TCP session. Two timers
+      remain because the protocol offers nothing better: a keepalive poll
+      (30 s by default, adjustable 10 to 300 s) to detect a silently dead
+      connection, and a zone timer dump request every 30 s, the only source
+      of zone open/closed state a Honeywell panel gives over TPI.
+  brands:
+    status: todo
+    comment: |
+      Brand images ship in-repo at custom_components/envisalink_field_programmer/brand/,
+      which HACS reads from Home Assistant 2026.3. logo.png is a copy of the
+      icon and logo@2x.png is missing; the integration is not in
+      home-assistant/brands, so nothing below 2026.3 shows an icon.
+  common-modules: done
+  config-flow-test-coverage:
+    status: done
+    comment: |
+      tests/ha/test_config_flow.py covers the user step, every error
+      (invalid_auth, cannot_connect, unknown, too_many_zones,
+      too_many_partitions) followed by recovery to CREATE_ENTRY, both
+      already_configured aborts, reauth in both outcomes, and the options
+      flow. Run against a fake TPI server, not a mocked connection.
+  config-flow:
+    status: done
+    comment: |
+      Every field has a data_description; the password and both codes use a
+      password selector and are never sent back to the browser.
+  dependency-transparency:
+    status: exempt
+    comment: |
+      No external dependency. requirements is empty; the TPI client is
+      asyncio streams plus the standard library.
+  docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: This integration provides no conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: This integration provides no triggers.
+  entity-event-setup:
+    status: done
+    comment: |
+      Entities are coordinator-driven; CoordinatorEntity subscribes in
+      async_added_to_hass and unsubscribes on removal.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data:
+    status: done
+    comment: The coordinator lives on entry.runtime_data, typed VistaConsoleConfigEntry.
+  test-before-configure:
+    status: done
+    comment: |
+      The flow completes the TPI login handshake against the Envisalink and
+      disconnects before creating the entry, so a wrong password or a busy
+      or unreachable port is caught on the form.
+  test-before-setup:
+    status: done
+    comment: |
+      A rejected password raises ConfigEntryAuthFailed; every other client
+      error (connection, protocol, command) and OSError raises
+      ConfigEntryNotReady. Both carry translation keys. A failure after
+      login closes the socket, since the Envisalink admits one TPI client.
+  unique-config-entry:
+    status: done
+    comment: |
+      host:port is the unique id and an entries match on host and port
+      aborts before the connection is tried. The Envisalink exposes no
+      serial over TPI.
+
+  # Silver
+  action-exceptions:
+    status: done
+    comment: |
+      Input and reference errors (unknown or unloaded entry, missing
+      installer code, unsupported guided operation, invalid timing field,
+      every keystroke-guard refusal, arming without a code) raise
+      ServiceValidationError; a refused or unacknowledged command raises
+      HomeAssistantError.
+  config-entry-unloading:
+    status: done
+    comment: |
+      Unload stops the platforms and shuts the coordinator down, which
+      cancels its keepalive and reconnect tasks (created as the entry's
+      background tasks) and closes the socket.
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: done
+    comment: Every entity is unavailable while the TPI session is down.
+  integration-owner: done
+  log-when-unavailable:
+    status: done
+    comment: |
+      One info line when the session is lost, one when it is back; the
+      reconnect attempts in between log at debug.
+  parallel-updates:
+    status: done
+    comment: PARALLEL_UPDATES = 0 on every platform; the coordinator delivers updates.
+  reauthentication-flow:
+    status: done
+    comment: |
+      ConfigEntryAuthFailed at setup starts reauth_confirm, which asks for
+      the Envisalink password only and tests it before storing it.
+  test-coverage:
+    status: todo
+    comment: |
+      Coverage is reported by the Tests workflow but not yet gated at 95%.
+      The gate lands once the number is known from a CI run.
+
+  # Gold
+  devices:
+    status: done
+    comment: One device per entry, the panel behind the Envisalink.
+  diagnostics:
+    status: done
+    comment: |
+      A live state snapshot with the password and both codes redacted;
+      tests/ha/test_integration_setup.py checks the redaction.
+  discovery:
+    status: todo
+    comment: |
+      The Envisalink is a LAN device with a fixed vendor MAC prefix, so DHCP
+      discovery is plausible, but the OUI has not been checked against a
+      unit. Implement once measured; do not guess a prefix.
+  discovery-update-info:
+    status: todo
+    comment: Follows discovery.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: |
+      One entry is one panel. Zones and partitions are entities on that
+      device, fixed by the counts given at setup; the protocol reports no
+      hardware coming or going.
+  entity-category:
+    status: todo
+    comment: |
+      Last Event and Last User are DIAGNOSTIC. The System Trouble problem
+      sensor has no category; core files PROBLEM sensors both ways and a
+      decision is pending.
+  entity-device-class:
+    status: done
+    comment: |
+      Zones are OPENING, System Trouble is PROBLEM, bypass switches are
+      SWITCH. Alarm control panels have no device class; the diagnostic
+      text sensors have none that fits.
+  entity-disabled-by-default:
+    status: todo
+    comment: |
+      Zone bypass switches are disabled by default. The Last Event sensor
+      changes on every keepalive frame and is still enabled by default; it
+      should be disabled once the card no longer relies on it.
+  entity-translations:
+    status: todo
+    comment: |
+      Entity names are English literals set on _attr_name. Needs
+      translation_key on every entity and an entity section in strings.json.
+  exception-translations:
+    status: todo
+    comment: |
+      The setup exceptions, the action refusals and the no-code error are
+      translated. The keystroke-guard and guided-programming refusals are
+      still English literals with placeholders built by f-string.
+  icon-translations:
+    status: todo
+    comment: |
+      No icons.json. Last Event and Last User have neither a device class
+      nor an icon, and the actions have no icons.
+  reconfiguration-flow:
+    status: todo
+    comment: |
+      Host, port, panel model and the zone and partition counts live in
+      entry.data with no reconfigure step; a moved Envisalink means
+      removing and re-adding the entry.
+  repair-issues:
+    status: todo
+    comment: |
+      One actionable condition exists: another TPI client holding the
+      Envisalink's single session, which looks like an unreachable host.
+      A repair issue naming the cause is pending.
+  stale-devices:
+    status: exempt
+    comment: A single device, removed with the entry.
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: |
+      The client is asyncio streams, in-repo (client.py), free of Home
+      Assistant imports. It stays async if lifted into a package.
+  inject-websession:
+    status: exempt
+    comment: |
+      The Envisalink speaks a raw TCP protocol on port 4025; there is no
+      HTTP session to inject.
+  strict-typing:
+    status: todo
+    comment: |
+      mypy --strict runs in the Tests workflow with Home Assistant installed
+      and the pyproject relaxations removed. Marked done once that job is
+      green on GitHub.
