@@ -22,13 +22,14 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
-      # 0.13.357 pins Home Assistant 2026.8.3 and brings pytest, its asyncio
-      # and aiohttp plugins and PyYAML with it (pinning those again makes
-      # pip's resolution impossible). pytest-cov is the one addition.
+      # 0.13.357 pins Home Assistant 2026.8.3 and brings pytest, pytest-cov,
+      # its asyncio and aiohttp plugins and PyYAML with it (pinning any of
+      # those again makes pip's resolution impossible). Only the tools the
+      # harness does not carry are pinned here.
       - name: Install the Home Assistant test harness (pinned)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "mypy==1.18.2" "ruff==0.15.21" "pytest-cov==6.0.0" \
+          python -m pip install "mypy==1.18.2" "ruff==0.15.21" \
             "pytest-homeassistant-custom-component==0.13.357"
       - name: Ruff
         run: |
