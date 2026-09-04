@@ -14,8 +14,7 @@ import voluptuous as vol
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.envisalink_field_programmer.const import DOMAIN
-
-from .helpers import FakeEnvisalinkServer
+from tests.helpers import FakeEnvisalinkServer
 
 pytestmark = pytest.mark.asyncio
 

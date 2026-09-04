@@ -8,10 +8,12 @@ maps to a real keypad update.
 
 from __future__ import annotations
 
-from custom_components.envisalink_field_programmer.client import build_event
-from custom_components.envisalink_field_programmer.const import ICON_LED_BITS
-from custom_components.envisalink_field_programmer.models import VistaState
-from custom_components.envisalink_field_programmer.state_machine import apply_event
+from tests import pure
+
+build_event = pure.load("client").build_event
+ICON_LED_BITS = pure.load("const").ICON_LED_BITS
+VistaState = pure.load("models").VistaState
+apply_event = pure.load("state_machine").apply_event
 
 
 def _state(num_zones: int = 4) -> VistaState:

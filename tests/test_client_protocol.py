@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.envisalink_field_programmer.client import (
-    TPIProtocolError,
-    build_event,
-    parse_frame,
-    strip_leading_garbage,
-)
+from tests import pure
+
+client = pure.load("client")
+TPIProtocolError = client.TPIProtocolError
+build_event = client.build_event
+parse_frame = client.parse_frame
+strip_leading_garbage = client.strip_leading_garbage
 
 
 def test_strip_leading_garbage_removes_bytes_before_sentinel():

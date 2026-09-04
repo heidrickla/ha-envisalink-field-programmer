@@ -10,14 +10,14 @@ import asyncio
 
 import pytest
 
-from custom_components.envisalink_field_programmer.client import (
-    EnvisalinkClient,
-    TPIAuthError,
-    TPICommandError,
-    TPIConnectionError,
-)
+from tests import pure
+from tests.helpers import FakeEnvisalinkServer
 
-from .helpers import FakeEnvisalinkServer
+client = pure.load("client")
+EnvisalinkClient = client.EnvisalinkClient
+TPIAuthError = client.TPIAuthError
+TPICommandError = client.TPICommandError
+TPIConnectionError = client.TPIConnectionError
 
 
 @pytest.fixture

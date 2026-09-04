@@ -9,19 +9,20 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.envisalink_field_programmer.field_programming import (
-    LIFE_SAFETY_ZONE_TYPE_CODES,
-    FunctionKeyAction,
-    FunctionKeyLetter,
-    HardwireType,
-    ResponseTime,
-    SystemTimingField,
-    ZoneProgram,
-    build_function_key_keystrokes,
-    build_program_mode_wrapper,
-    build_system_timing_keystrokes,
-    build_zone_program_keystrokes,
-)
+from tests import pure
+
+field_programming = pure.load("field_programming")
+LIFE_SAFETY_ZONE_TYPE_CODES = field_programming.LIFE_SAFETY_ZONE_TYPE_CODES
+FunctionKeyAction = field_programming.FunctionKeyAction
+FunctionKeyLetter = field_programming.FunctionKeyLetter
+HardwireType = field_programming.HardwireType
+ResponseTime = field_programming.ResponseTime
+SystemTimingField = field_programming.SystemTimingField
+ZoneProgram = field_programming.ZoneProgram
+build_function_key_keystrokes = field_programming.build_function_key_keystrokes
+build_program_mode_wrapper = field_programming.build_program_mode_wrapper
+build_system_timing_keystrokes = field_programming.build_system_timing_keystrokes
+build_zone_program_keystrokes = field_programming.build_zone_program_keystrokes
 
 
 def test_zone_program_rejects_invalid_zone_number():

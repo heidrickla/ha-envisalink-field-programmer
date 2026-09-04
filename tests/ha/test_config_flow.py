@@ -8,8 +8,7 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.envisalink_field_programmer.const import DOMAIN
-
-from .helpers import FakeEnvisalinkServer
+from tests.helpers import FakeEnvisalinkServer
 
 pytestmark = pytest.mark.asyncio
 
