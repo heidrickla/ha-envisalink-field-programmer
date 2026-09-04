@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/heidrickla/ha-envisalink-field-programmer/security/advisories/new
+    about: Private reporting for anything that could bypass the installer gate or leak panel codes.
+  - name: Questions and help
+    url: https://github.com/heidrickla/ha-envisalink-field-programmer/discussions
+    about: Setup help and "how do I" questions go in Discussions.

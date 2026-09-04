@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest a panel, programming field, or behaviour to add
+labels: [enhancement]
+body:
+  - type: input
+    id: panel
+    attributes:
+      label: Panel model (if panel specific)
+      placeholder: e.g. DSC PC1616
+  - type: textarea
+    id: request
+    attributes:
+      label: What would you like to see
+      description: For new programming fields, a link to or excerpt of the panel's installation/programming guide section helps a lot.
+    validations:
+      required: true

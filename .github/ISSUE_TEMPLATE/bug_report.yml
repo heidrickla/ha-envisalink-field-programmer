@@ -1,0 +1,50 @@
+name: Bug report
+description: Something is not working as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please **do not** post installer codes, user codes,
+        or the Envisalink password anywhere in this issue.
+        For security problems use the private reporting link in SECURITY.md instead.
+  - type: input
+    id: panel
+    attributes:
+      label: Alarm panel model
+      placeholder: e.g. VISTA-20P, VISTA-21iP, DSC PC1832
+    validations:
+      required: true
+  - type: input
+    id: evl
+    attributes:
+      label: Envisalink model and firmware
+      placeholder: e.g. EVL-4, firmware 01.03.xxx
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Integration and Home Assistant versions
+      placeholder: e.g. integration 0.2.1, Home Assistant 2026.8.1
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Enable debug logging for `custom_components.envisalink_field_programmer` if you can. Codes are redacted by the integration, but please double check before pasting.
+      render: text
+  - type: checkboxes
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      options:
+        - label: I have attached the integration's diagnostics download (Settings → Devices & services → Envisalink Field Programmer → ⋮ → Download diagnostics). Codes are redacted automatically.

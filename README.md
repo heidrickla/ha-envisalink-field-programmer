@@ -1,5 +1,9 @@
 # Envisalink Field Programmer
 
+[![CI](https://github.com/heidrickla/ha-envisalink-field-programmer/actions/workflows/ci.yml/badge.svg)](https://github.com/heidrickla/ha-envisalink-field-programmer/actions/workflows/ci.yml)
+[![HACS](https://img.shields.io/badge/HACS-custom-orange.svg)](https://hacs.xyz)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A standalone Home Assistant custom integration for a Honeywell/Ademco **VISTA**
 alarm panel, bridged locally over an **EyezOn Envisalink** (EVL-3/EVL-4)
 module. No cloud, no Total Connect — just your panel's keybus, your LAN, and
