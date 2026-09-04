@@ -16,11 +16,11 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
 
     def __init__(self, coordinator: VistaConsoleCoordinator, unique_id_suffix: str) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{unique_id_suffix}"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_{unique_id_suffix}"
 
     @property
     def device_info(self) -> DeviceInfo:
-        entry = self.coordinator.config_entry
+        entry = self.coordinator.entry
         return DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,

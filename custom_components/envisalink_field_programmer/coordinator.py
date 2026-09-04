@@ -45,7 +45,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: VistaConsoleConfigEntry,
         *,
         host: str,
         port: int,
@@ -63,7 +63,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             config_entry=entry,
             update_interval=None,
         )
-        self._entry = entry
+        self.entry = entry
         self._host = host
         self._port = port
         self._password = password
@@ -110,7 +110,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             self.data.system.connected = False
             await self.async_shutdown()
             raise
-        self._periodic_task = self._entry.async_create_background_task(
+        self._periodic_task = self.entry.async_create_background_task(
             self.hass, self._periodic_loop(), name=f"{self.name} periodic"
         )
         # Belt-and-suspenders: async_shutdown() is normally reached via
@@ -153,7 +153,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # Once per outage; the retries below log at debug and the recovery
         # is logged once when it happens.
         _LOGGER.info("Lost the connection to the Envisalink at %s: %s", self._host, error)
-        self._reconnect_task = self._entry.async_create_background_task(
+        self._reconnect_task = self.entry.async_create_background_task(
             self.hass, self._reconnect_loop(), name=f"{self.name} reconnect"
         )
 

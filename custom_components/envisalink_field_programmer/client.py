@@ -167,7 +167,10 @@ class EnvisalinkClient:
         disconnect_callback: DisconnectCallback | None = None,
         login_timeout: float = 10,
         ack_timeout: float = COMMAND_ACK_TIMEOUT,
-        open_connection: Callable[[str, int], Awaitable[tuple]] | None = None,
+        open_connection: (
+            Callable[[str, int], Awaitable[tuple[asyncio.StreamReader, asyncio.StreamWriter]]]
+            | None
+        ) = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -179,7 +182,7 @@ class EnvisalinkClient:
         self._open_connection = open_connection or asyncio.open_connection
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        self._read_task: asyncio.Task | None = None
+        self._read_task: asyncio.Task[None] | None = None
         # Serializes whole command round-trips (write + wait for ack), not
         # just the writes -- the EVL only processes one command at a time.
         self._command_lock = asyncio.Lock()

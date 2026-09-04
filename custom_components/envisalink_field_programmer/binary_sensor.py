@@ -63,7 +63,7 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
         return {
             "zone_number": self._zone_number,
             "partition": zone.partition,
-            "config_entry_id": self.coordinator.config_entry.entry_id,
+            "config_entry_id": self.coordinator.entry.entry_id,
             "bypassed": zone.bypassed,
             "seconds_since_fault": zone.seconds_since_fault,
         }

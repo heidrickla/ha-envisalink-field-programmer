@@ -48,6 +48,7 @@ from __future__ import annotations
 import re
 
 from .base import (
+    GuidedOp,
     PanelFamily,
     PanelModel,
     TimingFieldDef,
@@ -116,7 +117,7 @@ class DscPowerSeriesDialect:
     """Shared dialect for every DSC PowerSeries model."""
 
     family = PanelFamily.DSC_POWERSERIES
-    supported_guided_ops = frozenset()  # no guided ops driven for DSC yet
+    supported_guided_ops: frozenset[GuidedOp] = frozenset()  # none driven for DSC yet
     guided_field_programming_note = (
         "DSC PowerSeries uses positional, whole-section zone programming rather "
         "than VISTA's per-zone *56 menu, and the current transport speaks "
@@ -223,7 +224,14 @@ def build_dsc_partition_timing(
     return f"005{partition:02d}{entry_delay_1:03d}{entry_delay_2:03d}{exit_delay:03d}"
 
 
-def _dsc(model_id, label, max_zones, max_partitions, notes, aliases=()):
+def _dsc(
+    model_id: str,
+    label: str,
+    max_zones: int,
+    max_partitions: int,
+    notes: str,
+    aliases: tuple[str, ...] = (),
+) -> PanelModel:
     return PanelModel(
         model_id=model_id,
         family=PanelFamily.DSC_POWERSERIES,

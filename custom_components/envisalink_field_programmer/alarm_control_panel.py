@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.alarm_control_panel import (
-    AlarmControlPanelEntity,
+from homeassistant.components.alarm_control_panel import AlarmControlPanelEntity
+
+# From const, not the package: under no_implicit_reexport the package's
+# re-imports are not exports.
+from homeassistant.components.alarm_control_panel.const import (
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
     CodeFormat,
@@ -88,7 +91,7 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         partition = self._partition
         return {
             "partition_number": self._partition_number,
-            "config_entry_id": self.coordinator.config_entry.entry_id,
+            "config_entry_id": self.coordinator.entry.entry_id,
             "ready": partition.ready,
             "chime_enabled": partition.chime_enabled,
             "trouble": partition.trouble,

@@ -52,7 +52,7 @@ class VistaZoneBypassSwitch(VistaConsoleEntity, SwitchEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "zone_number": self._zone_number,
-            "config_entry_id": self.coordinator.config_entry.entry_id,
+            "config_entry_id": self.coordinator.entry.entry_id,
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
