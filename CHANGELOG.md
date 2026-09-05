@@ -104,6 +104,10 @@ was cut: everything under Unreleased is on `main` and in no tag yet.
 - A failure between logging in and the first zone timer dump left the
   Envisalink's single TPI session half open, so every retry looked like an
   unreachable host.
+- `tools/validate_local.py` compared the `hacs.json` Home Assistant floor as
+  text, where `"2026.10.0"` sorts below `"2026.3.0"`, so raising the floor
+  past 2026.9 would have failed the check. It parses the parts as integers
+  now; 2026.3.0 and above pass, below it fails.
 
 ## [0.2.1] - 2026-09-04
 

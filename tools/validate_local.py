@@ -197,6 +197,17 @@ def pyproject_version() -> str | None:
     return match.group(1) if match else None
 
 
+def version_tuple(version: str) -> tuple[int, int, int]:
+    """Parse a Home Assistant version into integers so 2026.10 outranks 2026.3."""
+    parts: list[int] = []
+    for part in version.split(".")[:3]:
+        match = re.match(r"\d+", part)
+        parts.append(int(match.group()) if match else 0)
+    while len(parts) < 3:
+        parts.append(0)
+    return parts[0], parts[1], parts[2]
+
+
 def main() -> int:
     manifest = read_json(COMP, "manifest.json")
     const_src = read(COMP, "const.py")
@@ -254,8 +265,9 @@ def main() -> int:
     # ---------------------------------------------------------- hacs.json
     hacs = read_json(ROOT, "hacs.json")
     check("name" in hacs, "hacs.json must contain name")
+    # Compare the parts as numbers: as strings "2026.10.0" sorts below "2026.3.0".
     check(
-        hacs.get("homeassistant", "0") >= "2026.3.0",
+        version_tuple(hacs.get("homeassistant", "0")) >= (2026, 3, 0),
         "hacs.json homeassistant floor below 2026.3.0, the release whose brands "
         "component serves brand/ out of a custom integration; below it this "
         "integration has no icon at all, and it is in no brands repository",

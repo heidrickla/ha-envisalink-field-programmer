@@ -129,9 +129,13 @@ coverage for `tests/ha`; that run is the one that counts.
 cross-file checks nothing else does: `services.yaml` and the README
 against the action names in `const.py`, every translated exception key
 against `strings.json`, `strings.json` against `translations/en.json`,
-the manifest against the components the code imports, and
-`quality_scale.yaml` against the pinned list of 54 rules. Run it before
-a push.
+the manifest against the components the code imports,
+`quality_scale.yaml` against the pinned list of 54 rules, the four
+`brand/` PNGs against the sizes home-assistant/brands requires, and the
+`hacs.json` Home Assistant floor against 2026.3.0. The floor is compared
+as parsed integers, not as text -- as strings `"2026.10.0"` sorts below
+`"2026.3.0"`, so a string comparison would reject a raised floor. Run it
+before a push.
 
 ## hassfest / HACS validation: why they're not run locally
 
