@@ -126,9 +126,12 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      99% on 2026-09-04 (14 of 1436 statements missed, all of them defensive
-      branches in the panel dialects and one unreachable-looking guard each
-      in the client, the sensor and the zone timer decoder).
+      99% on 2026-09-04 (14 of 1454 statements missed): defensive branches
+      in the panel dialects, one unreachable-looking guard each in the
+      client, the sensor and the zone timer decoder, the no-op event
+      callback the config flow gives the throwaway client it tests with,
+      and the debug log for a zone timer dump that fails right after a
+      reconnect.
 
   # Gold
   devices:
