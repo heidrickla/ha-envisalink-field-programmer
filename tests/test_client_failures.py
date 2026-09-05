@@ -29,15 +29,30 @@ class _ScriptedServer:
     def __init__(self, handler: Handler) -> None:
         self._handler = handler
         self._server: asyncio.AbstractServer | None = None
+        self._connections: list[asyncio.Task] = []
         self.port = 0
 
+    async def _serve(self, reader, writer) -> None:
+        # asyncio gives every connection its own task. Closing the listening
+        # socket does not touch those, so remember them for stop() to cancel:
+        # a handler still sleeping out its script outlives the test otherwise.
+        task = asyncio.current_task()
+        if task is not None:
+            self._connections.append(task)
+        await self._handler(reader, writer)
+
     async def start(self) -> None:
-        self._server = await asyncio.start_server(self._handler, "127.0.0.1", 0)
+        self._server = await asyncio.start_server(self._serve, "127.0.0.1", 0)
         self.port = self._server.sockets[0].getsockname()[1]
 
     async def stop(self) -> None:
         if self._server is not None:
             self._server.close()
+        for task in self._connections:
+            task.cancel()
+        if self._connections:
+            await asyncio.gather(*self._connections, return_exceptions=True)
+        self._connections.clear()
 
 
 async def _connect_to(handler: Handler) -> None:
