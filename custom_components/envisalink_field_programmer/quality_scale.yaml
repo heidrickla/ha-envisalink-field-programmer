@@ -16,10 +16,14 @@ rules:
   brands:
     status: todo
     comment: |
-      Brand images ship in-repo at custom_components/envisalink_field_programmer/brand/,
-      which HACS reads from Home Assistant 2026.3. logo.png is a copy of the
-      icon and logo@2x.png is missing; the integration is not in
-      home-assistant/brands, so nothing below 2026.3 shows an icon.
+      icon.png and icon@2x.png ship in-repo at
+      custom_components/envisalink_field_programmer/brand/. Home Assistant
+      2026.3 and later serve those from the integration itself and fall back
+      logo.png to icon.png, so no logo file is needed and the duplicate that
+      was there has been removed. What is still missing is the rule's actual
+      requirement: the integration is not in home-assistant/brands, so
+      releases before 2026.3 show no icon at all. That is a pull request
+      against another repository and it is Lewis's to make.
   common-modules: done
   config-flow-test-coverage:
     status: done
@@ -121,7 +125,7 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      99% on 2026-09-05 (14 of 1429 statements missed, all of them defensive
+      99% on 2026-09-04 (14 of 1429 statements missed, all of them defensive
       branches in the panel dialects and one unreachable-looking guard each
       in the client, the sensor and the zone timer decoder).
 
@@ -142,7 +146,7 @@ rules:
     comment: |
       DHCP, on the MAC prefix 00:1C:2A. That block is registered to Envisacor
       Technologies Inc. of Concord, Ontario, who make the Envisalink; checked
-      2026-09-05 against the IEEE registry through two independent lookups.
+      2026-09-04 against the IEEE registry through two independent lookups.
       The company's other block is an IAB (00:50:C2:49:C), which only one
       lookup confirmed, so it is deliberately not matched. A discovered unit
       opens the normal form with the address filled in, since the Envisalink

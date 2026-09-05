@@ -45,14 +45,22 @@ Typical uses:
   integration's options, turns on field programming. Panel model defaults to
   the VISTA-21iP; see [Panel model support](#panel-model-support) for the
   full model list and what each one's support level means.
+- **DHCP discovery**: an Envisalink that takes a lease is offered with its
+  address filled in, and one that later moves takes its entry with it. See
+  [Discovery](#discovery).
+- **Reconfigure** without losing the entry: address, password, panel model
+  and the zone and partition counts. See [Reconfiguring](#reconfiguring).
 - One `alarm_control_panel` entity per partition: arm away/home/night, disarm.
 - One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities
   for bypass (disabled by default in the entity registry; enable the ones you
   want).
 - A system trouble `binary_sensor` (AC power, low battery, general trouble per
-  partition, plus installer mode).
-- Diagnostic sensors: last raw panel event, last user to arm or disarm each
-  partition.
+  partition, plus installer mode), filed as a diagnostic entity.
+- Diagnostic sensors: last user to arm or disarm each partition, and the last
+  raw panel event (disabled by default: it changes on every keepalive
+  acknowledgement, so enable it only while debugging the protocol).
+- A repair issue when the Envisalink stops answering for several minutes,
+  naming the usual cause: another client holding its single TPI session.
 - **Guided field-programming actions** `program_zone`, `set_system_timing`
   and `program_function_key`, plus the lower-level `send_keystrokes` and
   `toggle_zone_bypass`; see [Actions](#actions) and [Safety](#safety-read-this).
@@ -67,7 +75,10 @@ Typical uses:
 
 **HACS (custom repository):** add this repository as a custom repository
 (category Integration), then install "Envisalink Field Programmer". Home
-Assistant 2024.11 or newer.
+Assistant 2025.2 or newer, which is where the DHCP discovery helper this
+integration imports first exists. On 2026.3 and newer the integration's icon
+comes from the images it ships; before that it has none, because it is not in
+the `home-assistant/brands` repository.
 
 **Manual:** copy `custom_components/envisalink_field_programmer/` into your
 Home Assistant `config/custom_components/` directory and restart.
@@ -79,7 +90,7 @@ Programmer".
 
 | Field | Required | Description |
 |---|---|---|
-| Host | yes | The Envisalink's IP address or hostname on your LAN. Give it a DHCP reservation; a changed address means removing and re-adding the entry until a reconfigure step exists. |
+| Host | yes | The Envisalink's IP address or hostname on your LAN. A DHCP reservation is still the tidiest arrangement, but a changed address no longer means starting over: see [Discovery](#discovery) and [Reconfiguring](#reconfiguring). |
 | Port | yes | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
 | Envisalink password | yes | The password for the Envisalink's local web page. Not a panel code. |
 | Alarm panel model | yes | The panel behind the Envisalink. Sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified. Defaults to VISTA-21iP. |
@@ -106,6 +117,49 @@ Settings, Devices & services, Envisalink Field Programmer, Configure.
 The stored codes are never shown in the form, only whether one is set.
 Saving the options reloads the entry.
 
+### Discovery
+
+Envisalink modules carry a MAC address from `00:1C:2A`, the block the IEEE
+registry assigns to Envisacor Technologies Inc., who make them. When one takes
+a DHCP lease, Home Assistant offers it under Settings, Devices & services as a
+discovered device with its address already filled in. Nothing is created
+automatically: the Envisalink password still has to be typed, and the rest of
+the form is the ordinary setup form.
+
+Setting an entry up from a discovery also stores the module's MAC with it,
+which is the only way this integration can ever know one. TPI reports no
+serial number and no MAC of its own, so without that a module that reappears
+at a new address is indistinguishable from a second module. With it:
+
+- A lease at a new address for a stored MAC moves that entry. The host, the
+  unique id and the entry title follow, and the entry reloads. Nothing else
+  has to be touched.
+- An entry set up by hand at an address that later shows up in a lease adopts
+  the MAC at that point, so the first move after that is handled too.
+
+The device page also links to the Envisalink's own web page, which is where
+its password, network settings and firmware live.
+
+### Reconfiguring
+
+Settings, Devices & services, Envisalink Field Programmer, the three-dot menu
+on the entry, Reconfigure. The entry keeps its entities, its history and its
+entity ids.
+
+| Field | Description |
+|---|---|
+| Host | The Envisalink's current address. Changing it moves the entry there. |
+| Port | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
+| Envisalink password | Blank keeps the stored password. Type one only to change it. |
+| Alarm panel model | The panel behind the Envisalink; sets the zone and partition limits and the field-programming grammar. |
+| Number of partitions | Lowering this removes the entities of the partitions above it. |
+| Number of zones | Lowering this removes the entities of the zones above it. |
+
+The counts are checked against the selected model before anything is dialled,
+and the login is proved at the new address before the entry is changed. An
+address another entry already uses is refused. The default user code and the
+installer code are not touched here; they live in the options.
+
 ### The Envisalink only accepts one TPI client at a time
 
 Confirmed against real hardware: if `envisalink_new` (or any other
@@ -129,8 +183,8 @@ disable it and enable this one when you need to do field programming).
 1. Settings, Devices & services, Envisalink Field Programmer, the three-dot
    menu on the entry, Delete. This closes the TPI session (freeing the
    Envisalink's single client slot for whatever you use next), removes the
-   device and every entity, and deletes the stored password and codes with
-   the entry.
+   device and every entity, deletes the stored password and codes with the
+   entry, and takes any repair issue it raised with it.
 2. If you installed through HACS, remove the repository from HACS as well;
    for a manual install delete `custom_components/envisalink_field_programmer/`
    and restart Home Assistant.
@@ -158,6 +212,11 @@ at info level, and the integration reconnects with a backoff that starts at
 5 seconds and caps at 5 minutes. When it is back, one more line is logged and
 zone state is refreshed. If the Envisalink rejects the stored password, the
 entry asks you to re-authenticate instead of retrying.
+
+After five failed reconnects, about two and a half minutes, a repair issue
+appears under Settings, System, Repairs. It names the address and the usual
+cause, which is another client holding the Envisalink's single TPI session,
+and it clears itself as soon as the connection comes back.
 
 ## Field programming
 
@@ -490,8 +549,9 @@ npm run build
   bypass flag.
 - **Guided programming is refused on the DSC models and for zones on the
   commercial VISTA models**; arm, disarm and bypass still work there.
-- **Changing the Envisalink's address** means removing and re-adding the
-  entry; there is no reconfigure step yet.
+- **The panel has no identity over TPI.** No serial, no MAC, so an entry is
+  identified by its address. A module's MAC is known only if a DHCP discovery
+  supplied it, and that is what lets a move be followed automatically.
 
 ## Troubleshooting
 
@@ -504,6 +564,9 @@ setting this up: connection errors including the single-TPI-client limit, a
 Home Assistant update breaking compatibility, browser-cache issues with the
 Lovelace card, and what to check when field programming does not seem to have
 done anything.
+
+Check Settings, System, Repairs too: a session that has been down for a few
+minutes puts the reason there rather than leaving it in the log.
 
 ## What's verified vs. what needs your hardware
 

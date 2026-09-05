@@ -222,12 +222,14 @@ def main() -> int:
     )
 
     # ---------------------------------------------------------- brand images
+    # Home Assistant 2026.3 and later serve these from the integration itself,
+    # falling back logo.png -> icon.png, so only the icon pair has to exist.
     brand = os.path.join(COMP, "brand")
     for name in ("icon.png", "icon@2x.png"):
         check(os.path.isfile(os.path.join(brand, name)), f"missing brand/{name}")
     for name in ("logo.png", "logo@2x.png"):
-        if not os.path.isfile(os.path.join(brand, name)):
-            notes.append(f"brand/{name} missing (brands rule is todo)")
+        if os.path.isfile(os.path.join(brand, name)):
+            notes.append(f"brand/{name} present; check it is not another copy of the icon")
 
     # ---------------------------------------------------------- translations
     en = read_json(COMP, "translations", "en.json")

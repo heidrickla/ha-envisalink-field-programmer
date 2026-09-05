@@ -106,6 +106,23 @@ changed it, and see the single-TPI-client gotcha above, because a busy
 port is reported separately as "Could not connect", never as a
 rejected password.
 
+### A repair issue says the Envisalink is not answering
+
+Settings, System, Repairs shows "Envisalink at &lt;address&gt; is not
+answering" once five reconnects in a row have failed, about two and a
+half minutes. It is not a separate fault: it is the integration naming
+the likeliest cause of a silence it cannot see past, which is another
+client holding the single TPI session (see the gotcha above). Disconnect
+that client, or power-cycle the Envisalink, and the issue clears itself
+when the session comes back. Deleting the entry removes it too.
+
+If nothing else is connected, the module has probably lost power or its
+network link, or its address has changed. If the address changed and Home
+Assistant has seen a DHCP lease from the module, the entry follows on its
+own; otherwise reconfigure the entry (three-dot menu on the entry,
+Reconfigure) and type the new address. The entry keeps its entities and
+their history either way.
+
 ### An action is refused with "is not loaded" or "No Envisalink Field Programmer entry has the id"
 
 The actions are registered as soon as the integration loads, whether or
