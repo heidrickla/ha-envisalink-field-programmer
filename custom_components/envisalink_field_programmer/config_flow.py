@@ -310,10 +310,15 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         if user_input.get(CONF_PASSWORD):
             return True
-        return (
-            user_input[CONF_HOST] != entry.data[CONF_HOST]
-            or user_input[CONF_PORT] != entry.data[CONF_PORT]
-        )
+        # Every value is named with its type first: both mappings are
+        # Mapping[str, Any], and a comparison with an Any operand is itself
+        # Any, which mypy --strict will not let a function declared to return
+        # bool return.
+        host: str = user_input[CONF_HOST]
+        port: int = user_input[CONF_PORT]
+        current_host: str = entry.data[CONF_HOST]
+        current_port: int = entry.data[CONF_PORT]
+        return host != current_host or port != current_port
 
     async def _async_try_borrowing_the_session(
         self, entry: ConfigEntry, host: str, port: int, password: str
