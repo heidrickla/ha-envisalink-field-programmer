@@ -23,6 +23,26 @@
           "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Unused zones simply stay closed."
         }
       },
+      "reconfigure": {
+        "title": "Envisalink connection settings",
+        "description": "Change where this Envisalink is, what password it takes, and what panel is behind it. The stored default user code and installer code are not touched here; they live in the options.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "password": "Envisalink password",
+          "panel_model": "Alarm panel model",
+          "num_partitions": "Number of partitions",
+          "num_zones": "Number of zones"
+        },
+        "data_description": {
+          "host": "The Envisalink's current IP address or hostname. Changing it moves this entry to the new address.",
+          "port": "The TPI port. 4025 unless you changed it on the Envisalink's web page.",
+          "password": "Leave blank to keep the stored password. Type one only to change it.",
+          "panel_model": "The alarm panel behind the Envisalink. It sets the zone and partition limits and which keystroke grammar field programming uses.",
+          "num_partitions": "How many partitions the panel has configured (1 to 8). Lowering this removes the entities of the partitions above it.",
+          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Lowering this removes the entities of the zones above it."
+        }
+      },
       "reauth_confirm": {
         "title": "Envisalink password rejected",
         "description": "The Envisalink at {host} rejected the stored password. Enter the current one.",
@@ -43,7 +63,8 @@
     },
     "abort": {
       "already_configured": "This Envisalink is already configured.",
-      "reauth_successful": "The new password was accepted."
+      "reauth_successful": "The new password was accepted.",
+      "reconfigure_successful": "The connection settings were updated."
     }
   },
   "options": {

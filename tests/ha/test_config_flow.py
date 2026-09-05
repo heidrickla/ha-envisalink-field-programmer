@@ -162,6 +162,96 @@ async def test_same_unique_id_under_another_name_is_refused(hass, fake_server):
     assert result["reason"] == "already_configured"
 
 
+def _reconfigure_input(fake_server, **overrides) -> dict:
+    """What a user submits on the reconfigure form (no codes there)."""
+    values = _form_input(fake_server, **overrides)
+    values.pop("user_code", None)
+    values["panel_model"] = overrides.get("panel_model", "vista_21ip")
+    return values
+
+
+async def test_reconfigure_moves_the_entry_to_a_new_address(hass, fake_server):
+    # The Envisalink was given a new address. The unique id is the address, so
+    # it moves with the entry.
+    entry = await setup_entry(hass, fake_server, host="localhost")
+    assert entry.unique_id is None
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    # The stored password is not offered back to the browser.
+    assert _suggested(result, "password") is None
+    assert _suggested(result, "host") == "localhost"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1")
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["host"] == "127.0.0.1"
+    assert entry.unique_id == f"127.0.0.1:{fake_server.port}"
+    assert entry.title == "Envisalink Field Programmer (127.0.0.1)"
+    # Blank password field: the stored one is kept.
+    assert entry.data["password"] == PASSWORD
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_stores_a_new_password(hass, fake_server):
+    entry = await setup_entry(hass, fake_server)
+    result = await entry.start_reconfigure_flow(hass)
+    fake_server.password = "fresh"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, password="fresh")
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data["password"] == "fresh"
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_rejects_a_wrong_password_then_accepts_the_right_one(hass, fake_server):
+    entry = await setup_entry(hass, fake_server)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, password="wrong")
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, num_zones=12)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data["num_zones"] == 12
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_refuses_counts_over_the_model_limit(hass, fake_server):
+    entry = await setup_entry(hass, fake_server)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, num_zones=200)
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"num_zones": "too_many_zones"}
+    assert entry.data["num_zones"] == 8
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_server):
+    entry = await setup_entry(hass, fake_server, host="localhost")
+    MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server)).add_to_hass(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1")
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "localhost"
+    await unload_entry(hass, entry)
+
+
 async def test_reauth_with_a_still_wrong_password_then_the_right_one(hass, fake_server):
     entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, password="stale"))
     entry.add_to_hass(hass)

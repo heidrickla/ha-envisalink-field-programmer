@@ -202,11 +202,17 @@ rules:
       it. The offline validator fails an icon key that names no action or
       entity.
   reconfiguration-flow:
-    status: todo
+    status: done
     comment: |
-      Host, port, panel model and the zone and partition counts live in
-      entry.data with no reconfigure step; a moved Envisalink means
-      removing and re-adding the entry.
+      async_step_reconfigure changes the host, port, password, panel model
+      and the zone and partition counts, and the entry keeps its entities.
+      A blank password keeps the stored one. There is no unique-id mismatch
+      abort because the unique id is the address being changed: the TPI
+      protocol exposes no serial or MAC to identify the unit by, so a move
+      is a new unique id, and what the flow refuses instead is an address
+      another entry already holds. tests/ha/test_config_flow.py covers the
+      move, a new password, the wrong password and the recovery from it,
+      counts over the model limit, and the taken address.
   repair-issues:
     status: todo
     comment: |

@@ -68,6 +68,24 @@ STEP_USER_SCHEMA = vol.Schema(
 
 STEP_REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): _PASSWORD})
 
+# The reconfigure form is the connection half of the setup form. The password
+# is optional here: blank keeps the stored one, since it is never sent back to
+# the browser. The default user code stays in the options, where it is set.
+STEP_RECONFIGURE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
+        vol.Optional(CONF_PASSWORD): _PASSWORD,
+        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(model_choices()),
+        vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=8)
+        ),
+        vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=250)
+        ),
+    }
+)
+
 
 async def _test_connection(host: str, port: int, password: str) -> None:
     """Attempt a login handshake and immediately disconnect.
@@ -99,6 +117,17 @@ async def _async_try(host: str, port: int, password: str) -> dict[str, str]:
     return {}
 
 
+def _capacity_errors(user_input: Mapping[str, Any]) -> dict[str, str]:
+    """Form errors for counts the selected panel model cannot have."""
+    model = get_model(user_input[CONF_PANEL_MODEL])
+    errors: dict[str, str] = {}
+    if user_input[CONF_NUM_ZONES] > model.max_zones:
+        errors[CONF_NUM_ZONES] = "too_many_zones"
+    if user_input[CONF_NUM_PARTITIONS] > model.max_partitions:
+        errors[CONF_NUM_PARTITIONS] = "too_many_partitions"
+    return errors
+
+
 def _without_secrets(values: Mapping[str, Any]) -> dict[str, Any]:
     """What may go back to the browser as a suggested value after an error."""
     return {k: v for k, v in values.items() if k not in _SECRETS}
@@ -115,11 +144,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             self._async_abort_entries_match(
                 {CONF_HOST: user_input[CONF_HOST], CONF_PORT: user_input[CONF_PORT]}
             )
-            model = get_model(user_input[CONF_PANEL_MODEL])
-            if user_input[CONF_NUM_ZONES] > model.max_zones:
-                errors[CONF_NUM_ZONES] = "too_many_zones"
-            if user_input[CONF_NUM_PARTITIONS] > model.max_partitions:
-                errors[CONF_NUM_PARTITIONS] = "too_many_partitions"
+            errors = _capacity_errors(user_input)
             if not errors:
                 errors = await _async_try(
                     user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_PASSWORD]
@@ -162,6 +187,54 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_REAUTH_SCHEMA,
             description_placeholders={"host": entry.data[CONF_HOST]},
             errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the address, password, panel model or the zone and partition counts.
+
+        The unique id is the address itself, because the TPI protocol exposes
+        no serial or MAC to identify the unit by. A moved Envisalink therefore
+        gets a new unique id rather than failing a mismatch check; what is
+        refused is an address another entry already holds.
+        """
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            host: str = user_input[CONF_HOST]
+            port: int = user_input[CONF_PORT]
+            # Blank keeps the stored password; it is never sent to the browser.
+            password: str = user_input.get(CONF_PASSWORD) or entry.data[CONF_PASSWORD]
+            errors = _capacity_errors(user_input)
+            if not errors and self._address_owned_by_another_entry(entry, host, port):
+                return self.async_abort(reason="already_configured")
+            if not errors:
+                errors = await _async_try(host, port, password)
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=f"{host}:{port}",
+                    title=f"Envisalink Field Programmer ({host})",
+                    data_updates={**user_input, CONF_PASSWORD: password},
+                )
+
+        current = user_input if user_input is not None else entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_RECONFIGURE_SCHEMA, _without_secrets(current)
+            ),
+            errors=errors,
+        )
+
+    def _address_owned_by_another_entry(self, entry: ConfigEntry, host: str, port: int) -> bool:
+        """Whether some other entry already talks to this host and port."""
+        return any(
+            other.entry_id != entry.entry_id
+            and other.data.get(CONF_HOST) == host
+            and other.data.get(CONF_PORT) == port
+            for other in self._async_current_entries(include_ignore=False)
         )
 
     @staticmethod
