@@ -26,8 +26,8 @@ a structured, plain-language layer over Vista's `*56`/`*57` keypad
 programming language (zone types, entry/exit timing, function keys), with
 strong confirmation gates given the fire/UL-safety stakes of getting installer
 programming wrong. Nothing else exposes this through Home Assistant today.
-Arm/disarm/status/zone entities and a Lovelace console card come along for the
-ride, but the programming layer is the point.
+Arm/disarm/status/zone entities come along for the ride, but the programming
+layer is the point.
 
 Typical uses:
 
@@ -61,15 +61,18 @@ Typical uses:
   acknowledgement, so enable it only while debugging the protocol).
 - A repair issue when the Envisalink stops answering for several minutes,
   naming the usual cause: another client holding its single TPI session.
+- **Guided field programming on the device page**: a configuration entity per
+  programming field, a button per operation, a Confirm programming switch that
+  has to be on for any write and turns itself off again afterwards, and a
+  diagnostic sensor carrying the last result. Nothing to install and no
+  dashboard card to add. See [The device page](#the-device-page).
 - **Guided field-programming actions** `program_zone`, `set_system_timing`
-  and `program_function_key`, plus the lower-level `send_keystrokes` and
-  `toggle_zone_bypass`; see [Actions](#actions) and [Safety](#safety-read-this).
+  and `program_function_key`, the same operations for automations, plus the
+  lower-level `send_keystrokes` and `toggle_zone_bypass`; see
+  [Actions](#actions) and [Safety](#safety-read-this).
 - Diagnostics download (Settings, Devices & services, Envisalink Field
   Programmer, Download diagnostics) with the password and both codes
   redacted; see [Backups](#backups-what-this-can-and-cant-capture).
-- A custom `envisalink-field-programmer-card` Lovelace card, registered on
-  setup with no manual resource step, with guided Zone/Timing/Function-Key
-  tabs and a raw-keystroke escape hatch.
 
 ## Installation
 
@@ -226,9 +229,8 @@ password immediately after any number of rejected ones.
 2. If you installed through HACS, remove the repository from HACS as well;
    for a manual install delete `custom_components/envisalink_field_programmer/`
    and restart Home Assistant.
-3. The Lovelace card resource is registered at runtime, so nothing is left in
-   your dashboard resources; any card you placed on a dashboard shows as a
-   missing custom element until you delete it.
+3. Nothing else is left behind: the integration registers no dashboard
+   resource and ships no card, so there is nothing to unregister.
 
 Nothing is written to the panel by installing or removing the integration.
 
@@ -258,7 +260,7 @@ and it clears itself as soon as the connection comes back.
 
 ## Field programming
 
-Three guided actions, each translating validated, structured input into the
+Three guided operations, each translating validated, structured input into the
 exact keystroke sequence Vista expects (see
 `custom_components/envisalink_field_programmer/field_programming.py`, built
 from the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3):
@@ -276,13 +278,18 @@ This is deliberately a **curated subset**, not the full installer field set.
 Output/relay programming (`*79`/`*80`/`*81`), alpha descriptors (`*82`), and
 the installer-only configurable zone types (90/91) are out of scope. A
 smaller, clearly explained set of settings beats a full field dump nobody can
-safely reason about. The guided Lovelace card tabs (Zones, Timing, Function
-Keys) are the intended way to use this; the actions exist so the same logic
-is scriptable.
+safely reason about.
+
+Each operation has two front ends onto the same code: the entities and buttons
+on the panel's [device page](#the-device-page), which is where a person does
+this, and the [action](#actions) of the same name, for automations. The guards
+live in the operation, not in either front end, so they are identical whichever
+way it is driven.
 
 **Every one of these always opens the panel's installer Program Mode**
 (typing the installer code followed by `800`), which is why they require an
-installer code configured and a `confirm: true` field; see
+installer code configured and an explicit confirmation -- the Confirm
+programming switch on the device, or `confirm: true` in the action; see
 [Safety](#safety-read-this).
 
 ## Safety (read this)
@@ -300,11 +307,11 @@ Badly, that can mean a physical power cycle. Two important specifics:
   corrected once the Vista programming guide was checked directly; see
   `programming.py`'s module docstring.
 - **The TPI protocol cannot read back what is on the keypad display.** Every
-  field-programming action here is genuinely blind: if a keystroke sequence
+  field-programming operation here is genuinely blind: if a keystroke sequence
   has a bug, or the panel is in an unexpected state, there is no channel to
-  detect it before it is too late. The guided actions show you the field
-  values you are setting before sending (via the Lovelace card's form), but
-  cannot show you what the panel is doing in response.
+  detect it before it is too late. The device page shows you the field values
+  you are about to send, and the result sensor shows what the module said
+  about them, but nothing can show you what the panel did in response.
 
 Given that, this integration:
 
@@ -312,20 +319,24 @@ Given that, this integration:
   (`custom_components/envisalink_field_programmer/programming.py`) that
   refuses any sequence matching the Program Mode trigger unless explicitly
   confirmed.
-- Requires the three guided actions' `confirm: true` field on every call
-  (they always open Program Mode by design), plus an additional
-  `confirm_life_safety: true` on `program_zone` whenever the target zone type
-  is fire or CO, because this integration cannot verify what a zone's current
-  type is before overwriting it.
-- Never exposes raw keystrokes from the Lovelace card's normal UI. The guided
-  tabs are the default; a separate "Raw" tab exists for anything they do not
-  cover, gated by its own confirmation checkbox.
+- Requires an explicit confirmation for every guided write -- the Confirm
+  programming switch on the device page, or `confirm: true` in the action --
+  because they always open Program Mode by design, plus an additional
+  life-safety confirmation on a zone whenever the target zone type is fire or
+  CO, because this integration cannot verify what a zone's current type is
+  before overwriting it.
+- Spends the confirmation on the device page after every button press, so one
+  confirmation authorizes exactly one write.
+- Puts no raw keystroke field on the device page. The guided form is what is
+  offered there; `send_keystrokes` exists for anything it does not cover, and
+  carries its own confirmation.
 - Treats zone bypass (`toggle_zone_bypass`, `*1zz#`) as the one keystroke
   sequence that is always allowed without confirmation, because it is an
   ordinary end-user keypad function that never opens Program Mode.
 - Never logs the installer code, the user code or the Envisalink password,
   redacts them in diagnostics, and masks any run of four or more digits in a
-  guard error before it reaches the log or the card.
+  guard error before it reaches the log, an error message or the result
+  sensor.
 
 **A default user code changes who can disarm.** A real Vista panel disarms by
 typing a user code; with a default user code stored, the alarm control panel
@@ -346,8 +357,9 @@ this.
 Home Assistant's standard **Download diagnostics** button (on this
 integration's entry) captures a timestamped JSON snapshot of everything Home
 Assistant currently knows: partition, zone and system state, armed mode, open
-and bypassed zones, trouble flags, last user. Grab one before you experiment
-with field programming.
+and bypassed zones, trouble flags, last user, plus what the programming form
+currently holds and what became of the last button press. Grab one before you
+experiment with field programming. The password and both codes are redacted.
 
 **What it cannot capture: the panel's actual installer field programming**
 (zone types, entry/exit delays, alpha descriptors, output/relay assignments,
@@ -534,42 +546,67 @@ data:
   confirm: true
 ```
 
-## The Lovelace card
+## The device page
 
-Registered on setup. Add it to a dashboard:
+Field programming lives on the panel's own device page: **Settings**, **Devices
+& services**, **Envisalink Field Programmer**, then the device. There is
+nothing to add to a dashboard and no card to install. Everything below is in
+the device's **Configuration** section, except the result, which is under
+**Diagnostic**.
 
-```yaml
-type: custom:envisalink-field-programmer-card
-title: Home Alarm
-alarm_entity: alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition
-```
+**Setting any of these changes nothing on the panel.** They are a form. The
+panel hears nothing until you press a button, and a button refuses unless
+**Confirm programming** is on.
 
-Zones and the system-trouble sensor are auto-detected from the same config
-entry as `alarm_entity` (matched via the `config_entry_id` attribute each
-entity carries). Pass `zone_entities: [...]` explicitly if you would rather
-list them yourself, or `show_programming_console: false` to hide the
-field-programming panel entirely.
+| Field | Entity | Notes |
+|---|---|---|
+| Zone to program | **Zone to program** (number) | 1 to 64, within the model's zone count. |
+| Zone type | **Zone type** (select) | Plain-language names, not Vista codes. |
+| Partition | **Zone partition** (select) | 1 to 3, as the `*56` menu takes. |
+| Reporting | **Zone reports to monitoring station** (switch) | On by default. |
+| Wiring style | **Zone hardwire type** (select) | Zones 2 to 8 only; ignored elsewhere. |
+| Response time | **Zone response time** (select) | Zones 1 to 8 only. |
+| Timing field | **Timing field** (select) | Only the fields this panel's dialect has. |
+| Timing value | **Timing value** (number) | Range checked against the chosen field on press. |
+| Timing partition | **Timing partition** (select) | Commercial panels only, where timing is per partition. |
+| Function key | **Function key** (select) | A, B, C or D. |
+| Function key action | **Function key action** (select) | Arm Away, Show the time, and so on. |
+| Function key partition | **Function key partition** (select) | 1 to 3, as the `*57` menu takes. |
 
-The field-programming panel (collapsed behind a "Field Programming" button)
-has four tabs: **Zones**, **Timing**, **Function Keys** (the guided forms),
-and **Raw** (the keystroke escape hatch). Colors are loosely inspired by
-Envisalink/EyezOn's own site palette (a crimson/violet/amber accent trio) for
-visual harmony with the hardware this talks to, not a reproduction of their
-branding, and it respects Home Assistant's light and dark theme for borders,
-surfaces and text.
+Three buttons submit what the form holds: **Program zone**, **Set system
+timing**, **Program function key**. Each one runs exactly the operation the
+action of the same name runs.
 
-Card source lives in `www/envisalink-field-programmer-card/` (TypeScript +
-Lit, built with esbuild). The build output is committed to
-`custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js`;
-that is the file HACS and Home Assistant ship and serve. The repo-root
-`www/envisalink-field-programmer-card/` is a dev workspace only, not something
-HACS installs. If you change the card:
+**The safety model is the Confirm programming switch.** It has to be on for any
+write, and **it turns itself off again after every attempt** -- whether the
+panel accepted the sequence, a guard refused it, or the module never answered.
+One confirmation authorizes one write, so a switch left on cannot arm a later
+press nobody meant. Two more switches work the same way and are spent by the
+same press:
 
-```bash
-cd www/envisalink-field-programmer-card
-npm install
-npm run build
-```
+- **Confirm life-safety zone type**, needed to program a zone to a fire or CO
+  type. Nothing can read back what type a zone is now, so this is the only
+  thing standing between a slip and a silenced smoke detector.
+- **Confirm unverified panel model**, shown only for a model whose field
+  numbers are not verified against its own programming guide (the commercial
+  VISTA panels). Not shown on the models built from their own guide, because
+  there is nothing there to acknowledge.
+
+**Last programming result** (diagnostic) reports what became of the last press:
+`Accepted`, `Refused before sending`, or `Failed while sending`, with the reply
+that decided it in its `detail` attribute and which operation it was in
+`action`. Note what "Accepted" means: the Envisalink acknowledged every
+keystroke, which is as far as this protocol can see. The panel's own opinion of
+what it stored is still only visible at the keypad.
+
+What the device page offers depends on the panel model: a DSC entry gets none
+of this (no guided operation is driven for that family), and a commercial VISTA
+gets the timing form only. Arm, disarm and bypass are unaffected either way.
+
+The form is held in memory for as long as the entry is loaded. Reloading the
+entry or restarting Home Assistant clears it back to unset, which is
+deliberate: a half-filled programming form should not survive a restart and be
+submitted later out of context.
 
 ## Known limitations
 
@@ -586,7 +623,11 @@ npm run build
   bypassed, so the switch assumes success and clears with the partition's
   bypass flag.
 - **Guided programming is refused on the DSC models and for zones on the
-  commercial VISTA models**; arm, disarm and bypass still work there.
+  commercial VISTA models**; arm, disarm and bypass still work there. The
+  device page leaves those fields out rather than offering buttons that always
+  refuse.
+- **The programming form is not remembered.** It lives in memory while the
+  entry is loaded and clears on a reload or restart.
 - **The panel has no identity over TPI.** No serial, no MAC, so an entry is
   identified by its address. A module's MAC is known only if a DHCP discovery
   supplied it, and that is what lets a move be followed automatically.
@@ -594,14 +635,12 @@ npm run build
 ## Troubleshooting
 
 Hit "Could not connect", a config entry that fails to set up, a request to
-re-authenticate, an action refused as "not loaded", the card editor saying
-"Custom element doesn't exist", or a card that looks like a plain default
-tile instead of the custom design? See
-**[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**. It covers the real issues hit
-setting this up: connection errors including the single-TPI-client limit, a
-Home Assistant update breaking compatibility, browser-cache issues with the
-Lovelace card, and what to check when field programming does not seem to have
-done anything.
+re-authenticate, an action refused as "not loaded", or a programming button
+that refuses? See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**. It covers the
+real issues hit setting this up: connection errors including the
+single-TPI-client limit, a Home Assistant update breaking compatibility, what
+each programming refusal means, and what to check when field programming does
+not seem to have done anything.
 
 Check Settings, System, Repairs too: a session that has been down for a few
 minutes puts the reason there rather than leaving it in the log.
@@ -759,8 +798,8 @@ python tools/validate_local.py
 `.github/workflows/tests.yml` runs the same steps on every push with Home
 Assistant installed (that run is the one that counts for `mypy --strict` and
 the `tests/ha` suite); `.github/workflows/ci.yml` runs the official
-`hassfest` and HACS validation actions and rebuilds and diffs the Lovelace
-card. `custom_components/envisalink_field_programmer/quality_scale.yaml`
+`hassfest` and HACS validation actions.
+`custom_components/envisalink_field_programmer/quality_scale.yaml`
 records where the integration stands against Home Assistant's Integration
 Quality Scale, rule by rule, with a reason on every rule not yet met.
 

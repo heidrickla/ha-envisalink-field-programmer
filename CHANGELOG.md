@@ -7,6 +7,60 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut.
 
+## [0.4.0] - 2026-09-05
+
+Field programming moves onto the panel's own device page, and the Lovelace
+card that used to carry it is gone. A user should not have to know how to add
+a custom card to change a zone type.
+
+### Added
+
+- **A configuration entity per programming field, on the panel device.** The
+  zone to program, its type, partition, reporting, wiring style and response
+  time; the timing field, its value and, on commercial panels, its partition;
+  the function key, what it should do and its partition. Setting any of them
+  changes nothing on the panel -- they are a form, held for as long as the
+  entry is loaded.
+- **A button per operation**: Program zone, Set system timing, Program
+  function key. Each submits the current values through the same guided
+  operation the action of the same name runs, so every guard is identical
+  whichever way it is driven. A button refuses, saying which, when the confirm
+  switch is off or a value it needs is unset.
+- **A Confirm programming switch that has to be on for any write, and turns
+  itself off again after every attempt** -- accepted, refused or failed. One
+  confirmation authorizes exactly one write. Confirm life-safety zone type and
+  Confirm unverified panel model work the same way and are spent by the same
+  press; the second appears only on a model whose fields are not verified
+  against its own programming guide.
+- **A Last programming result diagnostic sensor** carrying the outcome
+  (Accepted, Refused before sending, Failed while sending), which operation it
+  was, and the reply that decided it. "Accepted" means the Envisalink
+  acknowledged every keystroke, which is as far as this protocol sees; the
+  panel's own opinion of what it stored is still only visible at the keypad.
+- The device page offers only what the panel's dialect actually drives: a DSC
+  entry gets no programming entities at all, and a commercial VISTA gets the
+  timing form only, rather than buttons that always refuse.
+- **Diagnostics carry the programming form and the last result**, which is
+  what a report of "I programmed a zone and nothing happened" needs. No code
+  is in either.
+
+### Removed
+
+- **The bundled `envisalink-field-programmer-card` Lovelace card**, and with
+  it `frontend.py`, the committed card bundle, the `www/` source workspace,
+  the `frontend` and `http` manifest dependencies, the npm build job in CI and
+  the npm Dependabot job. A card placed on a dashboard shows as a missing
+  custom element until it is deleted; nothing else is left behind, because the
+  resource was registered at runtime and never written into a dashboard's
+  resources.
+
+### Changed
+
+- The five actions are unchanged and still take the same fields. What moved is
+  where their guards live: `field_programming_services.py` now exposes the
+  three guided operations themselves, and the actions and the buttons are two
+  front ends onto them.
+
 ## [0.3.1] - 2026-09-05
 
 Everything here comes from running 0.3.0 against a real EVL-4 and a

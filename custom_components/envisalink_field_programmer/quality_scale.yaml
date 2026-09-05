@@ -4,7 +4,10 @@ rules:
     status: done
     comment: |
       The five actions are registered in async_setup, not per entry, so a
-      call while the entry is unloaded gets a translated refusal.
+      call while the entry is unloaded gets a translated refusal. The three
+      guided operations behind them are plain coroutines in
+      field_programming_services.py, which the actions and the device page's
+      buttons both call, so registration and guards stay in one place.
   appropriate-polling:
     status: done
     comment: |
@@ -38,7 +41,12 @@ rules:
       measures every one of those sizes from the PNG header and fails a logo
       whose bytes equal an icon's, so the pair cannot silently drift back.
       hacs.json asks for 2026.3.0 for this reason, and the README says why.
-  common-modules: done
+  common-modules:
+    status: done
+    comment: |
+      coordinator.py holds the coordinator, entity.py the base entity and the
+      programming-form base every configuration entity shares, and the
+      platforms hold only their own entities.
   config-flow-test-coverage:
     status: done
     comment: |
@@ -61,7 +69,9 @@ rules:
     status: done
     comment: |
       No external dependency. requirements is empty; the TPI client is
-      asyncio streams plus the standard library.
+      asyncio streams plus the standard library. Since 0.4.0 there is no
+      bundled JavaScript either, and no manifest dependency on frontend or
+      http: the programming UI is entities on the device.
   docs-actions: done
   docs-conditions:
     status: exempt
@@ -119,7 +129,10 @@ rules:
       HomeAssistantError. KeystrokeGuardError is a ServiceValidationError
       subclass, so the guided refusals are validation errors too;
       tests/ha/test_field_programming_services.py asserts the class and the
-      translation key of each.
+      translation key of each. The device page's buttons add two refusals of
+      their own, the confirm switch being off and a value the operation needs
+      being unset, both translated ServiceValidationErrors, both asserted in
+      tests/ha/test_programming_entities.py.
   config-entry-unloading:
     status: done
     comment: |
@@ -145,11 +158,16 @@ rules:
       updates; it does not limit outbound action" calls, and asks a platform
       that carries actions for a real limit, normally 1 (read 2026-09-05).
       So: 0 on sensor and binary_sensor, which only read what the coordinator
-      pushes. 1 on switch and alarm_control_panel: a bypass toggle and every
-      arm or disarm sends a keystroke sequence to a panel that takes one
-      command at a time, and the client's lock is held per TPI frame rather
-      than per sequence, so without the semaphore two concurrent calls would
-      interleave their keypresses at a live alarm panel.
+      pushes, and 0 on number and select, whose whole point is that setting
+      them writes to this integration's own programming form and reaches no
+      device. 1 on switch, button and alarm_control_panel: a bypass toggle,
+      a programming button and every arm or disarm sends a keystroke sequence
+      to a panel that takes one command at a time, and the client's lock is
+      held per TPI frame rather than per sequence, so without the semaphore
+      two concurrent calls would interleave their keypresses at a live alarm
+      panel. The switch platform carries the confirm switches too, which send
+      nothing; 1 is the right limit for the platform because the bypass
+      switches on it do.
   reauthentication-flow:
     status: done
     comment: |
@@ -160,10 +178,15 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      99% on 2026-09-04 (13 of 1452 statements missed): defensive branches
-      in the panel dialects, one unreachable-looking guard each in the
-      client, the sensor and the zone timer decoder, and the debug log for
-      a zone timer dump that fails right after a reconnect.
+      98.8% on 2026-09-05 with the device page in (21 of 1768 statements
+      missed): defensive branches in the panel dialects, one
+      unreachable-looking guard each in the client, the sensor and the zone
+      timer decoder, the debug log for a zone timer dump that fails right
+      after a reconnect, and the programming button base's NotImplementedError,
+      which every subclass overrides. tests/ha/test_programming_entities.py
+      covers every new entity and both button refusals against the fake TPI
+      server, and asserts the keystrokes a press sends are the same strings
+      the matching action sends.
 
   # Gold
   devices:
@@ -175,7 +198,9 @@ rules:
   diagnostics:
     status: done
     comment: |
-      A live state snapshot with the password and both codes redacted;
+      A live state snapshot with the password and both codes redacted, plus
+      the programming form and the last programming result, which is what a
+      report of "I programmed a zone and nothing happened" needs;
       tests/ha/test_integration_setup.py checks the redaction.
   discovery:
     status: done
@@ -215,40 +240,55 @@ rules:
   entity-category:
     status: done
     comment: |
-      Last Event, Last User and System Trouble are DIAGNOSTIC: each reports
-      the panel's own health or protocol traffic rather than the security
-      state. The alarm control panels, zone sensors and bypass switches are
-      primary entities and take the default category.
+      Last Event, Last User, System Trouble and Last Programming Result are
+      DIAGNOSTIC: each reports the panel's own health, protocol traffic or the
+      outcome of an attempt rather than the security state. Every entity of
+      the programming form, and the three buttons that submit it, are CONFIG:
+      they configure the panel rather than operating it, and none of them is
+      something a dashboard should show by default. The alarm control panels,
+      zone sensors and bypass switches are primary entities and take the
+      default category.
   entity-device-class:
     status: done
     comment: |
-      Zones are OPENING, System Trouble is PROBLEM, bypass switches are
-      SWITCH. Alarm control panels have no device class; the diagnostic
-      text sensors have none that fits.
+      Zones are OPENING, System Trouble is PROBLEM, every switch including
+      the confirmations is SWITCH, and Last Programming Result is ENUM with
+      its three outcomes as options and each one translated. Alarm control
+      panels have no device class; the diagnostic text sensors, the numbers
+      and the selects have none that fits.
   entity-disabled-by-default:
     status: done
     comment: |
       Zone bypass switches and the Last Event sensor are disabled by default:
       the switches write keystrokes to the panel, and Last Event changes on
       every keepalive acknowledgement, a state write every 30 seconds for a
-      value only useful while debugging the protocol. The Lovelace card reads
-      neither, so nothing breaks when they are off.
+      value only useful while debugging the protocol. Nothing else in the
+      integration reads either, so nothing breaks when they are off. The
+      programming entities are enabled: they are the only way to reach field
+      programming from the interface, they are CONFIG so no dashboard shows
+      them unasked, and setting one sends nothing. They are created only where
+      the panel's dialect drives the operation, so a DSC entry gets none of
+      them rather than a page of entities that always refuse.
   entity-translations:
     status: done
     comment: |
       Every entity name comes from a translation key with an entity section
       in strings.json; the numbered ones carry the partition or zone number
       as a placeholder. The one exception is a zone the user has named in the
-      options, which is their own text and is shown as typed. The offline
-      validator fails a key the strings do not declare and a declared key no
-      entity uses.
+      options, which is their own text and is shown as typed. Every select
+      option and the result sensor's three outcomes are translated too, which
+      is why the options are slugs rather than raw Vista codes: a zone type of
+      "09" is not a name. The offline validator fails a key the strings do not
+      declare and a declared key no entity uses, reading both spellings of a
+      key -- the class attribute and the one handed to a constructor.
   exception-translations:
     status: done
     comment: |
       Every HomeAssistantError this integration raises carries a translation
       key: the setup exceptions, the no-code error, the three keystroke-guard
-      refusals, the device refusal from the guarded sender and all six
-      guided-programming refusals. The offline validator reads the setup,
+      refusals, the device refusal from the guarded sender, all six
+      guided-programming refusals and the two the buttons add (the confirm
+      switch off, a required value unset). The offline validator reads the setup,
       coordinator, service and platform modules from their syntax trees and
       fails any raise of one of those classes that names no translation key,
       a key the strings do not declare, and a declared key nothing raises.
@@ -258,13 +298,14 @@ rules:
   icon-translations:
     status: done
     comment: |
-      icons.json gives the five actions an icon each and covers the two
-      diagnostic text sensors, which have no device class to supply one. The
-      zone sensors (OPENING), System Trouble (PROBLEM), the bypass switches
-      (SWITCH) and the alarm control panels are deliberately absent: their
-      device class already picks the icon, and an override would only fight
-      it. The offline validator fails an icon key that names no action or
-      entity.
+      icons.json gives the five actions an icon each and covers every entity
+      whose device class supplies none: the two diagnostic text sensors, the
+      programming result, and all of the numbers, selects and buttons of the
+      programming form. The zone sensors (OPENING), System Trouble (PROBLEM),
+      the switches (SWITCH) and the alarm control panels are deliberately
+      absent: their device class already picks the icon, and an override would
+      only fight it. The offline validator fails an icon key that names no
+      action or entity.
   reconfiguration-flow:
     status: done
     comment: |
@@ -317,7 +358,7 @@ rules:
     status: done
     comment: |
       mypy --strict runs in the Tests workflow with Home Assistant installed
-      and no relaxations in pyproject beyond the test package. Green in the
-      Tests run for f7ac510 (33940946619, 2026-09-05) and locally on the
-      harness venv (Python 3.14.7, Home Assistant 2026.8.3): "Success: no
-      issues found in 21 source files".
+      and no relaxations in pyproject beyond the test package. Green locally
+      on the harness venv (Python 3.14.7, Home Assistant 2026.8.3) with the
+      device page in: "Success: no issues found in 23 source files",
+      2026-09-05. The Tests workflow re-runs it on the push.

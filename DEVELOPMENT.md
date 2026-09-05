@@ -165,19 +165,34 @@ a local run, you'd need to either check out core at a tag matching the
 installed `homeassistant` version, or bump the venv's `homeassistant`
 pinned version to something closer to current `main`.
 
-## Frontend card build
+## The programming form (no frontend build)
 
-```bash
-cd www/envisalink-field-programmer-card
-npm install
-npm run build          # writes ../../custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js
-npx tsc --noEmit        # type-check only, no output
-```
+There is no JavaScript in this repository and no build step. Up to 0.3.1 the
+guided programming UI was a bundled Lovelace card (TypeScript + Lit, built with
+esbuild, the output committed into the integration and registered as a frontend
+resource at setup). 0.4.0 removed all of it: the fields are entities on the
+panel device instead, so a user finds them where every other integration puts
+its settings and nobody has to add a card.
 
-Note the build output path: it deliberately writes into
-`custom_components/envisalink_field_programmer/www/`, not a local `dist/` folder --  see
-`frontend.py`'s docstring for why (HACS only ships the
-`custom_components/<domain>` tree).
+The form lives in three places:
+
+- `field_programming.py` holds `ProgrammingForm`, the values, and
+  `ProgrammingResult`, the outcome of the last press. Both hang off the
+  coordinator, so every entity of an entry reads and writes the same object.
+- `number.py`, `select.py` and `switch.py` are the fields. Setting one writes
+  to the form and calls `async_write_ha_state()`. None of them touches the
+  panel.
+- `button.py` is the only thing that sends. It checks the confirm switch and
+  the required values, calls the matching `async_program_*` coroutine in
+  `field_programming_services.py` -- the same one the action calls -- records
+  the result, clears the confirmations, and calls
+  `coordinator.async_update_listeners()` so the switches and the result sensor
+  redraw.
+
+Adding a field means: the attribute on `ProgrammingForm`, the entity in its
+platform, the name (and any option names) in `strings.json`, an icon in
+`icons.json`, and the read in the button. `tools/validate_local.py` fails a
+name or icon that matches no entity, and an entity whose name is not declared.
 
 ## Real-hardware gotcha: only one TPI client at a time
 
@@ -319,11 +334,12 @@ manual, and cites the exact document name/revision in its module
 docstring so the source can be re-fetched and cross-checked if the field
 model is ever in doubt.
 
-The EyezOn/Envisalink brand color research (for the Lovelace card's accent
-colors) came from fetching `https://www.eyezon.com/assets/css/main.min.css`
-directly and grepping for `--*-accent-*` custom properties and their hex
-values, rather than trusting a generic web search (which turned up nothing
-useful) or visual inspection (`WebFetch` strips CSS from rendered pages).
+The EyezOn/Envisalink brand colors (used by the removed card, and still by the
+brand images in `brand/`) came from fetching
+`https://www.eyezon.com/assets/css/main.min.css` directly and grepping for
+`--*-accent-*` custom properties and their hex values, rather than trusting a
+generic web search (which turned up nothing useful) or visual inspection
+(`WebFetch` strips CSS from rendered pages).
 
 ## Adding or promoting a panel model
 

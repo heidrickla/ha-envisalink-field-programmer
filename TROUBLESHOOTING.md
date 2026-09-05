@@ -1,7 +1,7 @@
 # Troubleshooting
 
 Real issues hit while setting this integration up, in the order you're
-likely to hit them: connecting, then the card, then field programming. If
+likely to hit them: connecting, then field programming. If
 none of these match what you're seeing, check
 [Settings → System → Logs](https://my.home-assistant.io/redirect/logs/) (or
 `ha core logs` over SSH) for the actual traceback and open an issue with it
@@ -146,91 +146,62 @@ have installed — check for a newer release, or
 [open an issue](https://github.com/heidrickla/ha-envisalink-field-programmer/issues)
 with the exact traceback and your Home Assistant version.
 
-## The Lovelace card
+## The device page
 
-### The card editor says "Custom element doesn't exist: envisalink-field-programmer-card"
+### Where the programming fields are
 
-This looks like a broken install, but in practice it's almost always a
-**stale cached copy of the Home Assistant frontend** in your browser —
-Home Assistant's frontend is a PWA with its own service-worker cache, so a
-normal reload (even a hard refresh) doesn't always pick up a newly
-registered card resource.
+**Settings → Devices & services → Envisalink Field Programmer**, then the
+device. The fields are in the **Configuration** section and **Last
+programming result** is under **Diagnostic**. There is no card to add and
+no dashboard resource to register.
 
-**Fastest way to confirm**: open your Home Assistant dashboard in a fresh
-Incognito/Private window (or on another device you haven't loaded it on
-recently, e.g. your phone). If the card works there, it's confirmed to be
-a stale-cache issue on your original browser, not a real problem — this is
-exactly what happened during this integration's own initial setup.
+### The card from 0.3.x is gone
 
-**Fix for the affected browser**, either:
-- DevTools (F12) → **Application** tab → **Service Workers** →
-  **Unregister**, then reload, or
-- DevTools → **Application** tab → **Storage** → **Clear site data**, then
-  reload and log back in.
+0.4.0 removed the bundled `envisalink-field-programmer-card` and everything
+that served it. A card you placed on a dashboard shows as a missing custom
+element until you delete it; delete it and use the device page instead.
+Nothing else is left behind — the resource was registered at runtime, never
+written into your dashboard resources.
 
-If it's still broken in a fresh incognito window too, that's a real
-problem — check that `custom_components/envisalink_field_programmer/www/envisalink-field-programmer-card.js`
-actually exists (Settings → Devices & Services → this integration →
-confirm it installed fully), and check the browser console (F12 →
-Console) for an actual script error rather than just the "doesn't exist"
-message.
+### I don't see any programming fields at all
 
-### I added a card but it looks like a plain default tile, not the custom design
+The device page only offers the operations the selected panel model's
+dialect actually drives. A **DSC** entry gets none of them, and a
+**commercial VISTA** (128BP/250BP) gets the timing form only. That is
+deliberate: buttons that always refuse are worse than no buttons. Arm,
+disarm and bypass work on all of them. See
+[Panel model support](README.md#panel-model-support).
 
-The card picker's search sometimes surfaces the entity itself (a default
-Home Assistant Tile/entity card) rather than the custom card when you
-search by name. The real custom card looks visually distinct — dark theme
-with crimson/violet/amber accents, its own zone-list layout, and a
-"Field Programming" button built in, not a generic entity tile.
+### A button says it needs the Confirm programming switch on
 
-Fix: edit the card → delete it → **"+ Add Card"** → scroll to the very
-bottom of the list to **"Manual"** (don't search by name) → paste:
+That is the safety gate, not a bug. Turn on **Confirm programming**, then
+press the button. It turns itself off again after every attempt, so if
+you press twice you have to turn it on twice — one confirmation
+authorizes one write.
 
-```yaml
-type: custom:envisalink-field-programmer-card
-title: Home Alarm
-alarm_entity: alarm_control_panel.<your_partition_entity>
-```
+### A button says to set a field first
 
-### Card configuration YAML gets corrupted while typing/pasting (e.g. `typetype:` or a stray `: ""` after an entity ID)
+The operation needs a value that is still unset (the message names which
+one). Set it and press again. Nothing was sent to the panel.
 
-The dashboard's YAML editor can auto-complete mid-paste in a way that
-duplicates or appends text. Select all the text in the editor (click
-inside it, Ctrl+A, Delete) and paste the config fresh; if it corrupts
-again, paste one line at a time and press `Escape` to dismiss any
-autocomplete dropdown before moving to the next line.
+### Last programming result says "Refused before sending"
 
-### I don't know what to put for `alarm_entity` in the card config
+A guard said no and the panel heard nothing. The `detail` attribute of the
+sensor carries the exact reason. The usual ones: no installer code in the
+options, a life-safety zone type without **Confirm life-safety zone type**,
+an unverified panel model without **Confirm unverified panel model**, or a
+timing value the chosen field cannot take.
 
-It's the `alarm_control_panel` entity this integration created, named
-after your Envisalink's host/IP — go to **Settings → Devices & Services →
-Envisalink Field Programmer → Entities** and copy the entity ID for the
-"Partition" entity (or "Partition N" if you have more than one), e.g.
-`alarm_control_panel.envisalink_field_programmer_10_10_52_6_partition`.
-Developer Tools → States is another way to browse and confirm it, and
-lets you check the entity actually has a real state (not `unavailable`)
-before you wire up the card.
+### Last programming result says "Failed while sending"
 
-### The card doesn't show my zones, or shows the wrong ones
-
-Zones and the system-trouble sensor are auto-detected by matching a
-`config_entry_id` attribute every entity from this integration carries —
-so this only works if `alarm_entity` and the zone entities came from the
-*same* config entry (i.e. the same Envisalink setup). If you have more
-than one Envisalink configured, or the auto-detection isn't finding what
-you expect, pass the zone list explicitly instead:
-
-```yaml
-type: custom:envisalink-field-programmer-card
-alarm_entity: alarm_control_panel.envisalink_field_programmer_10_10_52_6_partition
-zone_entities:
-  - binary_sensor.envisalink_field_programmer_10_10_52_6_zone_1
-  - binary_sensor.envisalink_field_programmer_10_10_52_6_zone_2
-```
+The sequence was sent and the module rejected it or the session dropped
+part-way, so **what reached the panel is unknown**. Check the log and the
+`detail` attribute, then verify at the keypad before pressing anything
+again.
 
 ## Field programming
 
-### I ran `program_zone` (or another field-programming service/tab) and nothing seems to have changed
+### I programmed something and nothing seems to have changed
 
 There is genuinely no read-back over this protocol — the integration
 cannot confirm what the panel actually did. Before assuming it failed:
@@ -238,10 +209,10 @@ cannot confirm what the panel actually did. Before assuming it failed:
 - Confirm you set an **installer code** in this integration's options
   first (Configure → Installer code) — without it, field programming is
   disabled entirely.
-- Confirm you checked the "I understand this opens Program Mode"
-  confirmation box (and the life-safety one too, if applicable) — the
-  service call silently rejects the request otherwise (check the log for
-  a `KeystrokeGuardError` or a voluptuous schema validation error).
+- Check **Last programming result** on the device. `Accepted` means the
+  Envisalink acknowledged every keystroke; anything else names the reason
+  in its `detail` attribute. If you used the action rather than the
+  buttons, the refusal is in the response to the call and in the log.
 - **Verify at the physical keypad**: installer code + `#` + `56` opens the
   review-only zone programming menu so you can walk through and confirm
   the actual current value, without changing anything. This is the only
