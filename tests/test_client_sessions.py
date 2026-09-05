@@ -1,10 +1,12 @@
 """The single-session rules: closing properly, and the retry that follows.
 
 The Envisalink admits one TPI client at a time and only frees that slot when
-it has seen the previous connection close. Two things follow, and both are
-checked here: a disconnect waits for the close instead of merely asking for
-it, and a connect the module drops part-way through login is tried once more
-rather than failing outright.
+it has seen the previous connection close. Several things follow, and all of
+them are checked here: a disconnect waits for the close instead of merely
+asking for it, it waits out the read task so that task's parting disconnect
+callback cannot land on the session after it, a connect cancelled part-way
+through the login still closes the socket it opened, and a connect the module
+drops part-way through login is tried once more rather than failing outright.
 """
 
 from __future__ import annotations
@@ -73,6 +75,112 @@ async def test_disconnect_waits_for_the_close_instead_of_only_asking_for_it():
     await client.connect()
     await client.disconnect()
     assert calls == ["close", "wait_closed"]
+    assert not client.connected
+
+
+class _NeverAnsweringWriter:
+    """A writer that records its close and never objects to anything."""
+
+    def __init__(self, log: list[str]) -> None:
+        self._log = log
+        self._closed = False
+
+    def write(self, data: bytes) -> None:
+        return None
+
+    async def drain(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self._closed = True
+        self._log.append("close")
+
+    async def wait_closed(self) -> None:
+        return None
+
+    def is_closing(self) -> bool:
+        return self._closed
+
+
+async def test_a_disconnect_callback_cannot_arrive_after_the_next_session_is_up():
+    # The read loop's last act is the disconnect callback. Cancelling the task
+    # without waiting for it lets that callback land after the next connect,
+    # reported against a socket that no longer exists -- which the coordinator
+    # would answer by starting a reconnect on top of a healthy session.
+    order: list[str] = []
+
+    class _Reader:
+        def __init__(self) -> None:
+            self._lines = [b"Login:\r\n", b"OK\r\n"]
+
+        async def readuntil(self, separator: bytes) -> bytes:
+            return self._lines.pop(0)
+
+        async def read(self, count: int) -> bytes:
+            await asyncio.Event().wait()
+            return b""
+
+    async def _open(host: str, port: int):
+        order.append("connect")
+        return _Reader(), _NeverAnsweringWriter([])
+
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        4025,
+        SECRET,
+        event_callback=lambda _event: None,
+        disconnect_callback=lambda _err: order.append("disconnect callback"),
+        open_connection=_open,
+    )
+    await client.connect()
+    # Let the read task actually reach its blocking read, so there is a
+    # cancellation to wait out rather than a task that never started.
+    await asyncio.sleep(0)
+    assert order == ["connect"]
+
+    await client.disconnect()
+    await client.connect()
+    assert order == ["connect", "disconnect callback", "connect"]
+
+    # And nothing arrives late: the next few loop turns add nothing.
+    for _ in range(3):
+        await asyncio.sleep(0)
+    assert order == ["connect", "disconnect callback", "connect"]
+    await client.disconnect()
+
+
+async def test_a_connect_cancelled_mid_login_still_closes_its_socket():
+    # The reconfigure flow releases the session out from under a reconnect,
+    # which cancels it. The socket that reconnect opened is not the client's
+    # yet, so nothing else can close it: if the cancellation does not, the
+    # module goes on thinking its one slot is taken.
+    log: list[str] = []
+    reached_login = asyncio.Event()
+
+    class _Reader:
+        def __init__(self) -> None:
+            self._answered_prompt = False
+
+        async def readuntil(self, separator: bytes) -> bytes:
+            if not self._answered_prompt:
+                self._answered_prompt = True
+                return b"Login:\r\n"
+            reached_login.set()
+            await asyncio.Event().wait()
+            return b""
+
+    async def _open(host: str, port: int):
+        return _Reader(), _NeverAnsweringWriter(log)
+
+    client = EnvisalinkClient(
+        "127.0.0.1", 4025, SECRET, event_callback=lambda _event: None, open_connection=_open
+    )
+    connecting = asyncio.ensure_future(client.connect())
+    await reached_login.wait()
+    connecting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await connecting
+    assert log == ["close"]
     assert not client.connected
 
 

@@ -234,8 +234,17 @@ class EnvisalinkClient:
                 raise TPIConnectionError("login timed out waiting for password")
             if result != LOGIN_SUCCESS:
                 raise TPIConnectionError(f"unexpected login result {result!r}")
-        except Exception:
-            await self._close_writer(writer)
+        except BaseException:
+            # BaseException, not Exception, so a cancellation counts too. The
+            # socket exists here but the client does not own it yet, so a
+            # connect cancelled mid-login -- the reconfigure flow releasing
+            # the session out from under a reconnect -- would otherwise leave
+            # it to the garbage collector, and the module would go on
+            # thinking its one TPI slot was taken. _close_writer() closes
+            # before it awaits anything, so the close lands even when the
+            # wait is cancelled immediately.
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._close_writer(writer)
             raise
 
         self._reader = reader

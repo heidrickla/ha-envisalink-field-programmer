@@ -15,6 +15,7 @@ still sent on a timer, since the protocol offers no better alternative:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 
@@ -42,6 +43,21 @@ from .state_machine import apply_event
 _LOGGER = logging.getLogger(__name__)
 
 type VistaConsoleConfigEntry = ConfigEntry[VistaConsoleCoordinator]
+
+
+async def _cancel_and_wait(task: asyncio.Task[None] | None) -> None:
+    """Cancel a background task and wait for the cancellation to land.
+
+    Everything this coordinator cancels can be holding a socket to the
+    module, which admits exactly one TPI client. Returning before the
+    cancellation has actually taken effect hands the next caller a module
+    that still thinks its one slot is busy.
+    """
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
@@ -149,11 +165,18 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         calls this first, probes, and then either reloads the entry (which
         connects afresh) or calls async_resume_session() because the probe
         failed and the entry is staying as it is.
+
+        A reconnect already in flight is cancelled and then awaited out.
+        Cancelling alone is not enough: the reconnect could be sitting inside
+        client.connect(), part-way through a login on a socket the client does
+        not own yet, and the probe would dial into a module that still has its
+        one slot taken. Awaiting the cancellation makes connect() finish
+        closing that socket before the probe goes anywhere near the module.
         """
         self._session_released = True
-        if self._reconnect_task is not None:
-            self._reconnect_task.cancel()
-            self._reconnect_task = None
+        reconnect_task = self._reconnect_task
+        self._reconnect_task = None
+        await _cancel_and_wait(reconnect_task)
         await self.client.disconnect()
 
     async def async_resume_session(self) -> None:
@@ -214,9 +237,14 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         if self._remove_stop_listener is not None:
             self._remove_stop_listener()
             self._remove_stop_listener = None
-        for task in (self._periodic_task, self._reconnect_task):
-            if task is not None:
-                task.cancel()
+        tasks = (self._periodic_task, self._reconnect_task)
+        self._periodic_task = None
+        self._reconnect_task = None
+        for task in tasks:
+            # Awaited out for the same reason the release path does it: a
+            # reconnect cancelled inside client.connect() has a socket of its
+            # own open, and only letting the cancellation land closes it.
+            await _cancel_and_wait(task)
         await self.client.disconnect()
 
     async def _async_update_data(self) -> VistaState:

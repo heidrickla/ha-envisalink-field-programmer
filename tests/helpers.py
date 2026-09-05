@@ -55,12 +55,11 @@ class FakeEnvisalinkServer:
             self._server.close()
             # Deliberately not awaiting wait_closed(): on Python 3.12+,
             # Server.wait_closed() blocks until every accepted connection's
-            # transport has fully detached, not just the listening socket.
-            # Our EnvisalinkClient.disconnect() cancels its read task and
-            # closes its writer without awaiting the cancellation settling,
-            # so that detach can lag well behind this call returning. We
-            # only need the listening port freed for the next test, which
-            # close() alone guarantees.
+            # transport has fully detached, not just the listening socket,
+            # so a test that stops the server on a still-connected client --
+            # which is how the reconnect tests simulate the module going
+            # away -- would hang here. We only need the listening port freed
+            # for the next test, which close() alone guarantees.
 
     async def push(self, code: str, data: str = "") -> None:
         """Send a "%CODE,DATA$" frame to the connected client."""

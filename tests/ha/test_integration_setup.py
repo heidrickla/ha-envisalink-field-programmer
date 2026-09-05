@@ -206,6 +206,61 @@ async def test_reconnect_restores_availability_and_logs_once(
             await replacement.stop()
 
 
+class _StallingClient:
+    """A client whose connect never finishes, so it can be caught mid-login."""
+
+    def __init__(self) -> None:
+        self.connecting = asyncio.Event()
+        self.cancelled_during_connect = False
+        self.disconnects = 0
+        self.connected = False
+
+    async def connect(self) -> None:
+        self.connecting.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            # Where the real client closes the socket it opened, freeing the
+            # module's one slot. Recorded here so the test can prove the
+            # cancellation actually landed rather than merely being asked for.
+            self.cancelled_during_connect = True
+            raise
+
+    async def disconnect(self) -> None:
+        self.disconnects += 1
+
+    async def dump_zone_timers(self) -> None:
+        return None
+
+
+async def test_releasing_the_session_waits_out_a_reconnect_that_is_mid_login(hass, fake_server):
+    # The reconfigure flow releases the session so its probe can get in. A
+    # reconnect caught inside client.connect() holds a socket the module counts
+    # against its single slot, and that socket is not the client's yet, so
+    # cancelling the task is not enough on its own: the release has to see the
+    # cancellation land before the probe dials.
+    entry = await setup_entry(hass, fake_server, num_zones=4)
+    coordinator = entry.runtime_data
+    real_client = coordinator.client
+    await real_client.disconnect()
+
+    stalling = _StallingClient()
+    coordinator.client = stalling
+    coordinator._backoff = 0
+    # The private call is the reconnect trigger itself; going through a real
+    # dropped connection would leave which client is connecting up to timing.
+    coordinator._handle_disconnect(None)
+    await stalling.connecting.wait()
+
+    await coordinator.async_release_session()
+    assert stalling.cancelled_during_connect is True
+    assert stalling.disconnects == 1
+    assert coordinator._reconnect_task is None
+
+    coordinator.client = real_client
+    await unload_entry(hass, entry)
+
+
 async def test_wrong_password_starts_reauth_instead_of_crashing(hass, fake_server):
     entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, password="wrong"))
     entry.add_to_hass(hass)
