@@ -89,6 +89,12 @@
       }
     }
   },
+  "issues": {
+    "tpi_session_busy": {
+      "title": "Envisalink at {host} is not answering",
+      "description": "Home Assistant has not been able to reconnect to the Envisalink at {host} for several minutes, so {title} is unavailable.\n\nThe Envisalink admits one TPI client at a time. If another Home Assistant integration, the EyezOn portal, a phone app or a terminal session is connected to port 4025, it holds the only session and every reconnection here looks like an unreachable host.\n\nDisconnect the other client, or power-cycle the Envisalink, and this notice clears itself as soon as the connection comes back. If nothing else is connected, check the module's power and network link and that the address and port in this entry are still right."
+    }
+  },
   "entity": {
     "alarm_control_panel": {
       "partition": {

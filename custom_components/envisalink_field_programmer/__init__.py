@@ -8,6 +8,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 
 from .client import TPIAuthError, TPIError
@@ -23,6 +24,7 @@ from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     DEFAULT_PANEL_MODEL,
     DOMAIN,
+    ISSUE_TPI_SESSION_BUSY,
 )
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .field_programming_services import async_register_field_programming_services
@@ -103,6 +105,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry
     if unload_ok:
         await entry.runtime_data.async_shutdown()
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> None:
+    """Take this entry's repair issue with it when the entry is deleted."""
+    ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_TPI_SESSION_BUSY}_{entry.entry_id}")
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> None:

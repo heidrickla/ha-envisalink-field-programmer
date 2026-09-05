@@ -10,12 +10,14 @@ import pytest
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.envisalink_field_programmer.client import (
     EnvisalinkClient,
     TPICommandError,
+    TPIConnectionError,
 )
 from custom_components.envisalink_field_programmer.const import DOMAIN
 from custom_components.envisalink_field_programmer.diagnostics import (
@@ -230,6 +232,75 @@ async def test_unreachable_envisalink_is_retried(hass):
     assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert _reauth_flows(hass) == []
+
+
+async def test_a_long_outage_raises_a_repair_issue_and_recovery_clears_it(
+    hass, fake_server, monkeypatch
+):
+    # The Envisalink admits one TPI client, so a held session looks exactly
+    # like an unreachable host. After a few failed reconnects the repair
+    # issue says so; the reconnection takes it away again.
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN", 0.02
+    )
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_FAILURES_BEFORE_ISSUE",
+        2,
+    )
+    entry = await setup_entry(hass, fake_server, num_zones=4)
+    issue_id = f"tpi_session_busy_{entry.entry_id}"
+    registry = ir.async_get(hass)
+    port = fake_server.port
+
+    # Every reconnection is refused, the way a held TPI session refuses one,
+    # until the flag is cleared below.
+    real_connect = EnvisalinkClient.connect
+    refuse = {"session": True}
+
+    async def _connect(self):
+        if refuse["session"]:
+            raise TPIConnectionError("another client holds the session")
+        await real_connect(self)
+
+    monkeypatch.setattr(EnvisalinkClient, "connect", _connect)
+    await fake_server.stop()
+    for _ in range(60):
+        await asyncio.sleep(0.05)
+        await hass.async_block_till_done()
+        if registry.async_get_issue(DOMAIN, issue_id) is not None:
+            break
+    issue = registry.async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_key == "tpi_session_busy"
+    assert issue.translation_placeholders["host"] == "127.0.0.1"
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert not issue.is_fixable
+
+    replacement = FakeEnvisalinkServer(password="user")
+    await replacement.start(port)
+    refuse["session"] = False
+    try:
+        for _ in range(60):
+            await asyncio.sleep(0.05)
+            await hass.async_block_till_done()
+            if registry.async_get_issue(DOMAIN, issue_id) is None:
+                break
+        assert registry.async_get_issue(DOMAIN, issue_id) is None
+        await unload_entry(hass, entry)
+    finally:
+        await replacement.stop()
+
+
+async def test_removing_the_entry_takes_its_repair_issue_with_it(hass, fake_server):
+    entry = await setup_entry(hass, fake_server, num_zones=4)
+    issue_id = f"tpi_session_busy_{entry.entry_id}"
+    entry.runtime_data._async_raise_connection_issue()
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, issue_id) is not None
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_refused_first_command_is_retried_and_the_socket_released(

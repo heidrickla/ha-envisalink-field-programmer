@@ -214,11 +214,16 @@ rules:
       move, a new password, the wrong password and the recovery from it,
       counts over the model limit, and the taken address.
   repair-issues:
-    status: todo
+    status: done
     comment: |
-      One actionable condition exists: another TPI client holding the
-      Envisalink's single session, which looks like an unreachable host.
-      A repair issue naming the cause is pending.
+      One condition here is both actionable and impossible to read off the
+      wire: another TPI client holding the Envisalink's single session, which
+      looks exactly like an unreachable host. After five failed reconnects
+      (about two and a half minutes) the coordinator raises a warning issue
+      naming that cause, and clears it the moment the connection is back or
+      the entry is deleted. Nothing else qualifies: a rejected password
+      starts reauth, a wrong address is a reconfigure, and a refused command
+      is a per-action error, none of which should also be an issue.
   stale-devices:
     status: exempt
     comment: A single device, removed with the entry.

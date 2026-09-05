@@ -21,13 +21,17 @@ from collections.abc import Callable
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .client import EnvisalinkClient, TPIError, TPIEvent
 from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
+    DOMAIN,
+    ISSUE_TPI_SESSION_BUSY,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_BACKOFF_MIN,
+    RECONNECT_FAILURES_BEFORE_ISSUE,
     ZONE_TIMER_DUMP_INTERVAL,
 )
 from .models import VistaState
@@ -89,6 +93,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self._periodic_task: asyncio.Task[None] | None = None
         self._reconnect_task: asyncio.Task[None] | None = None
         self._backoff = RECONNECT_BACKOFF_MIN
+        self._failed_reconnects = 0
+        # One issue per entry, so two Envisalinks do not overwrite each other.
+        self.issue_id = f"{ISSUE_TPI_SESSION_BUSY}_{entry.entry_id}"
         self._shutting_down = False
         self.last_event: TPIEvent | None = None
         self._remove_stop_listener: Callable[[], None] | None = None
@@ -102,6 +109,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         """
         await self.client.connect()
         self.data.system.connected = True
+        self.async_clear_connection_issue()
         try:
             await self.client.dump_zone_timers()
         except (TPIError, OSError):
@@ -124,6 +132,29 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     async def _handle_hass_stop(self, _event: Event) -> None:
         await self.async_shutdown()
+
+    def _async_raise_connection_issue(self) -> None:
+        """Name the usual cause of a long outage: the single TPI session.
+
+        The Envisalink admits one TPI client at a time, so an integration,
+        app or portal session left connected looks exactly like an
+        unreachable host. That is something the user can act on, which is
+        what a repair issue is for.
+        """
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self.issue_id,
+            is_fixable=False,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_TPI_SESSION_BUSY,
+            translation_placeholders={"host": self._host, "title": self.entry.title},
+        )
+
+    def async_clear_connection_issue(self) -> None:
+        """Drop the issue once the Envisalink answers again."""
+        ir.async_delete_issue(self.hass, DOMAIN, self.issue_id)
 
     async def async_shutdown(self) -> None:
         self._shutting_down = True
@@ -192,10 +223,15 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     await self.client.connect()
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Envisalink Field Programmer reconnect attempt failed: %s", err)
+                    self._failed_reconnects += 1
+                    if self._failed_reconnects == RECONNECT_FAILURES_BEFORE_ISSUE:
+                        self._async_raise_connection_issue()
                     self._backoff = min(self._backoff * 2, RECONNECT_BACKOFF_MAX)
                     continue
+                self._failed_reconnects = 0
                 self._backoff = RECONNECT_BACKOFF_MIN
                 self.data.system.connected = True
+                self.async_clear_connection_issue()
                 _LOGGER.info("Reconnected to the Envisalink at %s", self._host)
                 try:
                     await self.client.dump_zone_timers()

@@ -49,6 +49,13 @@ COMMAND_RETRY_ATTEMPTS: Final = 3
 COMMAND_RETRY_DELAY: Final = 0.25
 RECONNECT_BACKOFF_MIN: Final = 5
 RECONNECT_BACKOFF_MAX: Final = 300
+# Failed reconnect attempts before the repair issue is raised. With the
+# backoff doubling from 5 seconds that is about two and a half minutes of
+# silence: long enough that it is not a reboot.
+RECONNECT_FAILURES_BEFORE_ISSUE: Final = 5
+
+# Repair issues. tools/validate_local.py pins strings.json against this list.
+ISSUE_TPI_SESSION_BUSY: Final = "tpi_session_busy"
 
 # ---------------------------------------------------------------------------
 # TPI wire protocol -- Honeywell/Ademco Envisalink (EVL-3/EVL-4)
