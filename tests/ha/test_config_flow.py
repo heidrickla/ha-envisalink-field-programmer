@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.envisalink_field_programmer.const import DOMAIN
@@ -158,6 +159,79 @@ async def test_same_unique_id_under_another_name_is_refused(hass, fake_server):
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], _form_input(fake_server)
     )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+MAC = "00:1c:2a:aa:bb:cc"
+
+
+def _dhcp(host: str = "127.0.0.1") -> DhcpServiceInfo:
+    """A DHCP lease from a device with the Envisacor MAC prefix."""
+    return DhcpServiceInfo(ip=host, hostname="envisalink", macaddress="001c2aaabbcc")
+
+
+async def _start_dhcp(hass, host: str = "127.0.0.1"):
+    return await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_DHCP}, data=_dhcp(host)
+    )
+
+
+async def test_dhcp_discovery_prefills_the_address_and_keeps_the_mac(hass, fake_server):
+    result = await _start_dhcp(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    # The address is offered; the password still has to be typed.
+    assert _suggested(result, "host") == "127.0.0.1"
+    assert _suggested(result, "password") is None
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _form_input(fake_server)
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # The MAC is stored so a later lease elsewhere is known to be this unit.
+    assert result["data"]["mac"] == MAC
+    await _finish_and_unload(hass, result)
+
+
+async def test_dhcp_at_a_new_address_moves_the_entry_it_belongs_to(hass, fake_server):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"10.0.0.5:{fake_server.port}",
+        data=entry_data(fake_server, host="10.0.0.5", mac=MAC),
+    )
+    entry.add_to_hass(hass)
+
+    result = await _start_dhcp(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["host"] == "127.0.0.1"
+    assert entry.unique_id == f"127.0.0.1:{fake_server.port}"
+    assert entry.title == "Envisalink Field Programmer (127.0.0.1)"
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_dhcp_at_a_known_address_learns_the_mac_of_a_handmade_entry(hass, fake_server):
+    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server))
+    entry.add_to_hass(hass)
+    assert "mac" not in entry.data
+
+    result = await _start_dhcp(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["mac"] == MAC
+
+
+async def test_dhcp_for_an_already_discovered_address_aborts(hass, fake_server):
+    # An entry made from an earlier discovery of some other Envisalink that
+    # now has this address: the unique id catches it.
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="127.0.0.1:4025",
+        data=entry_data(fake_server, port=4025, mac="00:1c:2a:11:22:33"),
+    ).add_to_hass(hass)
+    result = await _start_dhcp(hass)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
 

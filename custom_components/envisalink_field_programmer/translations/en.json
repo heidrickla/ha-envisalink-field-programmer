@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "Envisalink at {host}",
     "step": {
       "user": {
         "title": "Connect to the Envisalink",

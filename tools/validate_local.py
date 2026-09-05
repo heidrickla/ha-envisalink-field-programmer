@@ -215,9 +215,10 @@ def main() -> int:
     hacs = read_json(ROOT, "hacs.json")
     check("name" in hacs, "hacs.json must contain name")
     check(
-        hacs.get("homeassistant", "0") >= "2024.11.0",
-        "hacs.json homeassistant floor below 2024.11.0, where AlarmControlPanelState "
-        "and ConfigFlow._get_reauth_entry first exist",
+        hacs.get("homeassistant", "0") >= "2025.2.0",
+        "hacs.json homeassistant floor below 2025.2.0, where "
+        "homeassistant.helpers.service_info.dhcp first exists (the config flow "
+        "imports DhcpServiceInfo from it)",
     )
 
     # ---------------------------------------------------------- brand images

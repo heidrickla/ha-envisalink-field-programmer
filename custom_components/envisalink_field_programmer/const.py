@@ -21,6 +21,9 @@ CONF_PASSWORD: Final = "password"
 CONF_USER_CODE: Final = "user_code"
 CONF_INSTALLER_CODE: Final = "installer_code"
 CONF_PANEL_MODEL: Final = "panel_model"
+# Learned from a DHCP discovery, never typed. TPI exposes no identity, so this
+# is the only way a lease at a new address is known to be the same Envisalink.
+CONF_MAC: Final = "mac"
 CONF_NUM_PARTITIONS: Final = "num_partitions"
 CONF_NUM_ZONES: Final = "num_zones"
 CONF_ZONE_NAMES: Final = "zone_names"

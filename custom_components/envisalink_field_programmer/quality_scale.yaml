@@ -125,21 +125,34 @@ rules:
   # Gold
   devices:
     status: done
-    comment: One device per entry, the panel behind the Envisalink.
+    comment: |
+      One device per entry, the panel behind the Envisalink, with the
+      module's own web page as its configuration URL and, once a DHCP
+      discovery has learned it, its MAC as a network connection.
   diagnostics:
     status: done
     comment: |
       A live state snapshot with the password and both codes redacted;
       tests/ha/test_integration_setup.py checks the redaction.
   discovery:
-    status: todo
+    status: done
     comment: |
-      The Envisalink is a LAN device with a fixed vendor MAC prefix, so DHCP
-      discovery is plausible, but the OUI has not been checked against a
-      unit. Implement once measured; do not guess a prefix.
+      DHCP, on the MAC prefix 00:1C:2A. That block is registered to Envisacor
+      Technologies Inc. of Concord, Ontario, who make the Envisalink; checked
+      2026-09-05 against the IEEE registry through two independent lookups.
+      The company's other block is an IAB (00:50:C2:49:C), which only one
+      lookup confirmed, so it is deliberately not matched. A discovered unit
+      opens the normal form with the address filled in, since the Envisalink
+      password still has to be typed.
   discovery-update-info:
-    status: todo
-    comment: Follows discovery.
+    status: done
+    comment: |
+      The MAC learned at discovery is stored with the entry, and an entry
+      added by hand at an address that later appears in a lease adopts it
+      too. A lease for a stored MAC at a different address moves that entry:
+      host, unique id and title are updated and the entry reloads. TPI itself
+      reports no identity, so this is the only way a move is distinguished
+      from a second Envisalink.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done

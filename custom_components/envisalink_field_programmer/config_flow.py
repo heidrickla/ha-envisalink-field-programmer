@@ -16,12 +16,15 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import selector
+from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .client import EnvisalinkClient, TPIAuthError, TPIError
 from .const import (
     CONF_HOST,
     CONF_INSTALLER_CODE,
     CONF_KEEPALIVE_INTERVAL,
+    CONF_MAC,
     CONF_NUM_PARTITIONS,
     CONF_NUM_ZONES,
     CONF_PANEL_MODEL,
@@ -134,9 +137,15 @@ def _without_secrets(values: Mapping[str, Any]) -> dict[str, Any]:
 
 
 class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle setup and reauth for one Envisalink."""
+    """Handle setup, discovery, reauth and reconfigure for one Envisalink."""
 
     VERSION = 1
+
+    def __init__(self) -> None:
+        # Filled in by a DHCP discovery: what to suggest on the form and the
+        # MAC to store with the entry so a later move can be recognised.
+        self._discovered: dict[str, Any] = {}
+        self._discovered_mac: str | None = None
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -152,18 +161,60 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
                 self._abort_if_unique_id_configured()
+                data = dict(user_input)
+                if self._discovered_mac is not None:
+                    data[CONF_MAC] = self._discovered_mac
                 return self.async_create_entry(
                     title=f"Envisalink Field Programmer ({user_input[CONF_HOST]})",
-                    data=user_input,
+                    data=data,
                 )
 
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(
-                STEP_USER_SCHEMA, _without_secrets(user_input or {})
+                STEP_USER_SCHEMA, _without_secrets(user_input or self._discovered)
             ),
             errors=errors,
         )
+
+    async def async_step_dhcp(self, discovery_info: DhcpServiceInfo) -> ConfigFlowResult:
+        """An Envisacor-made device took a DHCP lease.
+
+        The MAC prefix 00:1C:2A belongs to Envisacor Technologies, who make
+        the Envisalink, so the device is worth offering. TPI itself exposes no
+        identity, so the MAC learned here is what lets a later lease at a new
+        address be recognised as the same unit rather than a second one.
+        """
+        host = discovery_info.ip
+        mac = format_mac(discovery_info.macaddress)
+
+        for entry in self._async_current_entries(include_ignore=False):
+            stored_mac = entry.data.get(CONF_MAC)
+            if stored_mac == mac:
+                if entry.data.get(CONF_HOST) != host:
+                    port = entry.data[CONF_PORT]
+                    self.hass.config_entries.async_update_entry(
+                        entry,
+                        data={**entry.data, CONF_HOST: host},
+                        unique_id=f"{host}:{port}",
+                        title=f"Envisalink Field Programmer ({host})",
+                    )
+                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                return self.async_abort(reason="already_configured")
+            if stored_mac is None and entry.data.get(CONF_HOST) == host:
+                # An entry added by hand at this address: learn its MAC so the
+                # next lease elsewhere is recognised as a move.
+                self.hass.config_entries.async_update_entry(
+                    entry, data={**entry.data, CONF_MAC: mac}
+                )
+                return self.async_abort(reason="already_configured")
+
+        await self.async_set_unique_id(f"{host}:{DEFAULT_PORT}")
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        self._discovered = {CONF_HOST: host}
+        self._discovered_mac = mac
+        self.context["title_placeholders"] = {"host": host}
+        return await self.async_step_user()
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """The Envisalink rejected the stored password; ask for a new one."""
