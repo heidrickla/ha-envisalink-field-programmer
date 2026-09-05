@@ -31,8 +31,9 @@ rules:
       tests/ha/test_config_flow.py covers the user step, every error
       (invalid_auth, cannot_connect, unknown, too_many_zones,
       too_many_partitions) followed by recovery to CREATE_ENTRY, both
-      already_configured aborts, reauth in both outcomes, and the options
-      flow. Run against a fake TPI server, not a mocked connection.
+      already_configured aborts, reauth in both outcomes, the options flow,
+      all four DHCP outcomes and reconfigure in five. Run against a fake TPI
+      server, not a mocked connection; config_flow.py is at 99%.
   config-flow:
     status: done
     comment: |
@@ -125,7 +126,7 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      99% on 2026-09-04 (14 of 1429 statements missed, all of them defensive
+      99% on 2026-09-04 (14 of 1436 statements missed, all of them defensive
       branches in the panel dialects and one unreachable-looking guard each
       in the client, the sensor and the zone timer decoder).
 
@@ -171,8 +172,11 @@ rules:
     status: exempt
     comment: |
       One entry is one panel. Zones and partitions are entities on that
-      device, fixed by the counts given at setup; the protocol reports no
-      hardware coming or going.
+      device, fixed by the counts given at setup, and the protocol reports no
+      hardware coming or going, so there is no device to add later. The rule
+      page lists no exceptions; core files the per-device case this way all
+      the same (see androidtv_remote's quality_scale.yaml, "configured on a
+      per-device basis, so there are no dynamic devices to add").
   entity-category:
     status: done
     comment: |
@@ -246,7 +250,12 @@ rules:
       is a per-action error, none of which should also be an issue.
   stale-devices:
     status: exempt
-    comment: A single device, removed with the entry.
+    comment: |
+      A single device per entry, removed when the entry is. Nothing can go
+      stale while the entry lives, since the panel is the entry. The rule
+      page lists no exceptions; core files the single-device case this way
+      (androidtv_remote: "the integration manages a single device per config
+      entry. Stale device removal is handled by removing the config entry").
 
   # Platinum
   async-dependency:
