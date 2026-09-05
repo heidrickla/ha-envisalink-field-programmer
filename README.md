@@ -75,10 +75,13 @@ Typical uses:
 
 **HACS (custom repository):** add this repository as a custom repository
 (category Integration), then install "Envisalink Field Programmer". Home
-Assistant 2025.2 or newer, which is where the DHCP discovery helper this
-integration imports first exists. On 2026.3 and newer the integration's icon
-comes from the images it ships; before that it has none, because it is not in
-the `home-assistant/brands` repository.
+Assistant **2026.3 or newer**. Two things need that release: the DHCP
+discovery helper the config flow imports (2025.2), and the brands component
+that serves an integration's own `brand/` directory (2026.3). This
+integration ships its icon and logo in
+`custom_components/envisalink_field_programmer/brand/` and is in no brands
+repository, so on anything older it would load with no icon anywhere in the
+interface.
 
 **Manual:** copy `custom_components/envisalink_field_programmer/` into your
 Home Assistant `config/custom_components/` directory and restart.

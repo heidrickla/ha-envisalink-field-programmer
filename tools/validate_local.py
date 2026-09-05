@@ -16,6 +16,7 @@ import ast
 import json
 import os
 import re
+import struct
 import sys
 from typing import Any
 
@@ -254,21 +255,48 @@ def main() -> int:
     hacs = read_json(ROOT, "hacs.json")
     check("name" in hacs, "hacs.json must contain name")
     check(
-        hacs.get("homeassistant", "0") >= "2025.2.0",
-        "hacs.json homeassistant floor below 2025.2.0, where "
-        "homeassistant.helpers.service_info.dhcp first exists (the config flow "
-        "imports DhcpServiceInfo from it)",
+        hacs.get("homeassistant", "0") >= "2026.3.0",
+        "hacs.json homeassistant floor below 2026.3.0, the release whose brands "
+        "component serves brand/ out of a custom integration; below it this "
+        "integration has no icon at all, and it is in no brands repository",
     )
 
     # ---------------------------------------------------------- brand images
-    # Home Assistant 2026.3 and later serve these from the integration itself,
-    # falling back logo.png -> icon.png, so only the icon pair has to exist.
+    # home-assistant/brands: an icon is square, 256 and 512; a logo is landscape
+    # with its shortest side 128-256 (normal) and 256-512 (hDPI). Home Assistant
+    # 2026.3 and later serves all four straight out of this directory, so these
+    # are the sizes that have to be right here rather than in a pull request
+    # against another repository.
     brand = os.path.join(COMP, "brand")
-    for name in ("icon.png", "icon@2x.png"):
-        check(os.path.isfile(os.path.join(brand, name)), f"missing brand/{name}")
-    for name in ("logo.png", "logo@2x.png"):
-        if os.path.isfile(os.path.join(brand, name)):
-            notes.append(f"brand/{name} present; check it is not another copy of the icon")
+    images: dict[str, bytes] = {}
+    for name in ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png"):
+        path = os.path.join(brand, name)
+        if not os.path.isfile(path):
+            check(False, f"missing brand/{name}")
+            continue
+        with open(path, "rb") as fh:
+            images[name] = fh.read()
+        # IHDR is always the first chunk of a PNG: width then height, big-endian.
+        width, height = struct.unpack(">II", images[name][16:24])
+        if name.startswith("icon"):
+            side = 512 if "@2x" in name else 256
+            check(
+                (width, height) == (side, side),
+                f"brand/{name} is {width}x{height}, must be {side}x{side}",
+            )
+        else:
+            low, high = (256, 512) if "@2x" in name else (128, 256)
+            check(width > height, f"brand/{name} is {width}x{height}, must be landscape")
+            check(
+                low <= min(width, height) <= high,
+                f"brand/{name} shortest side is {min(width, height)}, must be {low}-{high}",
+            )
+    icon_bytes = {v for k, v in images.items() if k.startswith("icon")}
+    for name, data in images.items():
+        check(
+            not (name.startswith("logo") and data in icon_bytes),
+            f"brand/{name} is a byte-for-byte copy of an icon, not a logo",
+        )
 
     # ---------------------------------------------------------- translations
     en = read_json(COMP, "translations", "en.json")

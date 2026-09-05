@@ -14,16 +14,30 @@ rules:
       connection, and a zone timer dump request every 30 s, the only source
       of zone open/closed state a Honeywell panel gives over TPI.
   brands:
-    status: todo
+    status: done
     comment: |
-      icon.png and icon@2x.png ship in-repo at
-      custom_components/envisalink_field_programmer/brand/. Home Assistant
-      2026.3 and later serve those from the integration itself and fall back
-      logo.png to icon.png, so no logo file is needed and the duplicate that
-      was there has been removed. What is still missing is the rule's actual
-      requirement: the integration is not in home-assistant/brands, so
-      releases before 2026.3 show no icon at all. That is a pull request
-      against another repository and it is Lewis's to make.
+      The rule asks for branding assets that make the integration
+      recognisable, and points at the home-assistant/brands README for what
+      those assets are. That README no longer asks a custom integration for a
+      pull request: it calls its custom_integrations folder Legacy and says
+      "Since HA 2026.3.0, custom components can include their brand icons
+      directly" (read 2026-09-05). Home Assistant 2026.3 and later serves
+      brand/ out of the integration itself: homeassistant/components/brands
+      resolves an image through _serve_from_custom_integration when
+      Integration.has_branding is true, which is a brand directory beside
+      manifest.json. Read out of the installed 2026.8.3 wheel to confirm the
+      lookup and the fallback chain.
+
+      All four images ship at
+      custom_components/envisalink_field_programmer/brand/: icon.png 256x256
+      and icon@2x.png 512x512 as the README requires, and a real landscape
+      logo, the icon art beside the name set in the icon's own teal, at
+      504x160 and 1008x320, whose shortest sides are inside the 128-256 and
+      256-512 the README allows. The logos are their own image, not the
+      copy of the icon that used to sit here. tools/validate_local.py
+      measures every one of those sizes from the PNG header and fails a logo
+      whose bytes equal an icon's, so the pair cannot silently drift back.
+      hacs.json asks for 2026.3.0 for this reason, and the README says why.
   common-modules: done
   config-flow-test-coverage:
     status: done

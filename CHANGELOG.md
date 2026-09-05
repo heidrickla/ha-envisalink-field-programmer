@@ -7,10 +7,15 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut: everything under Unreleased is on `main` and in no tag yet.
 
-## [Unreleased] - 2026-09-04
+## [Unreleased] - 2026-09-05
 
 ### Added
 
+- **A brand logo.** `brand/` now ships a real landscape logo, the icon art
+  beside the integration's name, at `logo.png` (504x160) and `logo@2x.png`
+  (1008x320), alongside the 256x256 and 512x512 icons. Home Assistant serves
+  all four out of the integration itself, so the name is drawn wherever the
+  interface wants a logo rather than the icon being stretched into the space.
 - **DHCP discovery.** An Envisalink that takes a lease from the `00:1C:2A`
   block (Envisacor Technologies, who make the module) is offered under
   Settings, Devices & services with its address filled in. The password still
@@ -81,14 +86,18 @@ was cut: everything under Unreleased is on `main` and in no tag yet.
   back.
 - The coordinator lives on the config entry rather than in `hass.data`, and
   its keepalive and reconnect tasks are tied to the entry's lifecycle.
-- Minimum Home Assistant is now **2025.2**, the release that first has the
-  DHCP discovery helper this integration imports. On 2026.3 and newer the
-  integration's icon is served from the images it ships.
+- Minimum Home Assistant is now **2026.3**, up from 2025.2. Two releases
+  matter: 2025.2 first has the DHCP discovery helper this integration
+  imports, and 2026.3 is where Home Assistant began serving an integration's
+  own `brand/` directory. This integration is in no brands repository, so on
+  anything older it loads with no icon anywhere in the interface. HACS
+  enforces the floor.
 
 ### Removed
 
-- The duplicate `brand/logo.png`, a byte-for-byte copy of the icon. Home
-  Assistant falls back from the logo to the icon on its own.
+- The old `brand/logo.png`, which was a byte-for-byte copy of the icon and
+  told the interface nothing the icon did not. A real logo replaces it, and
+  `tools/validate_local.py` now fails a logo whose bytes match an icon's.
 
 ### Fixed
 
