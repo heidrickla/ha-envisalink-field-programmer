@@ -150,11 +150,12 @@ def _require_verified_or_ack(
 ) -> None:
     """Gate non-VERIFIED models behind an explicit acknowledgment.
 
-    Only the VISTA-21iP is built from its own programming guide. Every other
-    model's field data is inherited or provisional (see panels/), so field
-    programming against it must be explicitly acknowledged -- keystrokes that
-    are wrong for the actual panel can disable a fire zone or lock up the
-    panel, and there's no read-back over TPI to catch it.
+    The residential VISTA models are built from their own programming guides.
+    The commercial VISTA and the DSC field data is inherited or provisional
+    (see panels/), so field programming against those must be explicitly
+    acknowledged -- keystrokes that are wrong for the actual panel can disable
+    a fire zone or lock up the panel, and there's no read-back over TPI to
+    catch it.
     """
     model = coordinator.panel_model
     if model.verification == Verification.VERIFIED:
