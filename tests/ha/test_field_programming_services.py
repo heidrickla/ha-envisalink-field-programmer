@@ -122,6 +122,7 @@ async def test_program_zone_fire_type_requires_life_safety_confirm(hass, fake_se
     assert raised.value.translation_placeholders == {
         "zone_type": "9",
         "label": "Fire (smoke/heat detector)",
+        "switch": "Confirm life-safety zone type",
     }
     await _unload(hass, entry)
 

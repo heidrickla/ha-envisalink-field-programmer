@@ -310,10 +310,10 @@
       "message": "Guided {operation} programming is not available for {model}. {note}"
     },
     "unverified_model": {
-      "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Turn on the Confirm unverified panel model switch on the device, or set confirm_unverified_model to true in the action, to proceed anyway, then check the result at the keypad."
+      "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Turn on the {switch} switch on the device, or set confirm_unverified_model to true in the action, to proceed anyway, then check the result at the keypad."
     },
     "life_safety_zone_type": {
-      "message": "Zone type {zone_type} ({label}) is a life-safety type. Turn on the Confirm life-safety zone type switch on the device, or set confirm_life_safety to true in the action, to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
+      "message": "Zone type {zone_type} ({label}) is a life-safety type. Turn on the {switch} switch on the device, or set confirm_life_safety to true in the action, to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
     },
     "invalid_timing_field": {
       "message": "Timing field {field} is not valid for {model}. Valid fields: {valid}."
@@ -322,7 +322,7 @@
       "message": "That timing value is out of range: {error}"
     },
     "confirm_switch_off": {
-      "message": "{action} needs the Confirm programming switch on. It opens the panel's installer Program Mode, and the switch turns itself off again after every attempt, so one confirmation authorizes exactly one write."
+      "message": "{action} needs the {switch} switch on. It opens the panel's installer Program Mode, and the switch turns itself off again after every attempt, so one confirmation authorizes exactly one write."
     },
     "programming_value_unset": {
       "message": "Set {field} before pressing {action}. Nothing was sent to the panel."

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -55,3 +57,18 @@ class ProgrammingEntity(VistaConsoleEntity):
     @property
     def form(self) -> ProgrammingForm:
         return self.coordinator.programming
+
+
+def programming_entity_display_name(hass: HomeAssistant, entry_id: str, suffix: str) -> str:
+    """The name a programming entity shows the user, for refusal messages.
+
+    Read from the entity registry at the moment of the refusal, so the message
+    names the entity in the user's language and honours a rename instead of
+    repeating the English default.
+    """
+    registry = er.async_get(hass)
+    unique_id = f"{entry_id}_{suffix}"
+    for entity in er.async_entries_for_config_entry(registry, entry_id):
+        if entity.unique_id == unique_id:
+            return entity.name or entity.original_name or entity.entity_id
+    return suffix.removeprefix("program_").replace("_", " ")

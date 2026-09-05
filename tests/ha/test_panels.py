@@ -257,23 +257,24 @@ def test_guard_blocks_vista_program_mode_only_under_vista_dialect():
 # guided programming enabled. Tested directly against the helper.
 
 
-def _fake_coordinator(model):
+def _fake_coordinator(hass, model):
     from types import SimpleNamespace
 
-    return SimpleNamespace(panel_model=model)
+    # Only what the guard reads: the model, and what the switch-name lookup needs.
+    return SimpleNamespace(panel_model=model, hass=hass, entry=SimpleNamespace(entry_id="fake"))
 
 
-def test_verified_or_ack_allows_verified_model_without_ack():
+async def test_verified_or_ack_allows_verified_model_without_ack(hass):
     from custom_components.envisalink_field_programmer.field_programming_services import (
         _require_verified_or_ack,
     )
 
     model = get_model("vista_21ip")
     assert model.verification == Verification.VERIFIED
-    _require_verified_or_ack(_fake_coordinator(model), confirm_unverified=False)  # no raise
+    _require_verified_or_ack(_fake_coordinator(hass, model), confirm_unverified=False)  # no raise
 
 
-def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with():
+async def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with(hass):
     from custom_components.envisalink_field_programmer.field_programming_services import (
         _require_verified_or_ack,
     )
@@ -289,7 +290,9 @@ def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with():
         notes="not checked yet",
     )
     with pytest.raises(KeystrokeGuardError) as raised:
-        _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=False)
+        _require_verified_or_ack(_fake_coordinator(hass, provisional), confirm_unverified=False)
     assert raised.value.translation_key == "unverified_model"
+    # No such switch is registered for the fake entry, so the name falls back.
+    assert raised.value.translation_placeholders["switch"] == "confirm unverified model"
     # With the explicit acknowledgment it proceeds.
-    _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=True)
+    _require_verified_or_ack(_fake_coordinator(hass, provisional), confirm_unverified=True)

@@ -32,6 +32,7 @@ from .const import (
     SERVICE_SET_SYSTEM_TIMING,
 )
 from .coordinator import VistaConsoleCoordinator
+from .entity import programming_entity_display_name
 from .field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
     ZONE_TYPES,
@@ -168,6 +169,11 @@ def _require_verified_or_ack(
                 "model": model.label,
                 "verification": model.verification.value,
                 "notes": model.notes,
+                "switch": programming_entity_display_name(
+                    coordinator.hass,
+                    coordinator.entry.entry_id,
+                    "program_confirm_unverified_model",
+                ),
             },
         )
 
@@ -218,6 +224,9 @@ async def async_program_zone(
             translation_placeholders={
                 "zone_type": str(zone_type),
                 "label": ZONE_TYPES[zone_type].label,
+                "switch": programming_entity_display_name(
+                    coordinator.hass, coordinator.entry.entry_id, "program_confirm_life_safety"
+                ),
             },
         )
     program = ZoneProgram(

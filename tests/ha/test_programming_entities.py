@@ -160,6 +160,10 @@ async def test_a_button_refuses_while_the_confirm_switch_is_off(hass, fake_serve
     with pytest.raises(ServiceValidationError) as raised:
         await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
     assert raised.value.translation_key == "confirm_switch_off"
+    assert raised.value.translation_placeholders == {
+        "action": "Program zone",
+        "switch": "Confirm programming",
+    }
     assert _sent(fake_server) == ""
     # Nothing was attempted, so there is no result to report yet.
     assert (
@@ -176,14 +180,14 @@ async def test_a_button_names_the_value_that_is_missing(hass, fake_server):
     with pytest.raises(ServiceValidationError) as raised:
         await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
     assert raised.value.translation_key == "programming_value_unset"
-    assert raised.value.translation_placeholders["field"] == "the zone type"
+    assert raised.value.translation_placeholders["field"] == "Zone type"
     assert _sent(fake_server) == ""
     # The confirmation was spent on the attempt, and the refusal is on record.
     assert hass.states.get(_entity_id(hass, entry, "switch", "program_confirm")).state == "off"
     result = hass.states.get(_entity_id(hass, entry, "sensor", "last_programming_result"))
     assert result.state == "refused"
     assert result.attributes["action"] == "program_zone"
-    assert "the zone type" in result.attributes["detail"]
+    assert "Zone type" in result.attributes["detail"]
     await unload_entry(hass, entry)
 
 
@@ -381,4 +385,25 @@ async def test_a_commercial_entry_offers_only_the_timing_form(hass, fake_server)
     await asyncio.sleep(0.05)
     # Identical to the set_system_timing action for the same values.
     assert _sent(fake_server) == "41128000*911*1004*99"
+    await unload_entry(hass, entry)
+
+
+async def test_a_refusal_follows_the_user_s_own_entity_names(hass, fake_server):
+    """The message names the switch and button as the user sees them, renames included."""
+    entry = await _setup(hass, fake_server)
+    await _fill_zone_form(hass, entry)
+    registry = er.async_get(hass)
+    registry.async_update_entity(
+        _entity_id(hass, entry, "switch", "program_confirm"), name="Armed for programming"
+    )
+    registry.async_update_entity(
+        _entity_id(hass, entry, "button", "program_zone"), name="Write the zone"
+    )
+    await hass.async_block_till_done()
+    with pytest.raises(ServiceValidationError) as raised:
+        await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
+    assert raised.value.translation_placeholders == {
+        "action": "Write the zone",
+        "switch": "Armed for programming",
+    }
     await unload_entry(hass, entry)

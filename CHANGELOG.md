@@ -7,6 +7,17 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut.
 
+## [0.4.1] - 2026-09-05
+
+### Fixed
+
+- **Refusal messages name entities the way the user sees them.** "Set X before
+  pressing Y", "Y needs the Z switch on", and the life-safety and unverified-model
+  refusals carried the English defaults of the button, field and switch names,
+  whatever language Home Assistant runs in and whatever the user had renamed them
+  to. They now read the names from the entity registry at the moment of the
+  refusal.
+
 ## [0.4.0] - 2026-09-05
 
 Field programming moves onto the panel's own device page, and the Lovelace

@@ -27,7 +27,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, RESPONSE_ACCEPTED, TPI_RESPONSE_CODES
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
-from .entity import ProgrammingEntity
+from .entity import ProgrammingEntity, programming_entity_display_name
 from .field_programming import (
     ProgrammingForm,
     ProgrammingOutcome,
@@ -68,22 +68,33 @@ async def async_setup_entry(
 class ProgrammingButton(ProgrammingEntity, ButtonEntity):
     """Submit the current form values as one guided programming operation."""
 
-    # The plain-language name of this button, for the "set X first" refusal.
-    action_name: str
     # The action this button shares its guards with, recorded on the result.
+    # It is also the button's unique-id suffix, so its displayed name can be
+    # looked up from it.
     action_id: str
+
+    @property
+    def action_name(self) -> str:
+        """This button's name as the user sees it, for refusal messages."""
+        return self._display_name(self.action_id)
+
+    def _display_name(self, suffix: str) -> str:
+        return programming_entity_display_name(self.hass, self.coordinator.entry.entry_id, suffix)
 
     async def _async_program(self, form: ProgrammingForm) -> None:
         """Run the operation. Subclasses read the values they need."""
         raise NotImplementedError
 
     def _require[T](self, value: T | None, field: str) -> T:
-        """The value, or a refusal naming the field the press is missing."""
+        """The value, or a refusal naming the entity (by unique-id suffix) left unset."""
         if value is None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="programming_value_unset",
-                translation_placeholders={"field": field, "action": self.action_name},
+                translation_placeholders={
+                    "field": self._display_name(field),
+                    "action": self.action_name,
+                },
             )
         return value
 
@@ -98,7 +109,10 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="confirm_switch_off",
-                translation_placeholders={"action": self.action_name},
+                translation_placeholders={
+                    "action": self.action_name,
+                    "switch": self._display_name("program_confirm"),
+                },
             )
         try:
             await self._async_program(form)
@@ -124,16 +138,15 @@ class ProgramZoneButton(ProgrammingButton):
     """Send the *56 zone settings the form holds."""
 
     _attr_translation_key = "program_zone"
-    action_name = "Program zone"
     action_id = "program_zone"
 
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "program_zone")
 
     async def _async_program(self, form: ProgrammingForm) -> None:
-        zone_number = self._require(form.zone_number, "the zone to program")
-        zone_type = self._require(form.zone_type, "the zone type")
-        partition = self._require(form.zone_partition, "the zone partition")
+        zone_number = self._require(form.zone_number, "program_zone_number")
+        zone_type = self._require(form.zone_type, "program_zone_type")
+        partition = self._require(form.zone_partition, "program_zone_partition")
         await async_program_zone(
             self.coordinator,
             zone_number=zone_number,
@@ -151,15 +164,14 @@ class SetSystemTimingButton(ProgrammingButton):
     """Send the timing field and value the form holds."""
 
     _attr_translation_key = "set_system_timing"
-    action_name = "Set system timing"
     action_id = "set_system_timing"
 
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "set_system_timing")
 
     async def _async_program(self, form: ProgrammingForm) -> None:
-        field = self._require(form.timing_field, "the timing field")
-        value = self._require(form.timing_value, "the timing value")
+        field = self._require(form.timing_field, "program_timing_field")
+        value = self._require(form.timing_value, "program_timing_value")
         await async_set_system_timing(
             self.coordinator,
             field=field,
@@ -173,16 +185,15 @@ class ProgramFunctionKeyButton(ProgrammingButton):
     """Send the *57 function-key assignment the form holds."""
 
     _attr_translation_key = "program_function_key"
-    action_name = "Program function key"
     action_id = "program_function_key"
 
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "program_function_key")
 
     async def _async_program(self, form: ProgrammingForm) -> None:
-        key = self._require(form.function_key, "the function key")
-        action = self._require(form.function_key_action, "the function key action")
-        partition = self._require(form.function_key_partition, "the function key partition")
+        key = self._require(form.function_key, "program_function_key_letter")
+        action = self._require(form.function_key_action, "program_function_key_action")
+        partition = self._require(form.function_key_partition, "program_function_key_partition")
         await async_program_function_key(
             self.coordinator,
             key=key,
