@@ -308,5 +308,7 @@ rules:
     status: done
     comment: |
       mypy --strict runs in the Tests workflow with Home Assistant installed
-      and no relaxations in pyproject beyond the test package, and that job
-      has been green on every push since 8ee0094 (2026-09-04).
+      and no relaxations in pyproject beyond the test package. Green in the
+      Tests run for f7ac510 (33940946619, 2026-09-05) and locally on the
+      harness venv (Python 3.14.7, Home Assistant 2026.8.3): "Success: no
+      issues found in 21 source files".
