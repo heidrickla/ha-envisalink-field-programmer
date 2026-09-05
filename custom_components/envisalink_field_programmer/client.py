@@ -283,11 +283,19 @@ class EnvisalinkClient:
         A command still waiting on its acknowledgement is failed first, before
         anything is awaited, so it is told this was deliberate rather than
         being beaten to it by the read loop's own "connection lost".
+
+        The read task is awaited out too. Cancelling it is not enough: its
+        last act is the disconnect callback, and a caller that reconnects
+        straight away would otherwise get that callback after the new session
+        was up, reported against a socket that no longer exists.
         """
         self._abort_pending_ack("disconnected while awaiting command acknowledgement")
-        if self._read_task is not None:
-            self._read_task.cancel()
-            self._read_task = None
+        read_task = self._read_task
+        self._read_task = None
+        if read_task is not None:
+            read_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await read_task
         writer = self._writer
         self._writer = None
         self._reader = None
