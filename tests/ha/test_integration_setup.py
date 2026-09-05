@@ -217,7 +217,44 @@ async def test_wrong_password_starts_reauth_instead_of_crashing(hass, fake_serve
     assert flows[0]["step_id"] == "reauth_confirm"
 
 
-async def test_unreachable_envisalink_is_retried(hass):
+async def test_a_login_the_module_drops_is_tried_again_before_the_entry_fails(
+    hass, fake_server, monkeypatch
+):
+    # Measured on 2026-09-05: the config flow's probe disconnected, setup
+    # connected 4 ms later, and the module dropped that connection during
+    # login because it had not yet noticed its one session was free. Setup
+    # makes the second attempt itself rather than failing the entry first.
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+    )
+    fake_server.drop_logins = 1
+    entry = await setup_entry(hass, fake_server, num_zones=4)
+    assert entry.state is ConfigEntryState.LOADED
+    assert fake_server.connections == 2
+    await unload_entry(hass, entry)
+
+
+async def test_a_module_that_keeps_dropping_the_login_leaves_the_entry_retrying(
+    hass, fake_server, monkeypatch
+):
+    # The positive control for the test above: the retry is one more attempt,
+    # not a loop that hides a module which is really unavailable.
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+    )
+    fake_server.drop_logins = 5
+    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, num_zones=4))
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert fake_server.connections == 2
+    assert _reauth_flows(hass) == []
+
+
+async def test_unreachable_envisalink_is_retried(hass, monkeypatch):
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+    )
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={

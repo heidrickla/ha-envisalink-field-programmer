@@ -45,6 +45,19 @@ DEFAULT_KEEPALIVE_INTERVAL: Final = 30
 ZONE_TIMER_DUMP_INTERVAL: Final = 30
 LOGIN_TIMEOUT: Final = 10
 COMMAND_ACK_TIMEOUT: Final = 5
+# How long a disconnect waits for the socket close to land before giving up.
+# The Envisalink frees its single TPI slot only when it sees the close, so the
+# close is awaited rather than merely requested; the bound is here so a module
+# that never answers cannot hold up a Home Assistant shutdown.
+CLOSE_TIMEOUT: Final = 2.0
+# Measured 2026-09-05: the config flow's probe disconnected, the coordinator
+# connected 4 ms later, and the module dropped that second connection during
+# login. The probe therefore waits this long after its own close before
+# returning, so the module has had time to see its single slot go free.
+PROBE_SETTLE_DELAY: Final = 0.5
+# Setup still retries its first connect once after this long, because the
+# probe is not the only thing that can have just let go of the session.
+SETUP_RETRY_DELAY: Final = 2.0
 # Retries for a command the EVL rejects with "Receive Buffer Overrun" (it
 # was still busy processing the previous command -- e.g. still clocking a
 # keypress onto the keybus). Delay doubles each attempt.

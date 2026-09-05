@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -39,7 +41,9 @@ from .const import (
     DEFAULT_PANEL_MODEL,
     DEFAULT_PORT,
     DOMAIN,
+    PROBE_SETTLE_DELAY,
 )
+from .coordinator import VistaConsoleCoordinator
 from .panels import get_model, model_choices
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,9 +95,15 @@ STEP_RECONFIGURE_SCHEMA = vol.Schema(
 
 
 async def _test_connection(host: str, port: int, password: str) -> None:
-    """Attempt a login handshake and immediately disconnect.
+    """Attempt a login handshake, then leave the module's session properly free.
 
     Raises TPIAuthError / TPIConnectionError / OSError on failure.
+
+    The Envisalink admits one TPI client at a time and frees that slot only
+    once it has seen the connection close. ``disconnect()`` waits for the
+    close to land; the settle on top of it is the module's own reaction time,
+    measured on 2026-09-05 as longer than the 4 ms it took setup to open the
+    next connection and be dropped mid-login.
     """
 
     # The probe logs in and leaves, so anything the panel volunteers is dropped.
@@ -102,6 +112,7 @@ async def _test_connection(host: str, port: int, password: str) -> None:
         await client.connect()
     finally:
         await client.disconnect()
+        await asyncio.sleep(PROBE_SETTLE_DELAY)
 
 
 async def _async_try(host: str, port: int, password: str) -> dict[str, str]:
@@ -260,8 +271,8 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = _capacity_errors(user_input)
             if not errors and self._address_owned_by_another_entry(entry, host, port):
                 return self.async_abort(reason="already_configured")
-            if not errors:
-                errors = await _async_try(host, port, password)
+            if not errors and self._connection_changed(entry, user_input):
+                errors = await self._async_try_borrowing_the_session(entry, host, port, password)
             if not errors:
                 self.hass.config_entries.async_update_entry(
                     entry,
@@ -280,6 +291,46 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    @staticmethod
+    def _connection_changed(entry: ConfigEntry, user_input: Mapping[str, Any]) -> bool:
+        """Whether the reconfigure form changed anything a probe could test.
+
+        Host, port and password are the whole of what a login proves. When
+        none of them moved -- the usual reconfigure, which changes a count or
+        the panel model -- there is nothing to test, and probing anyway would
+        take the module's single TPI session away from the running
+        coordinator for no reason.
+        """
+        if user_input.get(CONF_PASSWORD):
+            return True
+        return (
+            user_input[CONF_HOST] != entry.data[CONF_HOST]
+            or user_input[CONF_PORT] != entry.data[CONF_PORT]
+        )
+
+    async def _async_try_borrowing_the_session(
+        self, entry: ConfigEntry, host: str, port: int, password: str
+    ) -> dict[str, str]:
+        """Probe the Envisalink, borrowing the session a loaded entry holds.
+
+        The module admits one TPI client at a time, so on a loaded entry the
+        probe can only get in if the coordinator lets go first: without this
+        the reconfigure form answered "cannot connect" every time, measured
+        against the hardware on 2026-09-05. A successful reconfigure reloads
+        the entry, which connects afresh; a failed one puts the session back
+        here, because the entry is staying exactly as it was.
+        """
+        coordinator: VistaConsoleCoordinator | None = (
+            entry.runtime_data if entry.state is ConfigEntryState.LOADED else None
+        )
+        if coordinator is None:
+            return await _async_try(host, port, password)
+        await coordinator.async_release_session()
+        errors = await _async_try(host, port, password)
+        if errors:
+            await coordinator.async_resume_session()
+        return errors
 
     def _reload_unless_the_entry_reloads_itself(self, entry: ConfigEntry) -> None:
         """Reload an entry that has nothing else to reload it.

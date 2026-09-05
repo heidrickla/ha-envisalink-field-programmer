@@ -25,6 +25,20 @@ class FakeEnvisalinkServer:
         # then back to "00") to simulate buffer overruns / rejections.
         self.ack_commands = True
         self.scripted_responses: dict[str, list[str]] = {}
+        # Stands in for the real module's single TPI session: while this is
+        # above zero the server sends the login prompt, reads the password and
+        # then closes without answering, which is exactly what the hardware
+        # did on 2026-09-05 when a client connected 4 ms after another let go.
+        self.drop_logins = 0
+        # With this set the server behaves like the real module, which admits
+        # one TPI client at a time: a connection arriving while another is
+        # still open is dropped during login exactly as above.
+        self.single_session = False
+        # Connections accepted, connections still open, and connections whose
+        # handler has finished, so a test can assert a disconnect landed.
+        self.connections = 0
+        self.open_connections = 0
+        self.closed_connections = 0
         self._server: asyncio.AbstractServer | None = None
         self._writer: asyncio.StreamWriter | None = None
         self.port: int = 0
@@ -55,7 +69,20 @@ class FakeEnvisalinkServer:
         await self._writer.drain()
 
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        self._writer = writer
+        self.connections += 1
+        # Counted before the handshake: the module's slot is taken by the
+        # connection, not by the login that follows it.
+        busy = self.single_session and self.open_connections > 0
+        self.open_connections += 1
+        try:
+            await self._serve(reader, writer, busy=busy)
+        finally:
+            self.open_connections -= 1
+            self.closed_connections += 1
+
+    async def _serve(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, *, busy: bool = False
+    ) -> None:
         writer.write(b"Login:\r\n")
         await writer.drain()
         try:
@@ -64,6 +91,17 @@ class FakeEnvisalinkServer:
             return
         password = raw.decode("ascii", errors="ignore").strip("\r\n")
 
+        if busy or self.drop_logins > 0:
+            # Either another client holds the single session, or the module
+            # has not noticed the last one went: it answers nothing at all
+            # and drops the connection.
+            if not busy:
+                self.drop_logins -= 1
+            writer.close()
+            return
+
+        # Only a connection that gets this far owns the writer push() uses.
+        self._writer = writer
         if password == self.password:
             writer.write(b"OK\r\n")
         else:

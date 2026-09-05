@@ -374,6 +374,91 @@ async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_serv
     assert entry.data["host"] == OLD_ADDRESS
 
 
+async def test_reconfigure_of_a_loaded_entry_borrows_its_session_to_probe(hass, fake_server):
+    # Measured against the hardware on 2026-09-05: the module admits one TPI
+    # client, so a probe made while the coordinator holds the session was
+    # answered "cannot connect" every time and the form could never be
+    # submitted. The coordinator lets go for the probe now.
+    fake_server.single_session = True
+    entry = await setup_entry(hass, fake_server)
+    assert entry.runtime_data.client.connected
+
+    result = await entry.start_reconfigure_flow(hass)
+    fake_server.password = "fresh"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, password="fresh")
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["password"] == "fresh"
+    await hass.async_block_till_done()
+    # The reload put the session back.
+    assert entry.state is config_entries.ConfigEntryState.LOADED
+    assert entry.runtime_data.client.connected
+    await unload_entry(hass, entry)
+
+
+async def test_a_failed_probe_hands_the_session_back_to_the_coordinator(hass, fake_server):
+    # The entry is staying exactly as it was, so it must not be left
+    # disconnected because a reconfigure was abandoned on the error.
+    fake_server.single_session = True
+    entry = await setup_entry(hass, fake_server)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, password="wrong")
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+    await hass.async_block_till_done()
+    assert entry.state is config_entries.ConfigEntryState.LOADED
+    assert entry.runtime_data.client.connected
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(hass, fake_server):
+    # Nothing a login could prove has changed, so taking the module's single
+    # session away to test it would cost an outage and prove nothing.
+    entry = await setup_entry(hass, fake_server, num_zones=8)
+    connections_before = fake_server.connections
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, num_zones=4)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["num_zones"] == 4
+    await hass.async_block_till_done()
+    # One new connection, the reload's own. A probe would have made two.
+    assert fake_server.connections == connections_before + 1
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_of_an_unloaded_entry_still_probes(hass, fake_server):
+    # Nothing holds the session, so there is nobody to borrow it from and the
+    # probe runs exactly as it always did.
+    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry.add_to_hass(hass)
+    assert entry.state is config_entries.ConfigEntryState.NOT_LOADED
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1", password="wrong")
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert entry.data["host"] == OLD_ADDRESS
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1", password=PASSWORD)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert entry.data["host"] == "127.0.0.1"
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
 async def test_reauth_with_a_still_wrong_password_then_the_right_one(hass, fake_server):
     entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, password="stale"))
     entry.add_to_hass(hass)

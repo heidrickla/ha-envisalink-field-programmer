@@ -178,6 +178,9 @@ async def test_a_read_failure_reaches_the_disconnect_callback():
         def close(self) -> None:
             return None
 
+        async def wait_closed(self) -> None:
+            return None
+
         def is_closing(self) -> bool:
             return False
 

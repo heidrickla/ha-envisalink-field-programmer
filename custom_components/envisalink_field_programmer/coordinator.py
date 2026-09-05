@@ -32,6 +32,7 @@ from .const import (
     RECONNECT_BACKOFF_MAX,
     RECONNECT_BACKOFF_MIN,
     RECONNECT_FAILURES_BEFORE_ISSUE,
+    SETUP_RETRY_DELAY,
     ZONE_TIMER_DUMP_INTERVAL,
 )
 from .models import VistaState
@@ -97,6 +98,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # One issue per entry, so two Envisalinks do not overwrite each other.
         self.issue_id = f"{ISSUE_TPI_SESSION_BUSY}_{entry.entry_id}"
         self._shutting_down = False
+        # Set while something else is deliberately borrowing the module's one
+        # TPI session (the reconfigure flow's probe), so the disconnect that
+        # causes does not start a reconnect that would take the session back.
+        self._session_released = False
         self.last_event: TPIEvent | None = None
         self._remove_stop_listener: Callable[[], None] | None = None
 
@@ -106,8 +111,14 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         A failure after login closes the socket before re-raising: the
         Envisalink admits one TPI client at a time, so a half-open session
         left behind would make every retry fail as "cannot connect".
+
+        The first connect is the one that races whatever held the session
+        before it -- usually the config flow's own probe -- so it is the one
+        that gets a second attempt before the entry is failed. Home
+        Assistant's retry would also recover, five seconds later and with a
+        failed entry in between.
         """
-        await self.client.connect()
+        await self.client.connect_with_retry(SETUP_RETRY_DELAY)
         self.data.system.connected = True
         self.async_clear_connection_issue()
         try:
@@ -129,6 +140,48 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self._remove_stop_listener = self.hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STOP, self._handle_hass_stop
         )
+
+    async def async_release_session(self) -> None:
+        """Give up the module's single TPI session until told to take it back.
+
+        The Envisalink admits one TPI client at a time, so the reconfigure
+        flow cannot prove a login while this coordinator is connected. It
+        calls this first, probes, and then either reloads the entry (which
+        connects afresh) or calls async_resume_session() because the probe
+        failed and the entry is staying as it is.
+        """
+        self._session_released = True
+        if self._reconnect_task is not None:
+            self._reconnect_task.cancel()
+            self._reconnect_task = None
+        await self.client.disconnect()
+
+    async def async_resume_session(self) -> None:
+        """Take the session back after async_release_session().
+
+        Reconnects at once, because the entry is loaded and its entities are
+        unavailable meanwhile. A module that is not ready yet falls back to
+        the usual reconnect loop rather than being left down.
+        """
+        self._session_released = False
+        if self._shutting_down or self.client.connected:
+            return
+        try:
+            await self.client.connect()
+        except (TPIError, OSError) as err:
+            _LOGGER.debug("Could not take the TPI session back immediately: %s", err)
+            self._backoff = RECONNECT_BACKOFF_MIN
+            self._reconnect_task = self.entry.async_create_background_task(
+                self.hass, self._reconnect_loop(), name=f"{self.name} reconnect"
+            )
+            return
+        self.data.system.connected = True
+        self.async_clear_connection_issue()
+        try:
+            await self.client.dump_zone_timers()
+        except (TPIError, OSError):
+            _LOGGER.debug("Zone timer dump after taking the session back failed", exc_info=True)
+        self.async_set_updated_data(self.data)
 
     async def _handle_hass_stop(self, _event: Event) -> None:
         await self.async_shutdown()
@@ -179,7 +232,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
     def _handle_disconnect(self, error: Exception | None) -> None:
         self.data.system.connected = False
         self.async_set_updated_data(self.data)
-        if self._shutting_down:
+        if self._shutting_down or self._session_released:
+            # Deliberate: the entry is going away, or the reconfigure flow is
+            # borrowing the module's one session and will hand it back.
             return
         # Once per outage; the retries below log at debug and the recovery
         # is logged once when it happens.
@@ -217,7 +272,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     async def _reconnect_loop(self) -> None:
         try:
-            while not self._shutting_down:
+            while not self._shutting_down and not self._session_released:
                 await asyncio.sleep(self._backoff)
                 try:
                     await self.client.connect()

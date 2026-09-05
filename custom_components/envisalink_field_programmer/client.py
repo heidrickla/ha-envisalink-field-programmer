@@ -32,11 +32,13 @@ fed by hand).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from .const import (
+    CLOSE_TIMEOUT,
     CMD_CHANGE_DEFAULT_PARTITION,
     CMD_DUMP_ZONE_TIMERS,
     CMD_KEYPRESS,
@@ -233,7 +235,7 @@ class EnvisalinkClient:
             if result != LOGIN_SUCCESS:
                 raise TPIConnectionError(f"unexpected login result {result!r}")
         except Exception:
-            writer.close()
+            await self._close_writer(writer)
             raise
 
         self._reader = reader
@@ -241,15 +243,63 @@ class EnvisalinkClient:
         self._buffer = ""
         self._read_task = asyncio.ensure_future(self._read_loop())
 
+    async def connect_with_retry(self, delay: float) -> None:
+        """Connect, and try once more after ``delay`` if the module drops it.
+
+        Measured against the hardware on 2026-09-05: something else
+        disconnected, this client connected 4 ms later, and the module dropped
+        the new connection part-way through the login because it had not yet
+        noticed its single TPI session was free. One retry after a beat turns
+        that into a connection instead of a failed setup.
+
+        A rejected password is not retried -- TPIAuthError is not a
+        TPIConnectionError -- so a wrong password still goes straight to
+        reauthentication.
+        """
+        try:
+            await self.connect()
+        except (TPIConnectionError, OSError) as err:
+            _LOGGER.debug(
+                "First connect to %s:%s failed (%s); retrying once in %ss",
+                self._host,
+                self._port,
+                err,
+                delay,
+            )
+            await asyncio.sleep(delay)
+            await self.connect()
+
     async def disconnect(self) -> None:
+        """Close the session and wait for the socket to actually be gone.
+
+        The Envisalink admits one TPI client at a time and only frees that
+        slot when it sees the connection close, so closing the writer is not
+        enough on its own: a caller that opens the next session immediately
+        would race the module and be dropped during login. Awaiting
+        ``wait_closed`` here is what makes "disconnected" true rather than
+        merely requested. The wait is bounded, because a module that never
+        acknowledges the close must not hold up a Home Assistant shutdown.
+
+        A command still waiting on its acknowledgement is failed first, before
+        anything is awaited, so it is told this was deliberate rather than
+        being beaten to it by the read loop's own "connection lost".
+        """
+        self._abort_pending_ack("disconnected while awaiting command acknowledgement")
         if self._read_task is not None:
             self._read_task.cancel()
             self._read_task = None
-        if self._writer is not None:
-            self._writer.close()
-            self._writer = None
+        writer = self._writer
+        self._writer = None
         self._reader = None
-        self._abort_pending_ack("disconnected while awaiting command acknowledgement")
+        if writer is not None:
+            await self._close_writer(writer)
+
+    @staticmethod
+    async def _close_writer(writer: asyncio.StreamWriter) -> None:
+        """Close a writer and wait, briefly, for the close to land."""
+        writer.close()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(writer.wait_closed(), timeout=CLOSE_TIMEOUT)
 
     def _abort_pending_ack(self, reason: str) -> None:
         """Fail a command waiting on its ack so it doesn't hang to timeout."""
