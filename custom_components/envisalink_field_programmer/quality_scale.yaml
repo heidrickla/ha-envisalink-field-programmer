@@ -33,7 +33,11 @@ rules:
       too_many_partitions) followed by recovery to CREATE_ENTRY, both
       already_configured aborts, reauth in both outcomes, the options flow,
       all four DHCP outcomes and reconfigure in five. Run against a fake TPI
-      server, not a mocked connection; config_flow.py is at 100%.
+      server, not a mocked connection. The rule wants the whole file, so the
+      measurement is the check: 137 statements, 0 missed, 100%, on the green
+      Tests run for f7ac510 (2026-09-05). It was 99% until that commit, one
+      statement short: a named no-op event callback in the throwaway probe
+      client whose body nothing ever ran.
   config-flow:
     status: done
     comment: |
@@ -116,10 +120,16 @@ rules:
   parallel-updates:
     status: done
     comment: |
-      0 on sensor and binary_sensor, which only read what the coordinator
-      pushes. 1 on switch and alarm_control_panel: both send keystroke
-      sequences and the client's lock is per frame, so concurrent calls
-      would interleave keypresses at the panel.
+      The rule page allows 0 only for a read-only platform behind a
+      coordinator, because "a coordinator only centralizes the inbound data
+      updates; it does not limit outbound action" calls, and asks a platform
+      that carries actions for a real limit, normally 1 (read 2026-09-05).
+      So: 0 on sensor and binary_sensor, which only read what the coordinator
+      pushes. 1 on switch and alarm_control_panel: a bypass toggle and every
+      arm or disarm sends a keystroke sequence to a panel that takes one
+      command at a time, and the client's lock is held per TPI frame rather
+      than per sequence, so without the semaphore two concurrent calls would
+      interleave their keypresses at a live alarm panel.
   reauthentication-flow:
     status: done
     comment: |
