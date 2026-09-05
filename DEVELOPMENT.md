@@ -6,23 +6,40 @@ about the test setup itself seems broken, as opposed to the integration
 code). Written from a Windows dev box; adjust activation commands if
 you're on Linux/Mac.
 
-## Python version: use 3.12, not 3.13
+## Python version: 3.14, and what Windows can and cannot run
 
 ```bash
-py install 3.12          # if not already installed
-py -3.12 -m venv .venv
-source .venv/Scripts/activate   # .venv/bin/activate on Linux/Mac
-pip install pytest-homeassistant-custom-component pytest-cov ruff mypy
+py install 3.14          # if not already installed
+py -3.14 -m venv venv
+source venv/Scripts/activate    # venv/bin/activate on Linux/Mac
+pip install "pytest-homeassistant-custom-component==0.13.357" \
+            "mypy==1.18.2" "ruff==0.15.21"
 ```
 
-**Why 3.12 and not the newer 3.13**: `homeassistant` pins `lru-dict==1.3.0`
-exactly. That version has no prebuilt wheel for `cp313` on Windows, so pip
-falls back to compiling it from source, which needs the MSVC C++ Build
-Tools (not installed, and not worth installing just for this). `lru-dict`
-1.3.0 *does* have a `cp312-win_amd64` wheel, so Python 3.12 sidesteps the
-problem entirely. If a future `homeassistant` release bumps its `lru-dict`
-pin to something with a `cp313` wheel, 3.13 should work fine too -- check
-`pip show homeassistant | grep -i lru` if you want to retry it.
+Home Assistant 2026.x needs Python 3.14, and harness 0.13.357 pins Home
+Assistant 2026.8.3 and brings pytest, pytest-cov and their asyncio and
+aiohttp plugins with it. That is the same pin the `Tests` workflow installs,
+so the local venv and CI resolve to the same versions.
+
+**The Home Assistant layer cannot run on Windows.** `homeassistant/runner.py`
+imports `fcntl`, which exists only on POSIX, and the harness's pytest plugin
+imports it at plugin-load time. So in a Windows venv that has the harness,
+`python -m pytest tests -q` dies inside pytest's plugin loading with
+`ModuleNotFoundError: No module named 'fcntl'` before a single test is
+collected -- nothing about this repo's code, and nothing that can be worked
+around here. Two ways to run tests on Windows, both clean:
+
+```bash
+venv/Scripts/python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
+python -m pytest tests -q       # any interpreter WITHOUT the harness
+```
+
+The first turns the plugin off, the second never loads it and lets
+`tests/ha/conftest.py` skip that directory on its `importorskip`. Both run
+the 70 pure tests. `tests/ha` (107 tests, the coverage gate and `mypy
+--strict`) is verified by the GitHub `Tests` workflow on Linux, and that run
+is the one that counts. The venv is still worth having on Windows for mypy,
+which reads Home Assistant's source rather than importing it.
 
 ## Test layout: a pure suite and a Home Assistant layer
 
@@ -30,9 +47,10 @@ pin to something with a `cp313` wheel, 3.13 should work fine too -- check
 machine and the field-programming keystroke builders. None of those
 modules imports Home Assistant, but the package `__init__` does, so the
 pure tests load them by path through `tests/pure.py` and run on a bare
-interpreter (`python -m pytest tests -q` skips `tests/ha` when the
-harness is absent; CI runs them with `-p no:homeassistant` so the
-harness plugin cannot interfere). `tests/ha/` holds everything that
+interpreter (`python -m pytest tests -q` passes 70 and skips `tests/ha`
+when the harness is absent; CI, and Windows venvs that have the harness,
+run them with `-p no:homeassistant` so the harness plugin cannot
+interfere). `tests/ha/` holds everything that
 needs `pytest-homeassistant-custom-component`: config flow, setup and
 unload, entities, the actions, diagnostics. Its `conftest.py` skips the
 whole directory when the harness is not installed.
@@ -87,11 +105,17 @@ these two gotchas can both cause indirectly.
 ## Running tests, lint, mypy and the validator
 
 ```bash
-python -m pytest tests -q                 # both suites; tests/ha needs the harness
+python -m pytest tests -q                 # pure suite; tests/ha skips without the harness
 ruff check . && ruff format --check .
-python -m mypy custom_components/envisalink_field_programmer
+venv/Scripts/python -m mypy custom_components/envisalink_field_programmer
 python tools/validate_local.py
 ```
+
+Clean on Windows means `70 passed, 1 skipped`: the skip is `tests/ha` on its
+`importorskip`. Run the pytest line from an interpreter that does not carry
+the harness, or add `--ignore=tests/ha -p no:homeassistant` if it does; see
+the interpreter section above for why. On Linux the same line runs both
+suites, 177 tests.
 
 `mypy --strict` only means something with Home Assistant installed in the
 interpreter running it: without it every Home Assistant class is `Any`,
@@ -124,8 +148,9 @@ python -m script.hassfest --integration-path /path/to/ha-envisalink-field-progra
 
 This got hassfest's source without a full ~1GB checkout, but **failed with
 a `NameError` inside hassfest's own `model.py`** -- hassfest at the tip of
-`main` is version-skewed against the `homeassistant` 2025.1.4 package this
-venv has installed (pinned by `pytest-homeassistant-custom-component`), and
+`main` was version-skewed against the `homeassistant` package the venv had
+installed at the time (whatever `pytest-homeassistant-custom-component`
+pinned; it is 2026.8.3 today), and
 depends on newer language/stdlib behavior not worth chasing for a one-off
 local check. Manifest/services.yaml/strings.json were instead reviewed by
 hand against hassfest's known rules (see the CI workflow's `validate-*`
