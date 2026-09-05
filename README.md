@@ -172,9 +172,12 @@ alone changes nothing a login could test, so nothing is dialled and the
 running session is left alone. When one of the three did change, the entry
 hands its TPI session over for the length of the test and takes it back
 straight afterwards, because the Envisalink admits only one client at a time
-(see below). Entities are unavailable for that second or two. If the test
-fails, the form comes back with the error and the entry carries on exactly as
-it was.
+(see below). Entities are unavailable for that second or two. An entry that
+is mid-reconnect when the form is submitted hands over just the same: the
+reconnect is stopped and the connection it had already opened is closed
+before the test dials, so the test does not meet a module still counting that
+connection against its one slot. If the test fails, the form comes back with
+the error and the entry carries on exactly as it was.
 
 Lowering a count reloads the entry, and setup then deletes the registry
 entries for the zones or partitions above the new count: the zone sensor and

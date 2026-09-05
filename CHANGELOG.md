@@ -31,6 +31,17 @@ defects below were that fact going unhandled.
   waits for the close to land, the test waits a further half second, and setup
   makes one more attempt before failing the entry. A rejected password is
   still not retried, so reauthentication is as immediate as it was.
+- **A reconfigure during an outage no longer leaves the module busy.** Handing
+  the session over while the entry was mid-reconnect cancelled that reconnect
+  without waiting for the cancellation to land, and the socket it had already
+  opened stayed open until the garbage collector reached it -- so the
+  connection test could still meet a module that thought its one slot was
+  taken. The handover now waits the reconnect out, and a login cancelled
+  part-way through closes its own socket.
+- **A dropped connection cannot be reported against the session after it.**
+  The read loop's parting "connection lost" could arrive once the next
+  session was already up, which started a reconnect on top of a healthy
+  connection. Disconnecting now waits that loop out before returning.
 
 ### Added
 
