@@ -416,6 +416,33 @@ async def test_a_failed_probe_hands_the_session_back_to_the_coordinator(hass, fa
     await unload_entry(hass, entry)
 
 
+async def test_reconfigure_submitted_unchanged_still_gets_its_session_back(hass, fake_server):
+    # The same settings retyped: Home Assistant finds nothing to change, so
+    # nothing reloads the entry, and the session the probe borrowed has to be
+    # handed back by the flow or the entry sits there disconnected.
+    fake_server.single_session = True
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=entry_data(fake_server),
+        unique_id=f"127.0.0.1:{fake_server.port}",
+        title="Envisalink Field Programmer (127.0.0.1)",
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, password=PASSWORD)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+    assert entry.state is config_entries.ConfigEntryState.LOADED
+    assert entry.runtime_data.client.connected
+    await unload_entry(hass, entry)
+
+
 async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(hass, fake_server):
     # Nothing a login could prove has changed, so taking the module's single
     # session away to test it would cost an outage and prove nothing.

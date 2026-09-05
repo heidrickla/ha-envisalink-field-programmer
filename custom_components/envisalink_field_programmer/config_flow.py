@@ -271,16 +271,22 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = _capacity_errors(user_input)
             if not errors and self._address_owned_by_another_entry(entry, host, port):
                 return self.async_abort(reason="already_configured")
-            if not errors and self._connection_changed(entry, user_input):
+            probed = not errors and self._connection_changed(entry, user_input)
+            if probed:
                 errors = await self._async_try_borrowing_the_session(entry, host, port, password)
             if not errors:
-                self.hass.config_entries.async_update_entry(
+                updated = self.hass.config_entries.async_update_entry(
                     entry,
                     data={**entry.data, **user_input, CONF_PASSWORD: password},
                     unique_id=f"{host}:{port}",
                     title=f"Envisalink Field Programmer ({host})",
                 )
                 self._reload_unless_the_entry_reloads_itself(entry)
+                if probed and not updated:
+                    # The form was submitted with the settings the entry
+                    # already had, so nothing reloads it and nothing else
+                    # would give the borrowed session back.
+                    await self._async_give_the_session_back(entry)
                 return self.async_abort(reason="reconfigure_successful")
 
         current = user_input if user_input is not None else entry.data
@@ -321,9 +327,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         the entry, which connects afresh; a failed one puts the session back
         here, because the entry is staying exactly as it was.
         """
-        coordinator: VistaConsoleCoordinator | None = (
-            entry.runtime_data if entry.state is ConfigEntryState.LOADED else None
-        )
+        coordinator = self._running_coordinator(entry)
         if coordinator is None:
             return await _async_try(host, port, password)
         await coordinator.async_release_session()
@@ -331,6 +335,20 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         if errors:
             await coordinator.async_resume_session()
         return errors
+
+    async def _async_give_the_session_back(self, entry: ConfigEntry) -> None:
+        """Reconnect a coordinator whose entry is not going to be reloaded."""
+        coordinator = self._running_coordinator(entry)
+        if coordinator is not None:
+            await coordinator.async_resume_session()
+
+    @staticmethod
+    def _running_coordinator(entry: ConfigEntry) -> VistaConsoleCoordinator | None:
+        """The coordinator holding this entry's TPI session, if it has one."""
+        if entry.state is not ConfigEntryState.LOADED:
+            return None
+        coordinator: VistaConsoleCoordinator = entry.runtime_data
+        return coordinator
 
     def _reload_unless_the_entry_reloads_itself(self, entry: ConfigEntry) -> None:
         """Reload an entry that has nothing else to reload it.
