@@ -206,12 +206,24 @@ class EnvisalinkClient:
             if prompt != LOGIN_PROMPT:
                 raise TPIConnectionError(f"expected {LOGIN_PROMPT!r} login prompt, got {prompt!r}")
 
+            # The password itself is never logged; its length and shape are
+            # enough to tell a mangled value from a rejected one.
+            _LOGGER.debug(
+                "TPI login to %s:%s: got %r, sending a %d-character password (ascii=%s, stripped=%d)",
+                self._host,
+                self._port,
+                prompt,
+                len(self._password),
+                self._password.isascii(),
+                len(self._password.strip()),
+            )
             writer.write(f"{self._password}\r\n".encode("ascii"))
             await writer.drain()
 
             result = await asyncio.wait_for(
                 self._read_login_line(reader), timeout=self._login_timeout
             )
+            _LOGGER.debug("TPI login to %s:%s: module answered %r", self._host, self._port, result)
             if result is None:
                 raise TPIConnectionError("connection closed during login")
             if result == LOGIN_FAILURE:
