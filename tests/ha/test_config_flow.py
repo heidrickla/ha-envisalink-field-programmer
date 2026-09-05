@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.envisalink_field_programmer.config_flow import VistaConsoleConfigFlow
 from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import PASSWORD, entry_data, setup_entry, unload_entry
@@ -449,16 +450,34 @@ async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(has
     entry = await setup_entry(hass, fake_server, num_zones=8)
     connections_before = fake_server.connections
 
+    # The password field is left blank, which is what the form offers: it is
+    # never suggested back, so a user changing only a zone count submits it
+    # empty and the entry keeps the password it has.
+    submitted = _reconfigure_input(fake_server, num_zones=4, password="")
+    assert VistaConsoleConfigFlow._connection_changed(entry, submitted) is False
+
     result = await entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _reconfigure_input(fake_server, num_zones=4)
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], submitted)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data["num_zones"] == 4
+    assert entry.data["password"] == PASSWORD
     await hass.async_block_till_done()
     # One new connection, the reload's own. A probe would have made two.
     assert fake_server.connections == connections_before + 1
+    await unload_entry(hass, entry)
+
+
+async def test_reconfigure_that_moves_the_address_or_the_password_does_probe(hass, fake_server):
+    # The other side of the same rule: anything a login could prove is worth
+    # the outage, so the probe runs.
+    entry = await setup_entry(hass, fake_server)
+    moved_host = _reconfigure_input(fake_server, host="10.0.0.9", password="")
+    moved_port = _reconfigure_input(fake_server, port=fake_server.port + 1, password="")
+    new_password = _reconfigure_input(fake_server, password="other")
+    assert VistaConsoleConfigFlow._connection_changed(entry, moved_host) is True
+    assert VistaConsoleConfigFlow._connection_changed(entry, moved_port) is True
+    assert VistaConsoleConfigFlow._connection_changed(entry, new_password) is True
     await unload_entry(hass, entry)
 
 
