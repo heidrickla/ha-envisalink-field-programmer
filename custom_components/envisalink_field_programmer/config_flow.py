@@ -199,7 +199,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                         unique_id=f"{host}:{port}",
                         title=f"Envisalink Field Programmer ({host})",
                     )
-                    self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                    self._reload_unless_the_entry_reloads_itself(entry)
                 return self.async_abort(reason="already_configured")
             if stored_mac is None and entry.data.get(CONF_HOST) == host:
                 # An entry added by hand at this address: learn its MAC so the
@@ -230,9 +230,11 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                 entry.data[CONF_HOST], entry.data[CONF_PORT], user_input[CONF_PASSWORD]
             )
             if not errors:
-                return self.async_update_reload_and_abort(
+                self.hass.config_entries.async_update_entry(
                     entry, data={**entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]}
                 )
+                self._reload_unless_the_entry_reloads_itself(entry)
+                return self.async_abort(reason="reauth_successful")
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=STEP_REAUTH_SCHEMA,
@@ -263,12 +265,14 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 errors = await _async_try(host, port, password)
             if not errors:
-                return self.async_update_reload_and_abort(
+                self.hass.config_entries.async_update_entry(
                     entry,
+                    data={**entry.data, **user_input, CONF_PASSWORD: password},
                     unique_id=f"{host}:{port}",
                     title=f"Envisalink Field Programmer ({host})",
-                    data_updates={**user_input, CONF_PASSWORD: password},
                 )
+                self._reload_unless_the_entry_reloads_itself(entry)
+                return self.async_abort(reason="reconfigure_successful")
 
         current = user_input if user_input is not None else entry.data
         return self.async_show_form(
@@ -278,6 +282,18 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    def _reload_unless_the_entry_reloads_itself(self, entry: ConfigEntry) -> None:
+        """Reload an entry that has nothing else to reload it.
+
+        A loaded entry carries the update listener registered at setup, and
+        Home Assistant wants that listener to be the one scheduling the
+        reload. An entry that is not loaded, which is the usual state during
+        a reauth or after the Envisalink has moved, has no listener, so
+        nothing would pick the new settings up.
+        """
+        if not entry.update_listeners:
+            self.hass.config_entries.async_schedule_reload(entry.entry_id)
 
     def _address_owned_by_another_entry(self, entry: ConfigEntry, host: str, port: int) -> bool:
         """Whether some other entry already talks to this host and port."""
