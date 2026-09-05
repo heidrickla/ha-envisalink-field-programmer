@@ -33,7 +33,7 @@ rules:
       too_many_partitions) followed by recovery to CREATE_ENTRY, both
       already_configured aborts, reauth in both outcomes, the options flow,
       all four DHCP outcomes and reconfigure in five. Run against a fake TPI
-      server, not a mocked connection; config_flow.py is at 99%.
+      server, not a mocked connection; config_flow.py is at 100%.
   config-flow:
     status: done
     comment: |
@@ -115,7 +115,11 @@ rules:
       reconnect attempts in between log at debug.
   parallel-updates:
     status: done
-    comment: PARALLEL_UPDATES = 0 on every platform; the coordinator delivers updates.
+    comment: |
+      0 on sensor and binary_sensor, which only read what the coordinator
+      pushes. 1 on switch and alarm_control_panel: both send keystroke
+      sequences and the client's lock is per frame, so concurrent calls
+      would interleave keypresses at the panel.
   reauthentication-flow:
     status: done
     comment: |
@@ -126,12 +130,10 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      99% on 2026-09-04 (14 of 1454 statements missed): defensive branches
+      99% on 2026-09-04 (13 of 1452 statements missed): defensive branches
       in the panel dialects, one unreachable-looking guard each in the
-      client, the sensor and the zone timer decoder, the no-op event
-      callback the config flow gives the throwaway client it tests with,
-      and the debug log for a zone timer dump that fails right after a
-      reconnect.
+      client, the sensor and the zone timer decoder, and the debug log for
+      a zone timer dump that fails right after a reconnect.
 
   # Gold
   devices:

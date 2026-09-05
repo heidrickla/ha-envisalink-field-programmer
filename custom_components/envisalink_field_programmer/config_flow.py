@@ -96,10 +96,8 @@ async def _test_connection(host: str, port: int, password: str) -> None:
     Raises TPIAuthError / TPIConnectionError / OSError on failure.
     """
 
-    def _noop_event(_event: Any) -> None:
-        return None
-
-    client = EnvisalinkClient(host, port, password, event_callback=_noop_event)
+    # The probe logs in and leaves, so anything the panel volunteers is dropped.
+    client = EnvisalinkClient(host, port, password, event_callback=lambda _event: None)
     try:
         await client.connect()
     finally:

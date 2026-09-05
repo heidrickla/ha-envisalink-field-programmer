@@ -68,6 +68,11 @@ was cut: everything under Unreleased is on `main` and in no tag yet.
   settings if you want it; the bundled card does not use it.
 - **System Trouble is a diagnostic entity**, alongside Last Event and Last
   User: it reports the panel's own health, not the security state.
+- **Arming, disarming and zone bypass are sent one at a time.** Each writes a
+  keystroke sequence and the client's lock is held per frame, so a script that
+  armed two partitions at once, or a call that toggled several bypass switches
+  together, could interleave their keypresses at the panel. Reads are
+  unaffected and still run in parallel.
 - Input mistakes in the actions are reported as validation errors without a
   traceback; a command the panel refuses is reported as a device error.
 - A protocol or command failure during setup is a retry rather than an error,

@@ -18,8 +18,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
 
-# Push-driven; the coordinator delivers every update.
-PARALLEL_UPDATES = 0
+# Reads are push-driven, but a bypass writes a keystroke sequence to the panel
+# and the client's lock is held per frame, not per sequence. One at a time, so
+# two bypasses cannot interleave their keypresses.
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(

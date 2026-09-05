@@ -22,8 +22,10 @@ from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import VistaConsoleEntity
 from .models import PartitionState
 
-# Push-driven; the coordinator delivers every update.
-PARALLEL_UPDATES = 0
+# Reads are push-driven, but arming and disarming write keystroke sequences to
+# the panel and the client's lock is held per frame, not per sequence. One at a
+# time, so two partitions cannot interleave their keypresses.
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
