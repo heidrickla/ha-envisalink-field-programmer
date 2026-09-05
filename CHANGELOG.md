@@ -5,9 +5,9 @@ Notable changes to this integration, newest first. The format follows
 numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 Dates are the day the work landed on `main`, which is not the day a release
-was cut: everything under Unreleased is on `main` and in no tag yet.
+was cut.
 
-## [Unreleased] - 2026-09-05
+## [0.3.0] - 2026-09-05
 
 ### Added
 

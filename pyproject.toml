@@ -1,6 +1,6 @@
 [project]
 name = "ha-envisalink-field-programmer"
-version = "0.2.1"
+version = "0.3.0"
 description = "Home Assistant integration for guided Vista field programming over an Envisalink."
 requires-python = ">=3.12"
 
