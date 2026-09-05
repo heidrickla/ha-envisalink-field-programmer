@@ -12,10 +12,6 @@ htmlcov/
 dist/
 build/
 
-# Frontend (the built .js under custom_components/.../www/ IS committed --
-# it's the artifact HACS/Lovelace actually loads, so don't ignore that one)
-www/envisalink-field-programmer-card/node_modules/
-
 # Editors / OS
 .vscode/
 .idea/

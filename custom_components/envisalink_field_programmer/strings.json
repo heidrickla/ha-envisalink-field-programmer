@@ -113,6 +113,131 @@
         "name": "System Trouble"
       }
     },
+    "button": {
+      "program_zone": {
+        "name": "Program zone"
+      },
+      "set_system_timing": {
+        "name": "Set system timing"
+      },
+      "program_function_key": {
+        "name": "Program function key"
+      }
+    },
+    "number": {
+      "zone_number": {
+        "name": "Zone to program"
+      },
+      "timing_value": {
+        "name": "Timing value"
+      }
+    },
+    "select": {
+      "zone_type": {
+        "name": "Zone type",
+        "state": {
+          "type_00": "Not used",
+          "type_01": "Entry/Exit (primary)",
+          "type_02": "Entry/Exit (secondary)",
+          "type_03": "Perimeter (instant)",
+          "type_04": "Interior (follower)",
+          "type_06": "Panic button (silent)",
+          "type_07": "Panic button (audible)",
+          "type_08": "Auxiliary alarm (24-hour)",
+          "type_09": "Fire (smoke/heat detector)",
+          "type_10": "Interior with delay",
+          "type_12": "Monitor (trouble only, no alarm)",
+          "type_14": "Carbon monoxide detector",
+          "type_16": "Fire with verification",
+          "type_23": "No alarm response",
+          "type_24": "Silent burglary"
+        }
+      },
+      "zone_partition": {
+        "name": "Zone partition",
+        "state": {
+          "partition_1": "Partition 1",
+          "partition_2": "Partition 2",
+          "partition_3": "Partition 3"
+        }
+      },
+      "zone_hardwire_type": {
+        "name": "Zone hardwire type",
+        "state": {
+          "end_of_line": "End-of-line resistor (standard)",
+          "normally_closed": "Normally closed, no resistor",
+          "normally_open": "Normally open, no resistor",
+          "zone_doubling": "Zone doubling",
+          "double_balanced": "Double-balanced (tamper-resistant)"
+        }
+      },
+      "zone_response_time": {
+        "name": "Zone response time",
+        "state": {
+          "ms_10": "10 ms",
+          "ms_350": "350 ms",
+          "ms_700": "700 ms",
+          "sec_1_2": "1.2 seconds"
+        }
+      },
+      "timing_field": {
+        "name": "Timing field",
+        "state": {
+          "field_09": "Entry delay 1",
+          "field_10": "Exit delay 1",
+          "field_11": "Entry delay 2",
+          "field_12": "Exit delay 2",
+          "field_34": "Exit delay",
+          "field_35": "Entry delay 1 (primary door)",
+          "field_36": "Entry delay 2 (secondary door)",
+          "field_84": "Auto-stay arm"
+        }
+      },
+      "timing_partition": {
+        "name": "Timing partition",
+        "state": {
+          "partition_1": "Partition 1",
+          "partition_2": "Partition 2",
+          "partition_3": "Partition 3",
+          "partition_4": "Partition 4",
+          "partition_5": "Partition 5",
+          "partition_6": "Partition 6",
+          "partition_7": "Partition 7",
+          "partition_8": "Partition 8"
+        }
+      },
+      "function_key": {
+        "name": "Function key",
+        "state": {
+          "key_a": "Key A",
+          "key_b": "Key B",
+          "key_c": "Key C",
+          "key_d": "Key D"
+        }
+      },
+      "function_key_action": {
+        "name": "Function key action",
+        "state": {
+          "default_emergency": "Default emergency key (fire/police/medical)",
+          "single_button_paging": "Page a number",
+          "display_time": "Show the time",
+          "arm_away": "Arm Away",
+          "arm_stay": "Arm Stay",
+          "arm_night_stay": "Arm Night-Stay",
+          "step_arming": "Step-arm (Stay, then Night, then Away)",
+          "output_device_command": "Trigger an output/relay",
+          "communication_test": "Send a communication test"
+        }
+      },
+      "function_key_partition": {
+        "name": "Function key partition",
+        "state": {
+          "partition_1": "Partition 1",
+          "partition_2": "Partition 2",
+          "partition_3": "Partition 3"
+        }
+      }
+    },
     "sensor": {
       "last_event": {
         "name": "Last Event"
@@ -122,11 +247,31 @@
       },
       "partition_last_user": {
         "name": "Partition {number} Last User"
+      },
+      "last_programming_result": {
+        "name": "Last programming result",
+        "state": {
+          "success": "Accepted",
+          "refused": "Refused before sending",
+          "failed": "Failed while sending"
+        }
       }
     },
     "switch": {
       "zone_bypass": {
         "name": "Zone {number} Bypass"
+      },
+      "confirm_programming": {
+        "name": "Confirm programming"
+      },
+      "confirm_life_safety": {
+        "name": "Confirm life-safety zone type"
+      },
+      "confirm_unverified_model": {
+        "name": "Confirm unverified panel model"
+      },
+      "zone_report_enabled": {
+        "name": "Zone reports to monitoring station"
       }
     }
   },
@@ -165,16 +310,22 @@
       "message": "Guided {operation} programming is not available for {model}. {note}"
     },
     "unverified_model": {
-      "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Set confirm_unverified_model to true to proceed anyway, then check the result at the keypad."
+      "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Turn on the Confirm unverified panel model switch on the device, or set confirm_unverified_model to true in the action, to proceed anyway, then check the result at the keypad."
     },
     "life_safety_zone_type": {
-      "message": "Zone type {zone_type} ({label}) is a life-safety type. Set confirm_life_safety to true to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
+      "message": "Zone type {zone_type} ({label}) is a life-safety type. Turn on the Confirm life-safety zone type switch on the device, or set confirm_life_safety to true in the action, to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
     },
     "invalid_timing_field": {
       "message": "Timing field {field} is not valid for {model}. Valid fields: {valid}."
     },
     "invalid_timing_value": {
       "message": "That timing value is out of range: {error}"
+    },
+    "confirm_switch_off": {
+      "message": "{action} needs the Confirm programming switch on. It opens the panel's installer Program Mode, and the switch turns itself off again after every attempt, so one confirmation authorizes exactly one write."
+    },
+    "programming_value_unset": {
+      "message": "Set {field} before pressing {action}. Nothing was sent to the panel."
     }
   }
 }

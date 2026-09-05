@@ -14,10 +14,6 @@ from homeassistant.helpers import entity_registry as er
 
 from custom_components.envisalink_field_programmer.client import EnvisalinkClient
 from custom_components.envisalink_field_programmer.const import DOMAIN
-from custom_components.envisalink_field_programmer.frontend import (
-    _REGISTERED_KEY,
-    async_register_frontend,
-)
 
 from .conftest import setup_entry, unload_entry
 
@@ -225,49 +221,6 @@ async def test_stopping_home_assistant_closes_the_session(hass, fake_server):
     await asyncio.sleep(0.05)
     assert not coordinator.client.connected
     await unload_entry(hass, entry)
-
-
-async def test_the_card_is_registered_once_per_run(hass, monkeypatch):
-    # The card is a nice-to-have: every failure is logged, never raised, and
-    # the entities and actions work without it.
-    hass.data.pop(_REGISTERED_KEY, None)
-    monkeypatch.setattr(hass, "http", None, raising=False)
-    await async_register_frontend(hass)
-    assert _REGISTERED_KEY not in hass.data
-
-    class _Http:
-        def __init__(self) -> None:
-            self.mounted: list[object] = []
-
-        async def async_register_static_paths(self, configs) -> None:
-            self.mounted.extend(configs)
-
-    http = _Http()
-    monkeypatch.setattr(hass, "http", http, raising=False)
-    monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.frontend.CARD_FILENAME",
-        "not-built.js",
-    )
-    await async_register_frontend(hass)
-    assert _REGISTERED_KEY not in hass.data
-    assert http.mounted == []
-
-    # The built card, with the frontend's own registry stubbed: the real one
-    # needs the frontend component, which the test harness does not ship.
-    monkeypatch.undo()
-    urls: list[str] = []
-    monkeypatch.setattr(hass, "http", http, raising=False)
-    monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.frontend.add_extra_js_url",
-        lambda hass, url: urls.append(url),
-    )
-    await async_register_frontend(hass)
-    assert hass.data[_REGISTERED_KEY] is True
-    assert urls == ["/envisalink_field_programmer_static/envisalink-field-programmer-card.js"]
-
-    # Once per run: a second entry does not mount the path again.
-    await async_register_frontend(hass)
-    assert len(http.mounted) == 1
 
 
 async def test_installers_mode_shows_as_a_system_trouble(hass, fake_server):

@@ -8,14 +8,6 @@ updates:
       actions:
         patterns: ["*"]
 
-  - package-ecosystem: npm
-    directory: /www/envisalink-field-programmer-card
-    schedule:
-      interval: weekly
-    groups:
-      npm:
-        patterns: ["*"]
-
   # No pip manifest is committed (test deps are installed ad hoc in CI), but
   # keep this so Dependabot picks up any future requirements file.
   - package-ecosystem: pip

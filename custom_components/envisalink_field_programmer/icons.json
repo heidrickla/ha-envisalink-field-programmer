@@ -1,5 +1,53 @@
 {
   "entity": {
+    "button": {
+      "program_zone": {
+        "default": "mdi:motion-sensor"
+      },
+      "set_system_timing": {
+        "default": "mdi:timer-cog-outline"
+      },
+      "program_function_key": {
+        "default": "mdi:alpha-a-box-outline"
+      }
+    },
+    "number": {
+      "zone_number": {
+        "default": "mdi:numeric"
+      },
+      "timing_value": {
+        "default": "mdi:timer-outline"
+      }
+    },
+    "select": {
+      "zone_type": {
+        "default": "mdi:shape-outline"
+      },
+      "zone_partition": {
+        "default": "mdi:home-group"
+      },
+      "zone_hardwire_type": {
+        "default": "mdi:cable-data"
+      },
+      "zone_response_time": {
+        "default": "mdi:timer-sand"
+      },
+      "timing_field": {
+        "default": "mdi:timer-cog-outline"
+      },
+      "timing_partition": {
+        "default": "mdi:home-group"
+      },
+      "function_key": {
+        "default": "mdi:alpha-a-box-outline"
+      },
+      "function_key_action": {
+        "default": "mdi:gesture-tap-button"
+      },
+      "function_key_partition": {
+        "default": "mdi:home-group"
+      }
+    },
     "sensor": {
       "last_event": {
         "default": "mdi:message-text-clock"
@@ -9,6 +57,9 @@
       },
       "partition_last_user": {
         "default": "mdi:account-clock"
+      },
+      "last_programming_result": {
+        "default": "mdi:clipboard-check-outline"
       }
     }
   },

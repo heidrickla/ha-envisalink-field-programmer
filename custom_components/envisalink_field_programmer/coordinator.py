@@ -36,6 +36,7 @@ from .const import (
     SETUP_RETRY_DELAY,
     ZONE_TIMER_DUMP_INTERVAL,
 )
+from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import VistaState
 from .panels import get_dialect, get_model
 from .state_machine import apply_event
@@ -98,6 +99,13 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.panel_model = get_model(panel_model)
         self.dialect = get_dialect(panel_model)
         self.data = VistaState.create(num_partitions, num_zones)
+        # What the device page's programming entities hold, and what became of
+        # the last press of a programming button. Neither is panel state: the
+        # panel cannot be read back, so these describe this integration's own
+        # form and its own last attempt. Entities pick both up through the
+        # coordinator's listeners, which a press notifies.
+        self.programming = ProgrammingForm()
+        self.last_programming_result: ProgrammingResult | None = None
 
         self.client = EnvisalinkClient(
             host,

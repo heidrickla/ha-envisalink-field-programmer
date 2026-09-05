@@ -1,11 +1,19 @@
-"""HA services for the guided field-programming layer.
+"""The guided field-programming operations, and the actions that expose them.
 
-Every service here always opens Program Mode (installer code + 800), so
-unlike the general-purpose ``send_keystrokes`` service, there is no "safe by
-default" path -- ``confirm`` is required and must be true on every call.
-Setting a zone to (or off of) a fire/CO zone type additionally requires
-``confirm_life_safety``, since the TPI protocol cannot read back a zone's
-*current* type before overwriting it (see field_programming.py).
+Every operation here always opens Program Mode (installer code + 800), so
+unlike the general-purpose ``send_keystrokes`` action, there is no "safe by
+default" path -- a confirmation is required for every write. Setting a zone to
+(or off of) a fire/CO zone type additionally requires a life-safety
+confirmation, since the TPI protocol cannot read back a zone's *current* type
+before overwriting it (see field_programming.py).
+
+The three ``async_program_*`` coroutines below are the operations themselves,
+and the only place the guards live. The actions in this module and the buttons
+on the panel device (button.py) are two front ends onto the same three
+coroutines: an automation calls the action with its values in the call, and a
+person on the device page sets the config entities and presses the button. A
+guard added here therefore applies to both, which is why the buttons build no
+keystrokes of their own.
 """
 
 from __future__ import annotations
@@ -175,11 +183,11 @@ async def _send_program_mode_sequence(
     _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
     full_sequence = coordinator.dialect.program_mode_wrapper(installer_code, action_keystrokes)
-    # allow_installer_mode=True: every one of these services always opens
-    # Program Mode by design, gated on the service's own required `confirm`
-    # field instead of the generic send_keystrokes confirmation flag. The
-    # coordinator's dialect selects the correct family guard, and the guarded
-    # sender turns a refused or unacknowledged command into HomeAssistantError.
+    # allow_installer_mode=True: every one of these operations always opens
+    # Program Mode by design, gated on the caller's own confirmation instead of
+    # the generic send_keystrokes confirmation flag. The coordinator's dialect
+    # selects the correct family guard, and the guarded sender turns a refused
+    # or unacknowledged command into HomeAssistantError.
     await async_send_guarded_keystrokes(
         coordinator.client,
         partition,
@@ -189,91 +197,142 @@ async def _send_program_mode_sequence(
     )
 
 
+async def async_program_zone(
+    coordinator: VistaConsoleCoordinator,
+    *,
+    zone_number: int,
+    zone_type: int,
+    partition: int,
+    report_enabled: bool = True,
+    hardwire_type: HardwireType = HardwireType.END_OF_LINE,
+    response_time: ResponseTime = ResponseTime.MS_350,
+    confirm_life_safety: bool = False,
+    confirm_unverified_model: bool = False,
+) -> None:
+    """Program one zone's *56 settings, guards and all."""
+    if zone_type in LIFE_SAFETY_ZONE_TYPE_CODES and not confirm_life_safety:
+        raise KeystrokeGuardError(
+            translation_domain=DOMAIN,
+            translation_key="life_safety_zone_type",
+            translation_placeholders={
+                "zone_type": str(zone_type),
+                "label": ZONE_TYPES[zone_type].label,
+            },
+        )
+    program = ZoneProgram(
+        zone_number=zone_number,
+        zone_type=zone_type,
+        partition=partition,
+        report_enabled=report_enabled,
+        hardwire_type=hardwire_type,
+        response_time=response_time,
+    )
+    await _send_program_mode_sequence(
+        coordinator,
+        program.partition,
+        build_zone_program_keystrokes(program),
+        op=GuidedOp.ZONE,
+        confirm_unverified=confirm_unverified_model,
+    )
+
+
+async def async_set_system_timing(
+    coordinator: VistaConsoleCoordinator,
+    *,
+    field: str,
+    value: int,
+    partition: int = 1,
+    confirm_unverified_model: bool = False,
+) -> None:
+    """Edit one system-timing data field, guards and all."""
+    # Guard the operation early so the error is "not available for <model>"
+    # rather than an unknown-field ValueError from an empty timing table.
+    _require_guided_support(coordinator, GuidedOp.TIMING)
+    valid = coordinator.dialect.timing_fields()
+    if field not in valid:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_timing_field",
+            translation_placeholders={
+                "field": field,
+                "model": coordinator.panel_model.label,
+                "valid": ", ".join(sorted(valid)),
+            },
+        )
+    # The value range depends on the field and the dialect, so the schema
+    # cannot check it; the builder's ValueError is the user's mistake.
+    try:
+        keystrokes = coordinator.dialect.build_timing_keystrokes(field, value, partition)
+    except ValueError as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_timing_value",
+            translation_placeholders={"error": str(err)},
+        ) from err
+    await _send_program_mode_sequence(
+        coordinator,
+        partition,
+        keystrokes,
+        op=GuidedOp.TIMING,
+        confirm_unverified=confirm_unverified_model,
+    )
+
+
+async def async_program_function_key(
+    coordinator: VistaConsoleCoordinator,
+    *,
+    key: FunctionKeyLetter,
+    partition: int,
+    action: FunctionKeyAction,
+    confirm_unverified_model: bool = False,
+) -> None:
+    """Assign one A/B/C/D function key, guards and all."""
+    keystrokes = build_function_key_keystrokes(key, partition, action)
+    await _send_program_mode_sequence(
+        coordinator,
+        partition,
+        keystrokes,
+        op=GuidedOp.FUNCTION_KEY,
+        confirm_unverified=confirm_unverified_model,
+    )
+
+
 @callback
 def async_register_field_programming_services(hass: HomeAssistant) -> None:
     """Register the guided field-programming services, once, from async_setup."""
 
     async def _handle_program_zone(call: ServiceCall) -> None:
         coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
-        zone_type = call.data[ATTR_ZONE_TYPE]
-        if zone_type in LIFE_SAFETY_ZONE_TYPE_CODES and not call.data[ATTR_CONFIRM_LIFE_SAFETY]:
-            raise KeystrokeGuardError(
-                translation_domain=DOMAIN,
-                translation_key="life_safety_zone_type",
-                translation_placeholders={
-                    "zone_type": str(zone_type),
-                    "label": ZONE_TYPES[zone_type].label,
-                },
-            )
-        program = ZoneProgram(
+        await async_program_zone(
+            coordinator,
             zone_number=call.data[ATTR_ZONE_NUMBER],
-            zone_type=zone_type,
+            zone_type=call.data[ATTR_ZONE_TYPE],
             partition=call.data[ATTR_PARTITION],
             report_enabled=call.data[ATTR_REPORT_ENABLED],
             hardwire_type=HardwireType(call.data[ATTR_HARDWIRE_TYPE]),
             response_time=ResponseTime(call.data[ATTR_RESPONSE_TIME]),
-        )
-        keystrokes = build_zone_program_keystrokes(program)
-        await _send_program_mode_sequence(
-            coordinator,
-            program.partition,
-            keystrokes,
-            op=GuidedOp.ZONE,
-            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+            confirm_life_safety=call.data[ATTR_CONFIRM_LIFE_SAFETY],
+            confirm_unverified_model=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
     async def _handle_set_system_timing(call: ServiceCall) -> None:
         coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
-        # Guard the operation early so the error is "not available for <model>"
-        # rather than an unknown-field ValueError from an empty timing table.
-        _require_guided_support(coordinator, GuidedOp.TIMING)
-        field = call.data[ATTR_FIELD]
-        valid = coordinator.dialect.timing_fields()
-        if field not in valid:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="invalid_timing_field",
-                translation_placeholders={
-                    "field": field,
-                    "model": coordinator.panel_model.label,
-                    "valid": ", ".join(sorted(valid)),
-                },
-            )
-        partition = call.data[ATTR_PARTITION]
-        # The value range depends on the field and the dialect, so the schema
-        # cannot check it; the builder's ValueError is the user's mistake.
-        try:
-            keystrokes = coordinator.dialect.build_timing_keystrokes(
-                field, call.data[ATTR_VALUE], partition
-            )
-        except ValueError as err:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="invalid_timing_value",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        await _send_program_mode_sequence(
+        await async_set_system_timing(
             coordinator,
-            partition,
-            keystrokes,
-            op=GuidedOp.TIMING,
-            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+            field=call.data[ATTR_FIELD],
+            value=call.data[ATTR_VALUE],
+            partition=call.data[ATTR_PARTITION],
+            confirm_unverified_model=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
     async def _handle_program_function_key(call: ServiceCall) -> None:
         coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
-        partition = call.data[ATTR_PARTITION]
-        keystrokes = build_function_key_keystrokes(
-            FunctionKeyLetter(call.data[ATTR_KEY]),
-            partition,
-            FunctionKeyAction(call.data[ATTR_ACTION]),
-        )
-        await _send_program_mode_sequence(
+        await async_program_function_key(
             coordinator,
-            partition,
-            keystrokes,
-            op=GuidedOp.FUNCTION_KEY,
-            confirm_unverified=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
+            key=FunctionKeyLetter(call.data[ATTR_KEY]),
+            partition=call.data[ATTR_PARTITION],
+            action=FunctionKeyAction(call.data[ATTR_ACTION]),
+            confirm_unverified_model=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
     hass.services.async_register(

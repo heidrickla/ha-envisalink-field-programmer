@@ -24,9 +24,9 @@ goes through, so that safety logic lives in exactly one place:
   * Everyday, user-level sequences (e.g. quick zone bypass, "*1..#") are
     allowed by default -- they never open Program Mode.
   * Any sequence that would open Program Mode is refused unless the caller
-    explicitly opts in via ``confirm_installer_risk`` -- there is
-    deliberately no way to do this from the Lovelace card's normal UI
-    without an explicit confirmation step.
+    explicitly opts in via ``confirm_installer_risk`` -- and there is
+    deliberately no raw-keystroke field on the device page at all, so the
+    only way to send one is the action, with that flag set.
 """
 
 from __future__ import annotations
@@ -62,8 +62,9 @@ _VALID_KEYSTROKE_CHARS = set("0123456789*#")
 
 # A keystroke string can embed a secret: the installer code (4-6 digits) or a
 # user/arm-disarm code. Any run of 4+ consecutive digits is a code; mask it
-# before the string reaches a log, service error, or the Lovelace card, which
-# surfaces guard errors verbatim. The `*`/`#`/`800`/`*56` operators (<4 digits)
+# before the string reaches a log, an action's error, or the programming
+# result sensor, which carries a refusal verbatim. The `*`/`#`/`800`/`*56`
+# operators (<4 digits)
 # are kept so the message still explains *why* a sequence was refused.
 _CODE_RUN = re.compile(r"\d{4,}")
 
@@ -156,9 +157,9 @@ async def async_send_guarded_keystrokes(
     try:
         await client.send_keystrokes(partition, keys)
     except TPIError as err:
-        # Surface transport/ack failures as a HomeAssistantError so service
-        # calls (and the Lovelace card) show the real reason instead of a
-        # generic "Unknown error" + log traceback.
+        # Surface transport/ack failures as a HomeAssistantError so an action
+        # call, a button press and the result sensor all show the real reason
+        # instead of a generic "Unknown error" + log traceback.
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="keystrokes_not_accepted",

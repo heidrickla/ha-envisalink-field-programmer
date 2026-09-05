@@ -411,3 +411,71 @@ def build_program_mode_wrapper(installer_code: str, action_keystrokes: str) -> s
     lockout exit) -- see const.py's EXIT_PROGRAM_MODE for why.
     """
     return f"{installer_code}{PROGRAM_MODE_SUFFIX}{action_keystrokes}{EXIT_PROGRAM_MODE}"
+
+
+# ---------------------------------------------------------------------------
+# The values the device page's config entities hold
+# ---------------------------------------------------------------------------
+# Every programming field is an entity on the panel device, and setting one
+# only writes here: nothing reaches the panel until a button is pressed with
+# the confirm switch on. Holding them in one mutable object rather than on the
+# entities themselves means the button reads one consistent set of values, and
+# an entity that has never been set is still None -- which is what lets the
+# button name the field that is missing instead of programming a default.
+
+
+@dataclass
+class ProgrammingForm:
+    """What the device page's programming entities currently hold.
+
+    The three ``confirm`` flags mirror the three service fields of the same
+    name. Every one of them is turned off again after a button press, so an
+    authorization is spent on exactly one write attempt.
+    """
+
+    zone_number: int | None = None
+    zone_type: int | None = None
+    zone_partition: int | None = None
+    zone_report_enabled: bool = True
+    zone_hardwire_type: HardwireType = HardwireType.END_OF_LINE
+    zone_response_time: ResponseTime = ResponseTime.MS_350
+    timing_field: str | None = None
+    timing_value: int | None = None
+    # The service defaults this to 1 and only the commercial dialect reads it.
+    timing_partition: int = 1
+    function_key: FunctionKeyLetter | None = None
+    function_key_action: FunctionKeyAction | None = None
+    function_key_partition: int | None = None
+    confirm: bool = False
+    confirm_life_safety: bool = False
+    confirm_unverified_model: bool = False
+
+    def clear_confirmations(self) -> None:
+        """Spend every confirmation. Called after every write attempt."""
+        self.confirm = False
+        self.confirm_life_safety = False
+        self.confirm_unverified_model = False
+
+
+class ProgrammingOutcome(StrEnum):
+    """What became of the last press of a programming button."""
+
+    SUCCESS = "success"
+    """The panel acknowledged every keystroke of the sequence."""
+
+    REFUSED = "refused"
+    """A guard refused before anything was sent: no confirmation, a missing
+    value, no installer code, an unsupported operation, a bad timing value."""
+
+    FAILED = "failed"
+    """The sequence was sent and the panel or the module rejected it, or the
+    session dropped part-way. What reached the panel is unknown."""
+
+
+@dataclass(frozen=True)
+class ProgrammingResult:
+    """The outcome of one button press, for the result sensor to report."""
+
+    action: str
+    outcome: ProgrammingOutcome
+    detail: str

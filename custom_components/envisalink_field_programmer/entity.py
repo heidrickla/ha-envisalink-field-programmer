@@ -1,12 +1,14 @@
-"""Shared base entity for Envisalink Field Programmer platforms."""
+"""Shared base entities for Envisalink Field Programmer platforms."""
 
 from __future__ import annotations
 
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_HOST, CONF_MAC, DOMAIN
 from .coordinator import VistaConsoleCoordinator
+from .field_programming import ProgrammingForm
 
 
 class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
@@ -38,3 +40,18 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
     @property
     def available(self) -> bool:
         return bool(super().available and self.coordinator.data.system.connected)
+
+
+class ProgrammingEntity(VistaConsoleEntity):
+    """Base for the entities that make up the device page's programming form.
+
+    Every one of them is a configuration entity: setting it writes to the
+    entry's :class:`ProgrammingForm` and nothing else. Only a button press
+    sends anything to the panel, and only with the confirm switch on.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    @property
+    def form(self) -> ProgrammingForm:
+        return self.coordinator.programming

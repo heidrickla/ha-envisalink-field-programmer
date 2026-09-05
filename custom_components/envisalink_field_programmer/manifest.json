@@ -1,15 +1,13 @@
 {
   "domain": "envisalink_field_programmer",
   "name": "Envisalink Field Programmer",
-  "after_dependencies": ["frontend"],
   "codeowners": ["@heidrickla"],
   "config_flow": true,
-  "dependencies": ["http"],
   "dhcp": [{ "macaddress": "001C2A*" }],
   "documentation": "https://github.com/heidrickla/ha-envisalink-field-programmer",
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/heidrickla/ha-envisalink-field-programmer/issues",
   "requirements": [],
-  "version": "0.3.1"
+  "version": "0.4.0"
 }

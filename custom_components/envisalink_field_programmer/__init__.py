@@ -30,7 +30,6 @@ from .const import (
 )
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .field_programming_services import async_register_field_programming_services
-from .frontend import async_register_frontend
 from .programming import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +41,9 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
 ]
@@ -133,7 +135,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry)
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    await async_register_frontend(hass)
     return True
 
 

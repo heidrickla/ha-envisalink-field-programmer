@@ -23,7 +23,15 @@ from typing import Any
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DOMAIN = "envisalink_field_programmer"
 COMP = os.path.join(ROOT, "custom_components", DOMAIN)
-PLATFORMS = ("alarm_control_panel", "binary_sensor", "sensor", "switch")
+PLATFORMS = (
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+)
 # Files that raise or re-raise for the user: platforms, services, setup.
 EXCEPTION_SOURCES = (
     "__init__.py",
@@ -163,6 +171,44 @@ def constants(source: str, prefix: str) -> dict[str, str]:
         ):
             found[target.id] = node.value.value
     return found
+
+
+def entity_translation_keys(source: str) -> set[str]:
+    """Entity translation keys a platform module uses.
+
+    Two spellings count, because both name an entity: the class attribute
+    ``_attr_translation_key = "x"``, and a ``translation_key="x"`` handed to an
+    entity's constructor, which is how the platforms that build several
+    entities from one class name each of them. A raise of a translated
+    exception carries the same keyword and is not an entity name, so calls of
+    those classes are skipped.
+    """
+    keys: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                name = target.id if isinstance(target, ast.Name) else getattr(target, "attr", "")
+                if (
+                    name == "_attr_translation_key"
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                ):
+                    keys.add(node.value.value)
+        elif isinstance(node, ast.Call):
+            name = (
+                node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
+            )
+            if name in TRANSLATED_EXCEPTIONS:
+                continue
+            for keyword in node.keywords:
+                if (
+                    keyword.arg == "translation_key"
+                    and isinstance(keyword.value, ast.Constant)
+                    and isinstance(keyword.value.value, str)
+                ):
+                    keys.add(keyword.value.value)
+    return keys
 
 
 def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
@@ -331,9 +377,7 @@ def main() -> int:
     # falls back to the object id.
     entity_strings = strings.get("entity", {})
     for platform in PLATFORMS:
-        used = set(
-            re.findall(r'_attr_translation_key\s*=\s*"([^"]+)"', read(COMP, f"{platform}.py"))
-        )
+        used = entity_translation_keys(read(COMP, f"{platform}.py"))
         declared_keys = set(entity_strings.get(platform, {}))
         check(
             used <= declared_keys,

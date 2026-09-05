@@ -41,10 +41,11 @@ def test_program_mode_sequence_blocked_with_known_installer_code():
 
 
 def test_program_mode_error_redacts_the_installer_code():
-    # The refused sequence is a translation placeholder, so it reaches HA logs
-    # and the Lovelace card as part of the message: it must not leak the
-    # installer/user code embedded in the keystrokes. Runs of 4+ digits are
-    # masked; the *56/*99 operators are kept for context.
+    # The refused sequence is a translation placeholder, so it reaches the HA
+    # logs, the error toast and the programming result sensor as part of the
+    # message: it must not leak the installer/user code embedded in the
+    # keystrokes. Runs of 4+ digits are masked; the *56/*99 operators are kept
+    # for context.
     with pytest.raises(KeystrokeGuardError) as exc:
         validate_keystrokes("4112800*56", installer_code="4112")
     keys = exc.value.translation_placeholders["keys"]

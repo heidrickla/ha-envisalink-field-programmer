@@ -69,4 +69,22 @@ async def async_get_config_entry_diagnostics(
             if coordinator.last_event is not None
             else None
         ),
+        # What the device page's programming form holds and what became of the
+        # last button press. Neither is panel state; both are what a report of
+        # "I programmed a zone and nothing happened" needs. No code is in
+        # either: the form holds field values, and a refusal that quotes a
+        # keystroke sequence has already had every run of four or more digits
+        # masked (see programming.py).
+        "field_programming": {
+            "supported_operations": sorted(
+                op.value for op in coordinator.dialect.supported_guided_ops
+            ),
+            "installer_code_set": bool(coordinator.installer_code),
+            "form": dataclasses.asdict(coordinator.programming),
+            "last_result": (
+                dataclasses.asdict(coordinator.last_programming_result)
+                if coordinator.last_programming_result is not None
+                else None
+            ),
+        },
     }
