@@ -7,6 +7,41 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut.
 
+## [0.3.1] - 2026-09-05
+
+Everything here comes from running 0.3.0 against a real EVL-4 and a
+VISTA-21iP on 2026-09-05. The Envisalink admits one TPI client at a time and
+frees that slot only once it has seen the previous connection close; both
+defects below were that fact going unhandled.
+
+### Fixed
+
+- **Reconfigure works on an entry that is loaded.** The form's connection test
+  wanted the same single session the running entry was holding, so it answered
+  "Could not connect" whatever was typed, and host, port, password, panel
+  model and the counts could not be changed without deleting the entry. The
+  entry now hands its session over for the length of the test and takes it
+  back straight afterwards. A form that leaves host, port and password alone
+  is not tested at all, because a login proves nothing about a changed zone
+  count, and the session is left undisturbed.
+- **Setup no longer races the module.** The setup form's login test
+  disconnected and the entry's own connection opened four milliseconds later,
+  which the module dropped part-way through the login; the entry failed and
+  came up on Home Assistant's retry five seconds afterwards. Disconnecting now
+  waits for the close to land, the test waits a further half second, and setup
+  makes one more attempt before failing the entry. A rejected password is
+  still not retried, so reauthentication is as immediate as it was.
+
+### Added
+
+- **The login handshake is logged at debug level.** The prompt the module
+  sent, the length of the password being sent, whether it is plain ASCII,
+  whether it has whitespace around it, and the module's answer. The password
+  itself is never logged and a test enforces that. This is what tells a
+  password the module rejected apart from one that never arrived intact --
+  a distinction that could not be made at all while this was blind. See
+  "Turning on debug logging" in the README.
+
 ## [0.3.0] - 2026-09-05
 
 ### Added

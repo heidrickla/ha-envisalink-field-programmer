@@ -87,14 +87,20 @@ rules:
     comment: |
       The flow completes the TPI login handshake against the Envisalink and
       disconnects before creating the entry, so a wrong password or a busy
-      or unreachable port is caught on the form.
+      or unreachable port is caught on the form. The disconnect is awaited
+      and settled before the entry's own connection opens, because the
+      module admits one client and frees the slot only on the close.
+      Reconfigure borrows the running entry's session to make the same test,
+      and skips it when host, port and password are all unchanged.
   test-before-setup:
     status: done
     comment: |
       A rejected password raises ConfigEntryAuthFailed; every other client
       error (connection, protocol, command) and OSError raises
       ConfigEntryNotReady. Both carry translation keys. A failure after
-      login closes the socket, since the Envisalink admits one TPI client.
+      login closes the socket, since the Envisalink admits one TPI client,
+      and a first connect the module drops mid-login is attempted once more
+      before the entry is failed.
   unique-config-entry:
     status: done
     comment: |
@@ -272,7 +278,10 @@ rules:
       is a new unique id, and what the flow refuses instead is an address
       another entry already holds. tests/ha/test_config_flow.py covers the
       move, a new password, the wrong password and the recovery from it,
-      counts over the model limit, and the taken address.
+      counts over the model limit, the taken address, and the single-session
+      paths: a loaded entry lending its session to the connection test, a
+      failed test handing that session straight back, and a form that
+      changes no connection setting making no test at all.
   repair-issues:
     status: done
     comment: |

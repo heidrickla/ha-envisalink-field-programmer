@@ -103,7 +103,10 @@ Programmer".
 
 The flow logs in to the Envisalink before creating the entry, so a wrong
 password ("The Envisalink rejected that password") or a busy or unreachable
-port ("Could not connect") is caught on the form.
+port ("Could not connect") is caught on the form. That test hands the module's
+single client slot back before the entry's own connection opens, and the
+entry tries a second time if the module has not caught up yet, so submitting
+the form does not leave you with an entry that has to wait for a retry.
 
 ### Options
 
@@ -159,10 +162,19 @@ which are described below the table.
 | Number of partitions | Lowering this deletes the entities of the partitions above it when the entry reloads. |
 | Number of zones | Lowering this deletes the entities of the zones above it when the entry reloads. |
 
-The counts are checked against the selected model before anything is dialled,
-and the login is proved at the new address before the entry is changed. An
-address another entry already uses is refused. The default user code and the
-installer code are not touched here; they live in the options.
+The counts are checked against the selected model before anything is dialled.
+An address another entry already uses is refused. The default user code and
+the installer code are not touched here; they live in the options.
+
+The login is proved at the new address before the entry is changed, but only
+when there is something to prove: a form that leaves host, port and password
+alone changes nothing a login could test, so nothing is dialled and the
+running session is left alone. When one of the three did change, the entry
+hands its TPI session over for the length of the test and takes it back
+straight afterwards, because the Envisalink admits only one client at a time
+(see below). Entities are unavailable for that second or two. If the test
+fails, the form comes back with the error and the entry carries on exactly as
+it was.
 
 Lowering a count reloads the entry, and setup then deletes the registry
 entries for the zones or partitions above the new count: the zone sensor and
@@ -190,6 +202,16 @@ two integrations cannot both be connected at the same time, so plan your
 setup around whichever one you want active day to day (for example keep
 `envisalink_new` enabled for daily zone and arm status, and only temporarily
 disable it and enable this one when you need to do field programming).
+
+The one client is also released and reclaimed rather than shared. Measured
+against an EVL-4 on 2026-09-05: the module frees its slot only when it has
+seen the previous connection close, and a client that connects a few
+milliseconds later is dropped part-way through the login with no answer at
+all. So this integration waits for its own disconnect to land, the setup form
+waits a further half second after testing a login, and setup makes a second
+connection attempt before giving up on a module that is still catching up.
+There is no lockout to worry about on the way: the module accepts the right
+password immediately after any number of rejected ones.
 
 ### Removing the integration
 
@@ -580,6 +602,28 @@ done anything.
 
 Check Settings, System, Repairs too: a session that has been down for a few
 minutes puts the reason there rather than leaving it in the log.
+
+### Turning on debug logging
+
+Nothing here needs a restart or a change to `configuration.yaml`. In
+Developer tools, Actions, run `logger.set_level` with:
+
+```yaml
+action: logger.set_level
+data:
+  custom_components.envisalink_field_programmer: debug
+```
+
+Set it back to `info` the same way when you are done. What you get is the
+login handshake in full: the prompt the module sent, the length of the
+password being sent, whether it is plain ASCII and whether it has whitespace
+around it, and the module's answer. **The password itself is never written to
+the log**, and a test enforces that. This is what tells a password the module
+rejected (`answered 'FAILED'`) apart from a password that never arrived
+intact (`answered None`, meaning the module closed the connection without
+replying, which usually means it has not yet noticed the previous client
+leave). Reconnect attempts, refused commands and the zone timer dumps log at
+the same level.
 
 ## What's verified vs. what needs your hardware
 
