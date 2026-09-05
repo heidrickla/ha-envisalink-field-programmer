@@ -213,8 +213,13 @@ rules:
       Every HomeAssistantError this integration raises carries a translation
       key: the setup exceptions, the no-code error, the three keystroke-guard
       refusals, the device refusal from the guarded sender and all six
-      guided-programming refusals. The offline validator fails a raise that
-      has no key and a key that nothing raises.
+      guided-programming refusals. The offline validator reads the setup,
+      coordinator, service and platform modules from their syntax trees and
+      fails any raise of one of those classes that names no translation key,
+      a key the strings do not declare, and a declared key nothing raises.
+      Checked 2026-09-04 with a positive control in each direction: an
+      untranslated raise inserted into coordinator.py, and one inserted into
+      field_programming_services.py, each failed the run.
   icon-translations:
     status: done
     comment: |

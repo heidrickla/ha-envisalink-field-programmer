@@ -31,6 +31,19 @@ EXCEPTION_SOURCES = (
     "field_programming_services.py",
     *(f"{p}.py" for p in PLATFORMS),
 )
+# Exception classes whose message reaches the user, so each raise of one has
+# to name a translation key. KeystrokeGuardError is this integration's own
+# ServiceValidationError subclass.
+TRANSLATED_EXCEPTIONS = frozenset(
+    {
+        "ConfigEntryAuthFailed",
+        "ConfigEntryNotReady",
+        "HomeAssistantError",
+        "KeystrokeGuardError",
+        "ServiceValidationError",
+        "UpdateFailed",
+    }
+)
 
 # hassfest requires these for a custom integration.
 REQUIRED_MANIFEST = [
@@ -148,6 +161,32 @@ def constants(source: str, prefix: str) -> dict[str, str]:
             and isinstance(node.value.value, str)
         ):
             found[target.id] = node.value.value
+    return found
+
+
+def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
+    """Every raise of a user-facing exception: class, translation key, line.
+
+    The key is None when the raise passes none, and "<not a literal>" when it
+    passes something the cross-check against strings.json cannot resolve.
+    """
+    found: list[tuple[str, str | None, int]] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Raise) or not isinstance(node.exc, ast.Call):
+            continue
+        func = node.exc.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+        if name not in TRANSLATED_EXCEPTIONS:
+            continue
+        key: str | None = None
+        for keyword in node.exc.keywords:
+            if keyword.arg != "translation_key":
+                continue
+            if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+                key = keyword.value.value
+            else:
+                key = "<not a literal>"
+        found.append((name, key, node.lineno))
     return found
 
 
@@ -366,12 +405,19 @@ def main() -> int:
             notes.append("PyYAML not installed - quality_scale.yaml not parsed")
 
     # ------------------------------------------------- exception translations
-    # Every translated exception the code raises is declared, and nothing
-    # declared is unused.
-    exc_re = re.compile(r'translation_domain=DOMAIN,\s*translation_key="([^"]+)"')
+    # Every user-facing exception raised anywhere in EXCEPTION_SOURCES carries
+    # a translation key, that key is declared, and nothing declared is unused.
+    # Read from the syntax tree, not a regex, so a raise the message formatting
+    # hides is still seen.
     raised: set[str] = set()
     for f in EXCEPTION_SOURCES:
-        raised |= set(exc_re.findall(read(COMP, f)))
+        for name, key, line in raised_exceptions(read(COMP, f)):
+            check(
+                key is not None,
+                f"{f}:{line}: {name} raised without a translation key",
+            )
+            if key is not None:
+                raised.add(key)
     declared_exc = set(strings.get("exceptions", {}))
     check(
         raised <= declared_exc,
@@ -381,15 +427,6 @@ def main() -> int:
         declared_exc <= raised,
         f"strings.json declares unused exceptions {sorted(declared_exc - raised)}",
     )
-    # Setup and poll exceptions must carry a translation, not an f-string.
-    for f in ("__init__.py", "coordinator.py"):
-        source = read(COMP, f)
-        for exc in ("ConfigEntryNotReady", "ConfigEntryAuthFailed", "UpdateFailed"):
-            for match in re.finditer(rf"raise {exc}\((.*?)\) from", source, re.S):
-                check(
-                    "translation_key=" in match.group(1),
-                    f"{f}: {exc} raised without a translation key",
-                )
 
     # ----------------------------------------------------- issue translations
     issue_consts = set(constants(const_src, "ISSUE_").values())
