@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 
@@ -44,6 +46,10 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
 ]
 
+# Every numbered entity's unique id is the entry id, then the kind and the
+# number: zone_7, zone_7_bypass, partition_2, partition_2_last_user.
+_NUMBERED_UNIQUE_ID = re.compile(r"^(?P<kind>partition|zone)_(?P<number>\d+)(?:_|$)")
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the actions once, at component setup.
@@ -57,8 +63,40 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+@callback
+def _async_remove_out_of_range_entities(
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
+) -> None:
+    """Delete registry entries for zones and partitions the entry no longer has.
+
+    Lowering a count in the reconfigure flow only stops those entities being
+    added again; Home Assistant would keep the registry entries and write an
+    unavailable state for each one, so they are removed here instead.
+    """
+    limits = {
+        "partition": int(entry.data[CONF_NUM_PARTITIONS]),
+        "zone": int(entry.data[CONF_NUM_ZONES]),
+    }
+    registry = er.async_get(hass)
+    prefix = f"{entry.entry_id}_"
+    for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if not registry_entry.unique_id.startswith(prefix):
+            continue
+        match = _NUMBERED_UNIQUE_ID.match(registry_entry.unique_id[len(prefix) :])
+        if match is None:
+            continue
+        if int(match.group("number")) > limits[match.group("kind")]:
+            _LOGGER.debug(
+                "Removing %s: its %s is above the configured count",
+                registry_entry.entity_id,
+                match.group("kind"),
+            )
+            registry.async_remove(registry_entry.entity_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> bool:
     """Set up Envisalink Field Programmer from a config entry."""
+    _async_remove_out_of_range_entities(hass, entry)
     host: str = entry.data[CONF_HOST]
     coordinator = VistaConsoleCoordinator(
         hass,

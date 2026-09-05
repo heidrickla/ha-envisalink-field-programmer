@@ -144,7 +144,8 @@ its password, network settings and firmware live.
 
 Settings, Devices & services, Envisalink Field Programmer, the three-dot menu
 on the entry, Reconfigure. The entry keeps its entities, its history and its
-entity ids.
+entity ids, except for the zones and partitions dropped by lowering a count,
+which are described below the table.
 
 | Field | Description |
 |---|---|
@@ -152,13 +153,22 @@ entity ids.
 | Port | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
 | Envisalink password | Blank keeps the stored password. Type one only to change it. |
 | Alarm panel model | The panel behind the Envisalink; sets the zone and partition limits and the field-programming grammar. |
-| Number of partitions | Lowering this removes the entities of the partitions above it. |
-| Number of zones | Lowering this removes the entities of the zones above it. |
+| Number of partitions | Lowering this deletes the entities of the partitions above it when the entry reloads. |
+| Number of zones | Lowering this deletes the entities of the zones above it when the entry reloads. |
 
 The counts are checked against the selected model before anything is dialled,
 and the login is proved at the new address before the entry is changed. An
 address another entry already uses is refused. The default user code and the
 installer code are not touched here; they live in the options.
+
+Lowering a count reloads the entry, and setup then deletes the registry
+entries for the zones or partitions above the new count: the zone sensor and
+its bypass switch, or the alarm control panel and its Last User sensor. Home
+Assistant would otherwise keep them forever as unavailable entities, because
+an entity that is simply no longer added is never removed on its own. Anything
+below the new count, and the entities that are not numbered, are untouched.
+Raising the count again creates the entities fresh; they take the same entity
+ids unless something else has claimed them in the meantime.
 
 ### The Envisalink only accepts one TPI client at a time
 

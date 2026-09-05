@@ -230,7 +230,9 @@ rules:
     comment: |
       async_step_reconfigure changes the host, port, password, panel model
       and the zone and partition counts, and the entry keeps its entities.
-      A blank password keeps the stored one. There is no unique-id mismatch
+      A blank password keeps the stored one; lowering a count deletes the
+      registry entries above it, so no orphan is left unavailable in the
+      entity list. There is no unique-id mismatch
       abort because the unique id is the address being changed: the TPI
       protocol exposes no serial or MAC to identify the unit by, so a move
       is a new unique id, and what the flow refuses instead is an address

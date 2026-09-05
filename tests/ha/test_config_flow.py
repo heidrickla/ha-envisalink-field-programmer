@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -242,6 +243,44 @@ def _reconfigure_input(fake_server, **overrides) -> dict:
     values.pop("user_code", None)
     values["panel_model"] = overrides.get("panel_model", "vista_21ip")
     return values
+
+
+def _unique_id_suffixes(hass, entry) -> set[str]:
+    """The part of each registered unique id that names the entity."""
+    registry = er.async_get(hass)
+    prefix = f"{entry.entry_id}_"
+    return {
+        registry_entry.unique_id.removeprefix(prefix)
+        for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+
+
+async def test_reconfigure_lowering_the_counts_removes_the_orphaned_entities(hass, fake_server):
+    # An entity that is simply no longer added keeps its registry entry and
+    # shows as unavailable forever, so setup deletes the ones above the counts.
+    entry = await setup_entry(hass, fake_server, num_partitions=2, num_zones=8)
+    before = _unique_id_suffixes(hass, entry)
+    assert {"zone_8", "zone_8_bypass", "partition_2", "partition_2_last_user"} <= before
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _reconfigure_input(fake_server, num_zones=4, num_partitions=1)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+
+    after = _unique_id_suffixes(hass, entry)
+    orphans = {
+        suffix
+        for suffix in after
+        if suffix.startswith(("zone_5", "zone_6", "zone_7", "zone_8", "partition_2"))
+    }
+    assert orphans == set()
+    assert {"zone_4", "zone_4_bypass", "partition_1", "partition_1_last_user"} <= after
+    # The entities that carry no number are left alone.
+    assert {"last_event", "system_trouble"} <= after
+    await unload_entry(hass, entry)
 
 
 async def test_reconfigure_moves_the_entry_to_a_new_address(hass, fake_server):

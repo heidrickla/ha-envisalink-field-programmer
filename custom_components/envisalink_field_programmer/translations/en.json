@@ -40,8 +40,8 @@
           "port": "The TPI port. 4025 unless you changed it on the Envisalink's web page.",
           "password": "Leave blank to keep the stored password. Type one only to change it.",
           "panel_model": "The alarm panel behind the Envisalink. It sets the zone and partition limits and which keystroke grammar field programming uses.",
-          "num_partitions": "How many partitions the panel has configured (1 to 8). Lowering this removes the entities of the partitions above it.",
-          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Lowering this removes the entities of the zones above it."
+          "num_partitions": "How many partitions the panel has configured (1 to 8). Lowering this deletes the entities of the partitions above it when the entry reloads.",
+          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Lowering this deletes the entities of the zones above it when the entry reloads."
         }
       },
       "reauth_confirm": {

@@ -387,6 +387,24 @@ async def test_disarm_types_the_default_code(hass, fake_server):
     await unload_entry(hass, entry)
 
 
+async def test_setup_leaves_registry_entries_it_does_not_own(hass, fake_server):
+    # The orphan sweep only touches unique ids this entry built, so an entry
+    # registered under the same config entry by anything else survives it.
+    entry = await setup_entry(hass, fake_server, num_zones=4)
+    registry = er.async_get(hass)
+    foreign = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "somewhere_else_zone_99",
+        config_entry=entry,
+        suggested_object_id="foreign_zone_99",
+    )
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get(foreign.entity_id) is not None
+    await unload_entry(hass, entry)
+
+
 async def test_diagnostics_redact_every_code(hass, fake_server):
     entry = await setup_entry(
         hass, fake_server, num_zones=4, options={"installer_code": "4112", "user_code": "1234"}

@@ -23,6 +23,11 @@ was cut: everything under Unreleased is on `main` and in no tag yet.
   partition counts can be changed without deleting the entry, so entity ids
   and history survive. A blank password keeps the stored one; an address
   another entry already uses is refused.
+- **Lowering a zone or partition count deletes the entities above it.** Setup
+  removes the registry entries for the zones and partitions the entry no
+  longer has, instead of leaving them in the entity list as unavailable
+  forever. Entities below the count, and the ones that are not numbered, are
+  left alone.
 - **A repair issue for a session that stays down.** After five failed
   reconnects, about two and a half minutes, Settings, System, Repairs names
   the address and the usual cause, which is another client holding the
