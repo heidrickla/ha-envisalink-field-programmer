@@ -243,6 +243,31 @@ def main() -> int:
                 f"{flow}.{step}: data_description {sorted(data ^ described)} out of step with data",
             )
 
+    # ------------------------------------------------- entity translations
+    # Every entity name comes from a translation key, and every declared key
+    # belongs to an entity. A key on neither side is a name that silently
+    # falls back to the object id.
+    entity_strings = strings.get("entity", {})
+    for platform in PLATFORMS:
+        used = set(
+            re.findall(r'_attr_translation_key\s*=\s*"([^"]+)"', read(COMP, f"{platform}.py"))
+        )
+        declared_keys = set(entity_strings.get(platform, {}))
+        check(
+            used <= declared_keys,
+            f"{platform}.py uses translation keys {sorted(used - declared_keys)} "
+            "that strings.json does not declare",
+        )
+        check(
+            declared_keys <= used,
+            f"strings.json declares entity keys {sorted(declared_keys - used)} "
+            f"that {platform}.py does not use",
+        )
+    check(
+        set(entity_strings) <= set(PLATFORMS),
+        f"strings.json entity section names non-platforms {sorted(set(entity_strings) - set(PLATFORMS))}",
+    )
+
     # ---------------------------------------------------------- actions
     services_yaml = os.path.join(COMP, "services.yaml")
     check(os.path.isfile(services_yaml), "services.yaml is missing")
@@ -282,6 +307,27 @@ def main() -> int:
                 )
     except ImportError:
         notes.append("PyYAML not installed - services.yaml not parsed")
+
+    # ---------------------------------------------------------- icons
+    # Actions and the entities with no device class carry an icon; entities
+    # whose device class already supplies one are deliberately absent, so an
+    # entry here that strings.json does not know is a typo, not an override.
+    icons_path = os.path.join(COMP, "icons.json")
+    check(os.path.isfile(icons_path), "icons.json is missing")
+    if os.path.isfile(icons_path):
+        icons = read_json(COMP, "icons.json")
+        check(
+            set(icons.get("services", {})) == service_consts,
+            f"icons.json gives icons for {sorted(icons.get('services', {}))} but "
+            f"const.py names {sorted(service_consts)}",
+        )
+        for platform, keys in icons.get("entity", {}).items():
+            declared_keys = set(strings.get("entity", {}).get(platform, {}))
+            check(
+                set(keys) <= declared_keys,
+                f"icons.json {platform} keys {sorted(set(keys) - declared_keys)} "
+                "are not entity translation keys",
+            )
 
     # ---------------------------------------------------------- quality scale
     scale_path = os.path.join(COMP, "quality_scale.yaml")

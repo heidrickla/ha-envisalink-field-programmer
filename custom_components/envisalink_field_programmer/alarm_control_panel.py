@@ -54,11 +54,12 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         super().__init__(coordinator, f"partition_{partition_number}")
         self._partition_number = partition_number
         self._default_code = default_code
-        self._attr_name = (
-            "Partition"
-            if len(coordinator.data.partitions) == 1
-            else f"Partition {partition_number}"
-        )
+        # One partition needs no number in the name; several do.
+        if len(coordinator.data.partitions) == 1:
+            self._attr_translation_key = "partition"
+        else:
+            self._attr_translation_key = "partition_numbered"
+            self._attr_translation_placeholders = {"number": str(partition_number)}
         # A real Vista panel arms/disarms by typing the user code followed
         # by a mode digit -- there is no code-free arm command over this
         # protocol, unlike some other panel families. So a code is always

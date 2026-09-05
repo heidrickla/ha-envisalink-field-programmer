@@ -30,13 +30,19 @@ async def async_setup_entry(
 
 
 class VistaLastEventSensor(VistaConsoleEntity, SensorEntity):
-    """The most recently received raw TPI event, for diagnostics."""
+    """The most recently received raw TPI event, for diagnostics.
+
+    Disabled by default: it changes on every keepalive acknowledgement, which
+    is a state write every 30 seconds for a value only useful while debugging
+    the protocol. Enable it in the entity settings when that is what you want.
+    """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "last_event"
 
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "last_event")
-        self._attr_name = "Last Event"
 
     @property
     def native_value(self) -> str | None:
@@ -59,11 +65,12 @@ class VistaLastUserSensor(VistaConsoleEntity, SensorEntity):
     def __init__(self, coordinator: VistaConsoleCoordinator, partition_number: int) -> None:
         super().__init__(coordinator, f"partition_{partition_number}_last_user")
         self._partition_number = partition_number
-        self._attr_name = (
-            "Last User"
-            if len(coordinator.data.partitions) == 1
-            else f"Partition {partition_number} Last User"
-        )
+        # One partition needs no number in the name; several do.
+        if len(coordinator.data.partitions) == 1:
+            self._attr_translation_key = "last_user"
+        else:
+            self._attr_translation_key = "partition_last_user"
+            self._attr_translation_placeholders = {"number": str(partition_number)}
 
     @property
     def native_value(self) -> str | None:

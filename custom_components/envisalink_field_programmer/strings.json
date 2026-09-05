@@ -68,6 +68,40 @@
       }
     }
   },
+  "entity": {
+    "alarm_control_panel": {
+      "partition": {
+        "name": "Partition"
+      },
+      "partition_numbered": {
+        "name": "Partition {number}"
+      }
+    },
+    "binary_sensor": {
+      "zone": {
+        "name": "Zone {number}"
+      },
+      "system_trouble": {
+        "name": "System Trouble"
+      }
+    },
+    "sensor": {
+      "last_event": {
+        "name": "Last Event"
+      },
+      "last_user": {
+        "name": "Last User"
+      },
+      "partition_last_user": {
+        "name": "Partition {number} Last User"
+      }
+    },
+    "switch": {
+      "zone_bypass": {
+        "name": "Zone {number} Bypass"
+      }
+    }
+  },
   "exceptions": {
     "entry_not_found": {
       "message": "No Envisalink Field Programmer entry has the id {entry_id}."

@@ -38,11 +38,12 @@ class VistaZoneBypassSwitch(VistaConsoleEntity, SwitchEntity):
 
     _attr_device_class = SwitchDeviceClass.SWITCH
     _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "zone_bypass"
 
     def __init__(self, coordinator: VistaConsoleCoordinator, zone_number: int) -> None:
         super().__init__(coordinator, f"zone_{zone_number}_bypass")
         self._zone_number = zone_number
-        self._attr_name = f"Zone {zone_number} Bypass"
+        self._attr_translation_placeholders = {"number": str(zone_number)}
 
     @property
     def is_on(self) -> bool:

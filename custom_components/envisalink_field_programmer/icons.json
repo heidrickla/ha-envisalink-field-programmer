@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "sensor": {
+      "last_event": {
+        "default": "mdi:message-text-clock"
+      },
+      "last_user": {
+        "default": "mdi:account-clock"
+      },
+      "partition_last_user": {
+        "default": "mdi:account-clock"
+      }
+    }
+  },
+  "services": {
+    "send_keystrokes": "mdi:keyboard",
+    "toggle_zone_bypass": "mdi:shield-off-outline",
+    "program_zone": "mdi:motion-sensor",
+    "set_system_timing": "mdi:timer-cog-outline",
+    "program_function_key": "mdi:alpha-a-box-outline"
+  }
+}

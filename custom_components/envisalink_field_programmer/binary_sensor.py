@@ -8,6 +8,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -47,7 +48,13 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
     ) -> None:
         super().__init__(coordinator, f"zone_{zone_number}")
         self._zone_number = zone_number
-        self._attr_name = name or f"Zone {zone_number}"
+        # A zone name typed into the options is the user's own text and is
+        # used as given; without one the name is translated.
+        if name:
+            self._attr_name = name
+        else:
+            self._attr_translation_key = "zone"
+            self._attr_translation_placeholders = {"number": str(zone_number)}
 
     @property
     def _zone(self) -> ZoneState:
@@ -79,11 +86,14 @@ class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
     separate AC/battery/bell/FTC/tamper conditions.
     """
 
+    # Diagnostic, not a primary control: it reports the panel's own health
+    # (AC, battery, trouble, installer mode), not the security state.
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "system_trouble"
 
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "system_trouble")
-        self._attr_name = "System Trouble"
 
     @property
     def is_on(self) -> bool:

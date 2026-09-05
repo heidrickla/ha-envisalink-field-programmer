@@ -154,11 +154,12 @@ rules:
       device, fixed by the counts given at setup; the protocol reports no
       hardware coming or going.
   entity-category:
-    status: todo
+    status: done
     comment: |
-      Last Event and Last User are DIAGNOSTIC. The System Trouble problem
-      sensor has no category; core files PROBLEM sensors both ways and a
-      decision is pending.
+      Last Event, Last User and System Trouble are DIAGNOSTIC: each reports
+      the panel's own health or protocol traffic rather than the security
+      state. The alarm control panels, zone sensors and bypass switches are
+      primary entities and take the default category.
   entity-device-class:
     status: done
     comment: |
@@ -166,16 +167,22 @@ rules:
       SWITCH. Alarm control panels have no device class; the diagnostic
       text sensors have none that fits.
   entity-disabled-by-default:
-    status: todo
+    status: done
     comment: |
-      Zone bypass switches are disabled by default. The Last Event sensor
-      changes on every keepalive frame and is still enabled by default; it
-      should be disabled once the card no longer relies on it.
+      Zone bypass switches and the Last Event sensor are disabled by default:
+      the switches write keystrokes to the panel, and Last Event changes on
+      every keepalive acknowledgement, a state write every 30 seconds for a
+      value only useful while debugging the protocol. The Lovelace card reads
+      neither, so nothing breaks when they are off.
   entity-translations:
-    status: todo
+    status: done
     comment: |
-      Entity names are English literals set on _attr_name. Needs
-      translation_key on every entity and an entity section in strings.json.
+      Every entity name comes from a translation key with an entity section
+      in strings.json; the numbered ones carry the partition or zone number
+      as a placeholder. The one exception is a zone the user has named in the
+      options, which is their own text and is shown as typed. The offline
+      validator fails a key the strings do not declare and a declared key no
+      entity uses.
   exception-translations:
     status: done
     comment: |
@@ -185,10 +192,15 @@ rules:
       guided-programming refusals. The offline validator fails a raise that
       has no key and a key that nothing raises.
   icon-translations:
-    status: todo
+    status: done
     comment: |
-      No icons.json. Last Event and Last User have neither a device class
-      nor an icon, and the actions have no icons.
+      icons.json gives the five actions an icon each and covers the two
+      diagnostic text sensors, which have no device class to supply one. The
+      zone sensors (OPENING), System Trouble (PROBLEM), the bypass switches
+      (SWITCH) and the alarm control panels are deliberately absent: their
+      device class already picks the icon, and an override would only fight
+      it. The offline validator fails an icon key that names no action or
+      entity.
   reconfiguration-flow:
     status: todo
     comment: |

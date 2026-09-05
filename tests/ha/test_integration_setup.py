@@ -67,6 +67,65 @@ async def test_entities_created_and_default_state(hass, fake_server):
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 
+async def test_entity_names_come_from_the_translations(hass, fake_server):
+    # Names are translation keys now, so a missing entity string shows up as
+    # a friendly name that is the object id rather than the text below.
+    entry = await setup_entry(hass, fake_server, num_zones=2, num_partitions=1)
+
+    def friendly(domain: str, suffix: str) -> str:
+        state = hass.states.get(_entity_id(hass, entry, domain, suffix))
+        assert state is not None
+        name: str = state.attributes["friendly_name"]
+        return name
+
+    assert friendly("alarm_control_panel", "partition_1").endswith("Partition")
+    assert friendly("binary_sensor", "zone_2").endswith("Zone 2")
+    assert friendly("binary_sensor", "system_trouble").endswith("System Trouble")
+    assert friendly("sensor", "partition_1_last_user").endswith("Last User")
+
+    await unload_entry(hass, entry)
+
+
+async def test_several_partitions_get_numbered_names(hass, fake_server):
+    entry = await setup_entry(hass, fake_server, num_zones=2, num_partitions=2)
+    for number in (1, 2):
+        alarm = hass.states.get(
+            _entity_id(hass, entry, "alarm_control_panel", f"partition_{number}")
+        )
+        assert alarm is not None
+        assert alarm.attributes["friendly_name"].endswith(f"Partition {number}")
+        last_user = hass.states.get(
+            _entity_id(hass, entry, "sensor", f"partition_{number}_last_user")
+        )
+        assert last_user is not None
+        assert last_user.attributes["friendly_name"].endswith(f"Partition {number} Last User")
+    await unload_entry(hass, entry)
+
+
+async def test_a_named_zone_keeps_the_users_own_text(hass, fake_server):
+    entry = await setup_entry(
+        hass, fake_server, num_zones=2, options={"zone_names": {"1": "Front Door"}}
+    )
+    named = hass.states.get(_entity_id(hass, entry, "binary_sensor", "zone_1"))
+    assert named is not None
+    assert named.attributes["friendly_name"].endswith("Front Door")
+    await unload_entry(hass, entry)
+
+
+async def test_noisy_diagnostics_are_disabled_by_default(hass, fake_server):
+    # Last Event changes on every keepalive acknowledgement and the bypass
+    # switches write to the panel, so neither is created enabled.
+    entry = await setup_entry(hass, fake_server, num_zones=2)
+    registry = er.async_get(hass)
+    for domain, suffix in (("sensor", "last_event"), ("switch", "zone_1_bypass")):
+        entity_id = _entity_id(hass, entry, domain, suffix)
+        assert registry.async_get(entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+        assert hass.states.get(entity_id) is None
+    # The other diagnostic sensor stays enabled.
+    assert hass.states.get(_entity_id(hass, entry, "sensor", "partition_1_last_user")) is not None
+    await unload_entry(hass, entry)
+
+
 async def test_arm_event_updates_alarm_entity(hass, fake_server):
     entry = await setup_entry(hass, fake_server, num_zones=4)
     # Icon LED bits: armed_away (bit 2) + ac_present (bit 3) = 0xC.
