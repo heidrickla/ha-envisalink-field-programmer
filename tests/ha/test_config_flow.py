@@ -17,6 +17,12 @@ from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import PASSWORD, entry_data, setup_entry, unload_entry
 
+# The address an Envisalink has moved away from. RFC 5737 reserves 192.0.2.0/24
+# for documentation, so nothing on any network answers there. A name such as
+# "localhost" would not do: it resolves to ::1 first on the CI runner, and the
+# test harness only permits connections to 127.0.0.1.
+OLD_ADDRESS = "192.0.2.10"
+
 
 def _form_input(fake_server, **overrides) -> dict:
     """What a user types on the setup form."""
@@ -285,15 +291,18 @@ async def test_reconfigure_lowering_the_counts_removes_the_orphaned_entities(has
 
 async def test_reconfigure_moves_the_entry_to_a_new_address(hass, fake_server):
     # The Envisalink was given a new address. The unique id is the address, so
-    # it moves with the entry.
-    entry = await setup_entry(hass, fake_server, host="localhost")
+    # it moves with the entry. The entry is added without being set up because
+    # that is the state a moved unit leaves it in: nothing answers at the old
+    # address, so the entry has no update listener and the flow reloads it.
+    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry.add_to_hass(hass)
     assert entry.unique_id is None
     result = await entry.start_reconfigure_flow(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reconfigure"
     # The stored password is not offered back to the browser.
     assert _suggested(result, "password") is None
-    assert _suggested(result, "host") == "localhost"
+    assert _suggested(result, "host") == OLD_ADDRESS
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1")
@@ -353,7 +362,8 @@ async def test_reconfigure_refuses_counts_over_the_model_limit(hass, fake_server
 
 
 async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_server):
-    entry = await setup_entry(hass, fake_server, host="localhost")
+    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry.add_to_hass(hass)
     MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server)).add_to_hass(hass)
     result = await entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -361,8 +371,7 @@ async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_serv
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-    assert entry.data["host"] == "localhost"
-    await unload_entry(hass, entry)
+    assert entry.data["host"] == OLD_ADDRESS
 
 
 async def test_reauth_with_a_still_wrong_password_then_the_right_one(hass, fake_server):
