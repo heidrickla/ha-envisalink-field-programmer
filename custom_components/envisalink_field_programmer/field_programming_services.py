@@ -110,9 +110,8 @@ PROGRAM_FUNCTION_KEY_SCHEMA = vol.Schema(
 def _require_installer_code(coordinator: VistaConsoleCoordinator) -> str:
     if not coordinator.installer_code:
         raise ServiceValidationError(
-            "Field programming needs an installer code. Set one in this "
-            "integration's options (Settings -> Devices & Services -> "
-            "Envisalink Field Programmer -> Configure) first."
+            translation_domain=DOMAIN,
+            translation_key="no_installer_code",
         )
     return coordinator.installer_code
 
@@ -128,8 +127,13 @@ def _require_guided_support(coordinator: VistaConsoleCoordinator, op: GuidedOp) 
     """
     if op not in coordinator.dialect.supported_guided_ops:
         raise ServiceValidationError(
-            f"Guided {op.value} programming is not available for "
-            f"{coordinator.panel_model.label}. " + coordinator.dialect.guided_field_programming_note
+            translation_domain=DOMAIN,
+            translation_key="guided_op_unsupported",
+            translation_placeholders={
+                "operation": op.value,
+                "model": coordinator.panel_model.label,
+                "note": coordinator.dialect.guided_field_programming_note,
+            },
         )
 
 
@@ -149,12 +153,13 @@ def _require_verified_or_ack(
         return
     if not confirm_unverified:
         raise KeystrokeGuardError(
-            f"{model.label} is not verified against its own programming guide "
-            f"({model.verification.value}): {model.notes} Field numbers/zone-type "
-            "codes may be wrong for this exact panel, and this integration "
-            "cannot read back the panel to catch a mistake. Pass "
-            "confirm_unverified_model: true to proceed anyway, and verify the "
-            "result at the physical keypad."
+            translation_domain=DOMAIN,
+            translation_key="unverified_model",
+            translation_placeholders={
+                "model": model.label,
+                "verification": model.verification.value,
+                "notes": model.notes,
+            },
         )
 
 
@@ -193,12 +198,12 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
         zone_type = call.data[ATTR_ZONE_TYPE]
         if zone_type in LIFE_SAFETY_ZONE_TYPE_CODES and not call.data[ATTR_CONFIRM_LIFE_SAFETY]:
             raise KeystrokeGuardError(
-                f"Zone type {zone_type} ({ZONE_TYPES[zone_type].label}) is a "
-                "life-safety type (fire/CO). Pass confirm_life_safety: true to "
-                "confirm you intend this. Also remember: this integration "
-                "cannot read back what type this zone currently is before "
-                "overwriting it -- double-check at the physical keypad "
-                "(installer code + # + 56) if you're not certain."
+                translation_domain=DOMAIN,
+                translation_key="life_safety_zone_type",
+                translation_placeholders={
+                    "zone_type": str(zone_type),
+                    "label": ZONE_TYPES[zone_type].label,
+                },
             )
         program = ZoneProgram(
             zone_number=call.data[ATTR_ZONE_NUMBER],
@@ -226,9 +231,13 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
         valid = coordinator.dialect.timing_fields()
         if field not in valid:
             raise ServiceValidationError(
-                f"Timing field {field!r} is not valid for "
-                f"{coordinator.panel_model.label}. Valid fields: "
-                f"{', '.join(sorted(valid))}."
+                translation_domain=DOMAIN,
+                translation_key="invalid_timing_field",
+                translation_placeholders={
+                    "field": field,
+                    "model": coordinator.panel_model.label,
+                    "valid": ", ".join(sorted(valid)),
+                },
             )
         partition = call.data[ATTR_PARTITION]
         # The value range depends on the field and the dialect, so the schema
@@ -238,7 +247,11 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
                 field, call.data[ATTR_VALUE], partition
             )
         except ValueError as err:
-            raise ServiceValidationError(str(err)) from err
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_timing_value",
+                translation_placeholders={"error": str(err)},
+            ) from err
         await _send_program_mode_sequence(
             coordinator,
             partition,

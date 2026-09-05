@@ -83,6 +83,36 @@
     },
     "no_code": {
       "message": "No user code was given and no default user code is configured. A Vista panel has no code-free way to arm or disarm."
+    },
+    "empty_keystrokes": {
+      "message": "No keystrokes were given. There is nothing to send to the panel."
+    },
+    "invalid_keystroke_characters": {
+      "message": "Invalid keystroke characters: {characters}. A keypad accepts only digits, * and #."
+    },
+    "opens_program_mode": {
+      "message": "Refusing to send {keys}: on this panel that sequence opens installer Program Mode, which governs every data field including fire zones and UL-listing-relevant settings, and this protocol cannot read back what is on the keypad display. Set confirm_installer_risk to true if you intend it."
+    },
+    "keystrokes_not_accepted": {
+      "message": "The Envisalink did not accept the keystroke sequence: {error}"
+    },
+    "no_installer_code": {
+      "message": "Field programming needs an installer code. Set one in this integration's options (Settings > Devices & services > Envisalink Field Programmer > Configure) first."
+    },
+    "guided_op_unsupported": {
+      "message": "Guided {operation} programming is not available for {model}. {note}"
+    },
+    "unverified_model": {
+      "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Set confirm_unverified_model to true to proceed anyway, then check the result at the keypad."
+    },
+    "life_safety_zone_type": {
+      "message": "Zone type {zone_type} ({label}) is a life-safety type. Set confirm_life_safety to true to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
+    },
+    "invalid_timing_field": {
+      "message": "Timing field {field} is not valid for {model}. Valid fields: {valid}."
+    },
+    "invalid_timing_value": {
+      "message": "That timing value is out of range: {error}"
     }
   }
 }

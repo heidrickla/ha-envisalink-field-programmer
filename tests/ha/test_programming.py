@@ -35,21 +35,23 @@ def test_invalid_characters_rejected():
 
 
 def test_program_mode_sequence_blocked_with_known_installer_code():
-    with pytest.raises(KeystrokeGuardError, match="Program Mode"):
+    with pytest.raises(KeystrokeGuardError) as exc:
         validate_keystrokes("4112800*56", installer_code="4112")
+    assert exc.value.translation_key == "opens_program_mode"
 
 
 def test_program_mode_error_redacts_the_installer_code():
-    # The refusal message reaches HA logs and the Lovelace card verbatim, so it
-    # must not leak the installer/user code embedded in the keystrokes. Runs of
-    # 4+ digits are masked; the *56/*99 operators are kept for context.
+    # The refused sequence is a translation placeholder, so it reaches HA logs
+    # and the Lovelace card as part of the message: it must not leak the
+    # installer/user code embedded in the keystrokes. Runs of 4+ digits are
+    # masked; the *56/*99 operators are kept for context.
     with pytest.raises(KeystrokeGuardError) as exc:
         validate_keystrokes("4112800*56", installer_code="4112")
-    message = str(exc.value)
-    assert "4112" not in message
-    assert "4112800" not in message
-    assert "[code]" in message
-    assert "*56" in message  # non-secret operator preserved for debuggability
+    keys = exc.value.translation_placeholders["keys"]
+    assert "4112" not in keys
+    assert "4112800" not in keys
+    assert "[code]" in keys
+    assert "*56" in keys  # non-secret operator preserved for debuggability
 
 
 def test_program_mode_sequence_allowed_when_confirmed():
@@ -62,8 +64,9 @@ def test_program_mode_blocked_by_generic_pattern_without_known_code():
     # Even without a configured installer_code, a run of 4-6 digits
     # immediately followed by "800" is exactly what opening Program Mode
     # looks like on the wire, regardless of which code is in use.
-    with pytest.raises(KeystrokeGuardError, match="Program Mode"):
+    with pytest.raises(KeystrokeGuardError) as exc:
         validate_keystrokes("9876800*56")
+    assert exc.value.translation_key == "opens_program_mode"
 
 
 def test_unrelated_800_substring_is_not_flagged_without_a_preceding_code_run():

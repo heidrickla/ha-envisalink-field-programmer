@@ -84,10 +84,13 @@ rules:
     status: done
     comment: |
       Input and reference errors (unknown or unloaded entry, missing
-      installer code, unsupported guided operation, invalid timing field,
-      every keystroke-guard refusal, arming without a code) raise
+      installer code, unsupported guided operation, invalid timing field or
+      value, every keystroke-guard refusal, arming without a code) raise
       ServiceValidationError; a refused or unacknowledged command raises
-      HomeAssistantError.
+      HomeAssistantError. KeystrokeGuardError is a ServiceValidationError
+      subclass, so the guided refusals are validation errors too;
+      tests/ha/test_field_programming_services.py asserts the class and the
+      translation key of each.
   config-entry-unloading:
     status: done
     comment: |
@@ -174,11 +177,13 @@ rules:
       Entity names are English literals set on _attr_name. Needs
       translation_key on every entity and an entity section in strings.json.
   exception-translations:
-    status: todo
+    status: done
     comment: |
-      The setup exceptions, the action refusals and the no-code error are
-      translated. The keystroke-guard and guided-programming refusals are
-      still English literals with placeholders built by f-string.
+      Every HomeAssistantError this integration raises carries a translation
+      key: the setup exceptions, the no-code error, the three keystroke-guard
+      refusals, the device refusal from the guarded sender and all six
+      guided-programming refusals. The offline validator fails a raise that
+      has no key and a key that nothing raises.
   icon-translations:
     status: todo
     comment: |

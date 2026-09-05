@@ -113,13 +113,17 @@ def validate_keystrokes(
     that don't pass one.
     """
     if not keys:
-        raise KeystrokeGuardError("Keystroke string must not be empty")
+        raise KeystrokeGuardError(
+            translation_domain=DOMAIN,
+            translation_key="empty_keystrokes",
+        )
 
     invalid_chars = set(keys) - _VALID_KEYSTROKE_CHARS
     if invalid_chars:
         raise KeystrokeGuardError(
-            f"Invalid keystroke characters {sorted(invalid_chars)!r}; "
-            "only digits, '*', and '#' are valid keypad characters"
+            translation_domain=DOMAIN,
+            translation_key="invalid_keystroke_characters",
+            translation_placeholders={"characters": " ".join(sorted(invalid_chars))},
         )
 
     if dialect is None:
@@ -127,13 +131,9 @@ def validate_keystrokes(
 
     if not allow_installer_mode and dialect.opens_program_mode(keys, installer_code):
         raise KeystrokeGuardError(
-            f"Refusing to send {_redact_codes(keys)!r}: this looks like it opens "
-            "installer Program Mode on this panel. Program Mode gives access to every "
-            "data field on the panel, including fire-zone and "
-            "UL-listing-relevant settings, and the TPI protocol has no way to "
-            "read back what's actually on the keypad display while there. "
-            "Pass confirm_installer_risk: true if you deliberately intend this "
-            "and understand the risk."
+            translation_domain=DOMAIN,
+            translation_key="opens_program_mode",
+            translation_placeholders={"keys": _redact_codes(keys)},
         )
 
 
@@ -160,7 +160,9 @@ async def async_send_guarded_keystrokes(
         # calls (and the Lovelace card) show the real reason instead of a
         # generic "Unknown error" + log traceback.
         raise HomeAssistantError(
-            f"Envisalink did not accept the keystroke sequence: {err}"
+            translation_domain=DOMAIN,
+            translation_key="keystrokes_not_accepted",
+            translation_placeholders={"error": str(err)},
         ) from err
 
 

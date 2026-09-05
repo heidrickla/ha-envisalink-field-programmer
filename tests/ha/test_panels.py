@@ -288,7 +288,8 @@ def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with():
         verification=Verification.PROVISIONAL,
         notes="not checked yet",
     )
-    with pytest.raises(KeystrokeGuardError, match="not verified"):
+    with pytest.raises(KeystrokeGuardError) as raised:
         _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=False)
+    assert raised.value.translation_key == "unverified_model"
     # With the explicit acknowledgment it proceeds.
     _require_verified_or_ack(_fake_coordinator(provisional), confirm_unverified=True)

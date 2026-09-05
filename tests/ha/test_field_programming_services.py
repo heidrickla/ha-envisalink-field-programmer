@@ -48,13 +48,14 @@ async def test_send_keystrokes_guards_dsc_installer_mode_by_dialect(hass, fake_s
     # slip through if the service defaulted to the VISTA 800 rule (the bug this
     # test locks down).
     entry = await _setup_entry(hass, fake_server, panel_model="dsc_pc1864")
-    with pytest.raises(ServiceValidationError, match="Program Mode"):
+    with pytest.raises(ServiceValidationError) as raised:
         await hass.services.async_call(
             DOMAIN,
             "send_keystrokes",
             {"entry_id": entry.entry_id, "partition": 1, "keys": "*84112500"},
             blocking=True,
         )
+    assert raised.value.translation_key == "opens_program_mode"
     await _unload(hass, entry)
 
 
@@ -103,7 +104,7 @@ async def test_program_zone_requires_confirm(hass, fake_server):
 
 async def test_program_zone_fire_type_requires_life_safety_confirm(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
-    with pytest.raises(ServiceValidationError, match="life-safety"):
+    with pytest.raises(ServiceValidationError) as raised:
         await hass.services.async_call(
             DOMAIN,
             "program_zone",
@@ -117,6 +118,11 @@ async def test_program_zone_fire_type_requires_life_safety_confirm(hass, fake_se
             },
             blocking=True,
         )
+    assert raised.value.translation_key == "life_safety_zone_type"
+    assert raised.value.translation_placeholders == {
+        "zone_type": "9",
+        "label": "Fire (smoke/heat detector)",
+    }
     await _unload(hass, entry)
 
 
