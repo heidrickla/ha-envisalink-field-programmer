@@ -37,13 +37,21 @@ jobs:
           ruff format --check .
       # The pure suite is the client, models, state machine and keystroke
       # builders, loaded by path; it must pass with the harness plugin off.
+      # It measures coverage but reports none: the two suites cover the same
+      # package from opposite sides, so the second run appends to this one
+      # and the gate is applied once, to the total.
       - name: Pure tests
-        run: python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
+        run: >-
+          python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
+          --cov=custom_components/envisalink_field_programmer
+          --cov-report=
       - name: Home Assistant layer tests
         run: >-
           python -m pytest tests/ha -q
           --cov=custom_components/envisalink_field_programmer
+          --cov-append
           --cov-report=term-missing
+          --cov-fail-under=95
       # strict-typing only means something with Home Assistant installed,
       # which is the case here and not on a bare workstation.
       - name: mypy --strict

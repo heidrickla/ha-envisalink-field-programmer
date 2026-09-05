@@ -117,10 +117,13 @@ rules:
       ConfigEntryAuthFailed at setup starts reauth_confirm, which asks for
       the Envisalink password only and tests it before storing it.
   test-coverage:
-    status: todo
+    status: done
     comment: |
-      Coverage is reported by the Tests workflow but not yet gated at 95%.
-      The gate lands once the number is known from a CI run.
+      The Tests workflow measures both suites into one report, the pure one
+      appending into the Home Assistant one, and fails under 95%. Measured
+      99% on 2026-09-05 (14 of 1429 statements missed, all of them defensive
+      branches in the panel dialects and one unreachable-looking guard each
+      in the client, the sensor and the zone timer decoder).
 
   # Gold
   devices:
@@ -253,8 +256,8 @@ rules:
       The Envisalink speaks a raw TCP protocol on port 4025; there is no
       HTTP session to inject.
   strict-typing:
-    status: todo
+    status: done
     comment: |
       mypy --strict runs in the Tests workflow with Home Assistant installed
-      and the pyproject relaxations removed. Marked done once that job is
-      green on GitHub.
+      and no relaxations in pyproject beyond the test package, and that job
+      has been green on every push since 8ee0094 (2026-09-04).

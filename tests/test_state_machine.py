@@ -143,3 +143,54 @@ def test_zone_state_and_partition_state_change_are_noops():
     state = _state()
     apply_event(state, build_event("%01", "0000000000000000"))
     apply_event(state, build_event("%02", "1"))  # must not raise, no effect
+
+
+def test_a_malformed_icon_field_leaves_every_flag_off():
+    # The keybus can corrupt a frame. A bad hex field must not throw away the
+    # whole update or invent flags.
+    state = _state()
+    apply_event(state, build_event("%00", "1,zz,0,00,READY"))
+    partition = state.partition(1)
+    assert partition.ready is False
+    assert partition.armed is False
+
+
+def test_a_keypad_update_without_a_partition_number_is_dropped():
+    state = _state()
+    state.partition(1).ready = True
+    # Four fields instead of five: the partition is never parsed.
+    apply_event(state, build_event("%00", "1,8,0,00"))
+    # And a partition field that is not a number.
+    apply_event(state, build_event("%00", "x,8,0,00,READY"))
+    assert state.partition(1).ready is True
+
+
+def test_cid_events_that_say_nothing_about_arming_are_ignored():
+    state = _state()
+    # Not a number.
+    apply_event(state, build_event("%03", "3xxx" + "01" + "005"))
+    # A real CID code, but not one of the arm/disarm ones (110 is a fire).
+    apply_event(state, build_event("%03", "1" + "110" + "01" + "005"))
+    assert state.partition(1).last_user is None
+
+
+def test_a_cid_event_with_an_unreadable_partition_falls_back_to_the_first():
+    state = _state()
+    apply_event(state, build_event("%03", "3" + "401" + "xx" + "007"))
+    assert state.partition(1).last_armed_by_user == "007"
+
+
+def test_a_zone_timer_dump_skips_zones_this_entry_does_not_have():
+    state = _state(num_zones=2)
+    # Four zones of dump for a two zone entry, plus a trailing half chunk.
+    apply_event(state, build_event("%FF", "FEFF" + "0000" + "FEFF" + "FEFF" + "AB"))
+    assert state.zone(1).open is True
+    assert state.zone(2).open is False
+    assert set(state.zones) == {1, 2}
+
+
+def test_a_zone_timer_dump_with_a_corrupt_chunk_keeps_the_other_zones():
+    state = _state(num_zones=2)
+    apply_event(state, build_event("%FF", "zzzz" + "FEFF"))
+    assert state.zone(1).open is False  # untouched, still the default
+    assert state.zone(2).open is True
