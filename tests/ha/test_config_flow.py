@@ -161,7 +161,7 @@ async def test_same_unique_id_under_another_name_is_refused(hass, fake_server):
     MockConfigEntry(
         domain=DOMAIN,
         unique_id=f"127.0.0.1:{fake_server.port}",
-        data=entry_data(fake_server, host="envisalink.local"),
+        data=entry_data(fake_server, host="envisalink.example.com"),
     ).add_to_hass(hass)
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -205,8 +205,8 @@ async def test_dhcp_discovery_prefills_the_address_and_keeps_the_mac(hass, fake_
 async def test_dhcp_at_a_new_address_moves_the_entry_it_belongs_to(hass, fake_server):
     entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id=f"10.0.0.5:{fake_server.port}",
-        data=entry_data(fake_server, host="10.0.0.5", mac=MAC),
+        unique_id=f"192.0.2.5:{fake_server.port}",
+        data=entry_data(fake_server, host="192.0.2.5", mac=MAC),
     )
     entry.add_to_hass(hass)
 
@@ -472,7 +472,7 @@ async def test_reconfigure_that_moves_the_address_or_the_password_does_probe(has
     # The other side of the same rule: anything a login could prove is worth
     # the outage, so the probe runs.
     entry = await setup_entry(hass, fake_server)
-    moved_host = _reconfigure_input(fake_server, host="10.0.0.9", password="")
+    moved_host = _reconfigure_input(fake_server, host="192.0.2.9", password="")
     moved_port = _reconfigure_input(fake_server, port=fake_server.port + 1, password="")
     new_password = _reconfigure_input(fake_server, password="other")
     assert VistaConsoleConfigFlow._connection_changed(entry, moved_host) is True

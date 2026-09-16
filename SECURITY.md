@@ -7,7 +7,7 @@ or send unintended keystrokes as a security issue.
 
 ## Reporting a vulnerability
 
-Please **do not** open a public issue for security problems.
+Please do not open a public issue for security problems.
 
 Use GitHub's private vulnerability reporting instead:
 
@@ -24,6 +24,8 @@ and a fix or mitigation as quickly as the severity warrants.
   `confirm_installer_risk` confirmation, or to bypass the keystroke guard.
 - Installer codes, user codes, or the Envisalink password appearing in
   logs, diagnostics downloads, error messages, or entity attributes.
+- The Envisalink's address, its MAC, or a user's zone names appearing in a
+  diagnostics download.
 - Keystrokes being sent to a partition, zone, or panel other than the one
   the user targeted.
 - Anything that lets an unauthenticated network peer drive the panel
@@ -41,13 +43,13 @@ Only the latest release on `main` receives security fixes.
 - The Envisalink TPI protocol itself is plaintext TCP on your LAN. This
   integration does not and cannot add encryption to it; keep the
   Envisalink on a trusted network segment.
-- A stored **default user code** lets the alarm control panel entity disarm
+- A stored default user code lets the alarm control panel entity disarm
   without a code, so anyone or anything that can call
   `alarm_control_panel.alarm_disarm` in that Home Assistant instance can
   disarm the panel. That is the documented behaviour, not a vulnerability;
   leave the default code blank if it is not acceptable. The password and
   both codes are stored in Home Assistant's config entry store in plain
   text, as every integration's credentials are, and are never prefilled in
-  a form, logged, or included unredacted in diagnostics.
+  a form, logged, or included in diagnostics.
 - Home Assistant's own authentication and access control are outside this
   project's scope; report those to the Home Assistant project.

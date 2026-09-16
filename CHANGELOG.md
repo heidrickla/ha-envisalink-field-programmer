@@ -7,11 +7,36 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut.
 
+## [Unreleased]
+
+### Fixed
+
+- Diagnostics redact the Envisalink's address, the module's MAC and the zone
+  names. The config entry was dumped whole with only the password and the two
+  alarm codes redacted, so a diagnostics file attached to a public issue
+  carried the panel's address on the user's LAN and whatever text the user
+  had typed as zone names.
+
+### Changed
+
+- `brand/logo.png` is 512x256 and `brand/logo@2x.png` is 1024x512, the sizes
+  the other integrations in this set ship. The artwork is unchanged, fitted
+  to the new canvas rather than stretched.
+- `tools/validate_local.py` fails a `documentation` or `issue_tracker` URL
+  whose host resolves on one network only, and pins the logo sizes instead of
+  accepting the brands repository's shortest-side range.
+- `tools/winshim/` lets the `tests/ha` suite run on Windows, which the
+  POSIX-only `fcntl` and `resource` imports in Home Assistant's own startup
+  path otherwise block at pytest plugin load.
+- Module docstrings, the README, TROUBLESHOOTING.md and DEVELOPMENT.md state
+  the protocol the hardware speaks without the narrative of how an earlier
+  reading of it was corrected.
+
 ## [0.4.1] - 2026-09-05
 
 ### Fixed
 
-- **Refusal messages name entities the way the user sees them.** "Set X before
+- Refusal messages name entities the way the user sees them. "Set X before
   pressing Y", "Y needs the Z switch on", and the life-safety and unverified-model
   refusals carried the English defaults of the button, field and switch names,
   whatever language Home Assistant runs in and whatever the user had renamed them
@@ -26,24 +51,24 @@ a custom card to change a zone type.
 
 ### Added
 
-- **A configuration entity per programming field, on the panel device.** The
+- A configuration entity per programming field, on the panel device. The
   zone to program, its type, partition, reporting, wiring style and response
   time; the timing field, its value and, on commercial panels, its partition;
   the function key, what it should do and its partition. Setting any of them
   changes nothing on the panel -- they are a form, held for as long as the
   entry is loaded.
-- **A button per operation**: Program zone, Set system timing, Program
+- A button per operation: Program zone, Set system timing, Program
   function key. Each submits the current values through the same guided
   operation the action of the same name runs, so every guard is identical
   whichever way it is driven. A button refuses, saying which, when the confirm
   switch is off or a value it needs is unset.
-- **A Confirm programming switch that has to be on for any write, and turns
-  itself off again after every attempt** -- accepted, refused or failed. One
+- A Confirm programming switch that has to be on for any write, and turns
+  itself off again after every attempt -- accepted, refused or failed. One
   confirmation authorizes exactly one write. Confirm life-safety zone type and
   Confirm unverified panel model work the same way and are spent by the same
   press; the second appears only on a model whose fields are not verified
   against its own programming guide.
-- **A Last programming result diagnostic sensor** carrying the outcome
+- A Last programming result diagnostic sensor carrying the outcome
   (Accepted, Refused before sending, Failed while sending), which operation it
   was, and the reply that decided it. "Accepted" means the Envisalink
   acknowledged every keystroke, which is as far as this protocol sees; the
@@ -51,13 +76,13 @@ a custom card to change a zone type.
 - The device page offers only what the panel's dialect actually drives: a DSC
   entry gets no programming entities at all, and a commercial VISTA gets the
   timing form only, rather than buttons that always refuse.
-- **Diagnostics carry the programming form and the last result**, which is
+- Diagnostics carry the programming form and the last result, which is
   what a report of "I programmed a zone and nothing happened" needs. No code
   is in either.
 
 ### Removed
 
-- **The bundled `envisalink-field-programmer-card` Lovelace card**, and with
+- The bundled `envisalink-field-programmer-card` Lovelace card, and with
   it `frontend.py`, the committed card bundle, the `www/` source workspace,
   the `frontend` and `http` manifest dependencies, the npm build job in CI and
   the npm Dependabot job. A card placed on a dashboard shows as a missing
@@ -81,7 +106,7 @@ defects below were that fact going unhandled.
 
 ### Fixed
 
-- **Reconfigure works on an entry that is loaded.** The form's connection test
+- Reconfigure works on an entry that is loaded. The form's connection test
   wanted the same single session the running entry was holding, so it answered
   "Could not connect" whatever was typed, and host, port, password, panel
   model and the counts could not be changed without deleting the entry. The
@@ -89,28 +114,28 @@ defects below were that fact going unhandled.
   back straight afterwards. A form that leaves host, port and password alone
   is not tested at all, because a login proves nothing about a changed zone
   count, and the session is left undisturbed.
-- **Setup no longer races the module.** The setup form's login test
+- Setup no longer races the module. The setup form's login test
   disconnected and the entry's own connection opened four milliseconds later,
   which the module dropped part-way through the login; the entry failed and
   came up on Home Assistant's retry five seconds afterwards. Disconnecting now
   waits for the close to land, the test waits a further half second, and setup
   makes one more attempt before failing the entry. A rejected password is
   still not retried, so reauthentication is as immediate as it was.
-- **A reconfigure during an outage no longer leaves the module busy.** Handing
+- A reconfigure during an outage no longer leaves the module busy. Handing
   the session over while the entry was mid-reconnect cancelled that reconnect
   without waiting for the cancellation to land, and the socket it had already
   opened stayed open until the garbage collector reached it -- so the
   connection test could still meet a module that thought its one slot was
   taken. The handover now waits the reconnect out, and a login cancelled
   part-way through closes its own socket.
-- **A dropped connection cannot be reported against the session after it.**
+- A dropped connection cannot be reported against the session after it.
   The read loop's parting "connection lost" could arrive once the next
   session was already up, which started a reconnect on top of a healthy
   connection. Disconnecting now waits that loop out before returning.
 
 ### Added
 
-- **The login handshake is logged at debug level.** The prompt the module
+- The login handshake is logged at debug level. The prompt the module
   sent, the length of the password being sent, whether it is plain ASCII,
   whether it has whitespace around it, and the module's answer. The password
   itself is never logged and a test enforces that. This is what tells a
@@ -122,34 +147,34 @@ defects below were that fact going unhandled.
 
 ### Added
 
-- **A brand logo.** `brand/` now ships a real landscape logo, the icon art
+- A brand logo. `brand/` now ships a real landscape logo, the icon art
   beside the integration's name, at `logo.png` (504x160) and `logo@2x.png`
   (1008x320), alongside the 256x256 and 512x512 icons. Home Assistant serves
   all four out of the integration itself, so the name is drawn wherever the
   interface wants a logo rather than the icon being stretched into the space.
-- **DHCP discovery.** An Envisalink that takes a lease from the `00:1C:2A`
+- DHCP discovery. An Envisalink that takes a lease from the `00:1C:2A`
   block (Envisacor Technologies, who make the module) is offered under
   Settings, Devices & services with its address filled in. The password still
   has to be typed, so nothing is set up unattended.
-- **The entry follows a module that moves.** The MAC learned at discovery is
+- The entry follows a module that moves. The MAC learned at discovery is
   stored with the entry; a later lease for that MAC at a different address
   updates the host, unique id and title and reloads the entry. An entry set up
   by hand at an address that later appears in a lease adopts the MAC then.
-- **Reconfigure step.** Host, port, password, panel model and the zone and
+- Reconfigure step. Host, port, password, panel model and the zone and
   partition counts can be changed without deleting the entry, so entity ids
   and history survive. A blank password keeps the stored one; an address
   another entry already uses is refused.
-- **Lowering a zone or partition count deletes the entities above it.** Setup
+- Lowering a zone or partition count deletes the entities above it. Setup
   removes the registry entries for the zones and partitions the entry no
   longer has, instead of leaving them in the entity list as unavailable
   forever. Entities below the count, and the ones that are not numbered, are
   left alone.
-- **A repair issue for a session that stays down.** After five failed
+- A repair issue for a session that stays down. After five failed
   reconnects, about two and a half minutes, Settings, System, Repairs names
   the address and the usual cause, which is another client holding the
   Envisalink's single TPI session. It clears when the connection returns, and
   goes when the entry is deleted.
-- **A reauthentication step.** A password the Envisalink rejects now asks for
+- A reauthentication step. A password the Envisalink rejects now asks for
   the current one instead of retrying forever.
 - The device links to the Envisalink's own web page, and carries the module's
   MAC as a network connection once discovery has learned it.
@@ -165,26 +190,26 @@ defects below were that fact going unhandled.
 
 ### Changed
 
-- **Entity names are translated.** Every entity takes its name from a
+- Entity names are translated. Every entity takes its name from a
   translation key rather than an English literal, with the partition or zone
   number as a placeholder. A zone named in the options still shows that name
   as typed. The displayed names are unchanged, so entity ids do not move.
-- **Every error message is translated**, including the keystroke-guard
+- Every error message is translated, including the keystroke-guard
   refusals and all six guided field-programming refusals. The refused
   keystroke sequence is still redacted before it is shown.
-- **The actions are registered when the component loads**, not per entry, so
+- The actions are registered when the component loads, not per entry, so
   calling one while the entry is unloaded gives a message naming the entry
   instead of an unknown-action error.
-- **The Envisalink password and both alarm codes are password fields** and are
+- The Envisalink password and both alarm codes are password fields and are
   never sent back to the browser. In the options a blank code field keeps the
   stored code and a remove switch clears it.
-- **The Last Event sensor is disabled by default.** It changes on every
+- The Last Event sensor is disabled by default. It changes on every
   keepalive acknowledgement, which is a state write every 30 seconds for a
   value only useful while debugging the protocol. Enable it in the entity
   settings if you want it; the bundled card does not use it.
-- **System Trouble is a diagnostic entity**, alongside Last Event and Last
+- System Trouble is a diagnostic entity, alongside Last Event and Last
   User: it reports the panel's own health, not the security state.
-- **Arming, disarming and zone bypass are sent one at a time.** Each writes a
+- Arming, disarming and zone bypass are sent one at a time. Each writes a
   keystroke sequence and the client's lock is held per frame, so a script that
   armed two partitions at once, or a call that toggled several bypass switches
   together, could interleave their keypresses at the panel. Reads are
@@ -197,7 +222,7 @@ defects below were that fact going unhandled.
   back.
 - The coordinator lives on the config entry rather than in `hass.data`, and
   its keepalive and reconnect tasks are tied to the entry's lifecycle.
-- Minimum Home Assistant is now **2026.3**, up from 2025.2. Two releases
+- Minimum Home Assistant is now 2026.3, up from 2025.2. Two releases
   matter: 2025.2 first has the DHCP discovery helper this integration
   imports, and 2026.3 is where Home Assistant began serving an integration's
   own `brand/` directory. This integration is in no brands repository, so on
@@ -228,5 +253,5 @@ The last tagged release, cut before the work above. See its
 ## Earlier
 
 The protocol rewrite, the panel model registry, the guided field-programming
-layer and the Lovelace card predate this file. See the commit history and
-`DEVELOPMENT.md` for how the TPI framing was corrected against real hardware.
+layer and the Lovelace card predate this file. See the commit history, and
+`DEVELOPMENT.md` for the TPI wire format and where it was read from.

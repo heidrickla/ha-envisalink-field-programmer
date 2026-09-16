@@ -5,12 +5,12 @@
 [![HACS](https://img.shields.io/badge/HACS-custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A standalone Home Assistant custom integration for a Honeywell/Ademco **VISTA**
-alarm panel, bridged locally over an **EyezOn Envisalink** (EVL-3/EVL-4)
+A standalone Home Assistant custom integration for a Honeywell/Ademco VISTA
+alarm panel, bridged locally over an EyezOn Envisalink (EVL-3/EVL-4)
 module. No cloud, no Total Connect: your panel's keybus, your LAN, and Home
 Assistant.
 
-Envisalink Field Programmer talks the Envisalink **TPI** (Third Party
+Envisalink Field Programmer talks the Envisalink TPI (Third Party
 Interface) protocol directly over TCP (port 4025) with its own asyncio client.
 It does not depend on `pyenvisalink` or any other integration.
 
@@ -21,7 +21,7 @@ mature, actively maintained HACS integration that already covers arm/disarm,
 zone/partition status, and bypass switches for both DSC and Honeywell panels
 well. If all you want is basic alarm control, use that one.
 
-This integration's reason to exist is **guided installer field programming**:
+This integration's reason to exist is guided installer field programming:
 a structured, plain-language layer over Vista's `*56`/`*57` keypad
 programming language (zone types, entry/exit timing, function keys), with
 strong confirmation gates given the fire/UL-safety stakes of getting installer
@@ -45,10 +45,10 @@ Typical uses:
   integration's options, turns on field programming. Panel model defaults to
   the VISTA-21iP; see [Panel model support](#panel-model-support) for the
   full model list and what each one's support level means.
-- **DHCP discovery**: an Envisalink that takes a lease is offered with its
+- DHCP discovery: an Envisalink that takes a lease is offered with its
   address filled in, and one that later moves takes its entry with it. See
   [Discovery](#discovery).
-- **Reconfigure** without losing the entry: address, password, panel model
+- Reconfigure without losing the entry: address, password, panel model
   and the zone and partition counts. See [Reconfiguring](#reconfiguring).
 - One `alarm_control_panel` entity per partition: arm away/home/night, disarm.
 - One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities
@@ -61,24 +61,25 @@ Typical uses:
   acknowledgement, so enable it only while debugging the protocol).
 - A repair issue when the Envisalink stops answering for several minutes,
   naming the usual cause: another client holding its single TPI session.
-- **Guided field programming on the device page**: a configuration entity per
+- Guided field programming on the device page: a configuration entity per
   programming field, a button per operation, a Confirm programming switch that
   has to be on for any write and turns itself off again afterwards, and a
   diagnostic sensor carrying the last result. Nothing to install and no
   dashboard card to add. See [The device page](#the-device-page).
-- **Guided field-programming actions** `program_zone`, `set_system_timing`
+- Guided field-programming actions `program_zone`, `set_system_timing`
   and `program_function_key`, the same operations for automations, plus the
   lower-level `send_keystrokes` and `toggle_zone_bypass`; see
   [Actions](#actions) and [Safety](#safety-read-this).
 - Diagnostics download (Settings, Devices & services, Envisalink Field
-  Programmer, Download diagnostics) with the password and both codes
-  redacted; see [Backups](#backups-what-this-can-and-cant-capture).
+  Programmer, Download diagnostics) with the password, both codes, the
+  Envisalink's address, its MAC and your zone names redacted; see
+  [Backups](#backups-what-this-can-and-cant-capture).
 
 ## Installation
 
-**HACS (custom repository):** add this repository as a custom repository
+HACS (custom repository): add this repository as a custom repository
 (category Integration), then install "Envisalink Field Programmer". Home
-Assistant **2026.3 or newer**. Two things need that release: the DHCP
+Assistant 2026.3 or newer. Two things need that release: the DHCP
 discovery helper the config flow imports (2025.2), and the brands component
 that serves an integration's own `brand/` directory (2026.3). This
 integration ships its icon and logo in
@@ -86,7 +87,7 @@ integration ships its icon and logo in
 repository, so on anything older it would load with no icon anywhere in the
 interface.
 
-**Manual:** copy `custom_components/envisalink_field_programmer/` into your
+Manual: copy `custom_components/envisalink_field_programmer/` into your
 Home Assistant `config/custom_components/` directory and restart.
 
 Then: Settings, Devices & services, Add integration, "Envisalink Field
@@ -241,9 +242,9 @@ session open to the Envisalink and updates entities the moment the panel
 reports a change (keypad updates, partition state, CID events). Two things
 run on a timer because the protocol offers nothing better:
 
-- A **keepalive poll** every 30 seconds (adjustable in the options), purely
+- A keepalive poll every 30 seconds (adjustable in the options), purely
   to notice a silently dead connection.
-- A **zone timer dump** request every 30 seconds, the only source of zone
+- A zone timer dump request every 30 seconds, the only source of zone
   open/closed state a Honeywell panel gives over TPI. Zone sensors are
   therefore up to 30 seconds behind a door; partition state is immediate.
 
@@ -265,20 +266,18 @@ exact keystroke sequence Vista expects (see
 `custom_components/envisalink_field_programmer/field_programming.py`, built
 from the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3):
 
-- **`envisalink_field_programmer.program_zone`**: zone type (offered as
+- `envisalink_field_programmer.program_zone`: zone type (offered as
   plain-language options like "Perimeter (instant)" or "Fire (smoke/heat
   detector)", not raw Vista field numbers), partition, reporting and wiring
   settings for one zone.
-- **`envisalink_field_programmer.set_system_timing`**: exit delay, entry
+- `envisalink_field_programmer.set_system_timing`: exit delay, entry
   delay 1/2, and auto-stay-arm.
-- **`envisalink_field_programmer.program_function_key`**: assign the keypad's
+- `envisalink_field_programmer.program_function_key`: assign the keypad's
   A/B/C/D function keys.
 
-This is deliberately a **curated subset**, not the full installer field set.
-Output/relay programming (`*79`/`*80`/`*81`), alpha descriptors (`*82`), and
-the installer-only configurable zone types (90/91) are out of scope. A
-smaller, clearly explained set of settings beats a full field dump nobody can
-safely reason about.
+This is a curated subset, not the full installer field set. Output and relay
+programming (`*79`/`*80`/`*81`), alpha descriptors (`*82`) and the
+installer-only configurable zone types (90 and 91) are out of scope.
 
 Each operation has two front ends onto the same code: the entities and buttons
 on the panel's [device page](#the-device-page), which is where a person does
@@ -286,7 +285,7 @@ this, and the [action](#actions) of the same name, for automations. The guards
 live in the operation, not in either front end, so they are identical whichever
 way it is driven.
 
-**Every one of these always opens the panel's installer Program Mode**
+Every one of these always opens the panel's installer Program Mode
 (typing the installer code followed by `800`), which is why they require an
 installer code configured and an explicit confirmation -- the Confirm
 programming switch on the device, or `confirm: true` in the action; see
@@ -299,23 +298,20 @@ the panel, including fire-zone and UL-listing-relevant settings, and once
 inside, most functions (including disarm) are unavailable until you exit.
 Badly, that can mean a physical power cycle. Two important specifics:
 
-- **Program Mode opens via `<installer code>800`** (for example `4112800`
-  with the factory-default code), not a DSC-style `*8` sequence. An earlier
-  version of this integration's guard blocked `*8`, based on a generic
-  warning in the Envisalink TPI spec that turns out to describe DSC panels,
-  not Vista; there is no `*8` menu on a real Vista panel at all. This was
-  corrected once the Vista programming guide was checked directly; see
-  `programming.py`'s module docstring.
-- **The TPI protocol cannot read back what is on the keypad display.** Every
-  field-programming operation here is genuinely blind: if a keystroke sequence
-  has a bug, or the panel is in an unexpected state, there is no channel to
-  detect it before it is too late. The device page shows you the field values
-  you are about to send, and the result sensor shows what the module said
-  about them, but nothing can show you what the panel did in response.
+- Program Mode opens via `<installer code>800`, for example `4112800` with
+  the factory-default code. A Vista panel has no `*8` menu; that sequence is
+  the DSC one, and the Envisalink TPI spec's generic installer-mode warning
+  describes it. See `programming.py`'s module docstring.
+- The TPI protocol cannot read back what is on the keypad display. Every
+  field-programming operation here is blind: if a keystroke sequence has a
+  bug, or the panel is in an unexpected state, there is no channel to detect
+  it before it is too late. The device page shows you the field values you
+  are about to send, and the result sensor shows what the module said about
+  them. Nothing can show you what the panel did in response.
 
 Given that, this integration:
 
-- Routes **every** keystroke send, raw or guided, through a single guard
+- Routes every keystroke send, raw or guided, through a single guard
   (`custom_components/envisalink_field_programmer/programming.py`) that
   refuses any sequence matching the Program Mode trigger unless explicitly
   confirmed.
@@ -338,9 +334,9 @@ Given that, this integration:
   guard error before it reaches the log, an error message or the result
   sensor.
 
-**A default user code changes who can disarm.** A real Vista panel disarms by
+A default user code changes who can disarm. A real Vista panel disarms by
 typing a user code; with a default user code stored, the alarm control panel
-entity disarms **without asking anyone for a code**. Anyone who can call
+entity disarms without asking anyone for a code. Anyone who can call
 `alarm_control_panel.alarm_disarm` in your Home Assistant (any user, any
 automation, any exposed voice assistant) can then disarm the panel. Leave the
 default code blank if that is not acceptable; every arm and disarm then needs
@@ -354,14 +350,16 @@ this.
 
 ## Backups: what this can and can't capture
 
-Home Assistant's standard **Download diagnostics** button (on this
+Home Assistant's standard Download diagnostics button (on this
 integration's entry) captures a timestamped JSON snapshot of everything Home
 Assistant currently knows: partition, zone and system state, armed mode, open
 and bypassed zones, trouble flags, last user, plus what the programming form
 currently holds and what became of the last button press. Grab one before you
-experiment with field programming. The password and both codes are redacted.
+experiment with field programming. The file is safe to attach to a public
+issue: the password, the default user code, the installer code, the
+Envisalink's address, its MAC and your zone names are all redacted.
 
-**What it cannot capture: the panel's actual installer field programming**
+What it cannot capture: the panel's actual installer field programming
 (zone types, entry/exit delays, alpha descriptors, output/relay assignments,
 communicator settings). The TPI protocol has no command that reads that data
 back; it only exposes live status events (icon-LED keypad state, realtime CID
@@ -373,16 +371,16 @@ need to either:
 - Use a Honeywell-side tool (Compass Downloader, Total Connect installer
   access) if you have access to one.
 
-Be skeptical of any tool that claims to "read back" Vista programming over a
-keypad-emulation link like this one; as far as the TPI protocol is concerned,
-that data does not come back over the wire.
+A tool that claims to read back Vista programming over a keypad-emulation
+link like this one is not getting it from TPI; that data does not come back
+over the wire.
 
 ## Actions
 
 Every action takes an `entry_id`, the config entry it should drive. In the
 UI the config entry picker fills it in. In YAML, every entity from this
 integration carries a `config_entry_id` attribute, so
-`{{ state_attr('alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition', 'config_entry_id') }}`
+`{{ state_attr('alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition', 'config_entry_id') }}`
 resolves it without copying an id by hand.
 
 Calling an action while the entry is not loaded, or with an id no entry has,
@@ -472,7 +470,7 @@ true. Residential VISTA only.
 ## Examples
 
 Entity ids below assume an entry titled "Envisalink Field Programmer
-(192.168.1.50)"; yours follow your Envisalink's address.
+(203.0.113.50)"; yours follow your Envisalink's address.
 
 Bypass the garage zone every night at 22:00 and lift the bypass in the
 morning, using the switch entity (enable it in the entity registry first):
@@ -486,7 +484,7 @@ automation:
     actions:
       - action: switch.turn_on
         target:
-          entity_id: switch.envisalink_field_programmer_192_168_1_50_zone_5_bypass
+          entity_id: switch.envisalink_field_programmer_203_0_113_50_zone_5_bypass
   - alias: Lift the garage bypass in the morning
     triggers:
       - trigger: time
@@ -494,7 +492,7 @@ automation:
     actions:
       - action: switch.turn_off
         target:
-          entity_id: switch.envisalink_field_programmer_192_168_1_50_zone_5_bypass
+          entity_id: switch.envisalink_field_programmer_203_0_113_50_zone_5_bypass
 ```
 
 Tell someone when the Envisalink drops off the network (every entity goes
@@ -505,7 +503,7 @@ automation:
   - alias: Envisalink connection lost
     triggers:
       - trigger: state
-        entity_id: alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition
+        entity_id: alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition
         to: unavailable
         for: "00:05:00"
     actions:
@@ -527,7 +525,7 @@ script:
     sequence:
       - action: envisalink_field_programmer.set_system_timing
         data:
-          entry_id: "{{ state_attr('alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition', 'config_entry_id') }}"
+          entry_id: "{{ state_attr('alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition', 'config_entry_id') }}"
           field: "34"
           value: 60
           confirm: true
@@ -538,7 +536,7 @@ Retype zone 6 as an interior follower, reporting on, standard wiring:
 ```yaml
 action: envisalink_field_programmer.program_zone
 data:
-  entry_id: "{{ state_attr('alarm_control_panel.envisalink_field_programmer_192_168_1_50_partition', 'config_entry_id') }}"
+  entry_id: "{{ state_attr('alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition', 'config_entry_id') }}"
   zone_number: 6
   zone_type: 4
   partition: 1
@@ -548,15 +546,15 @@ data:
 
 ## The device page
 
-Field programming lives on the panel's own device page: **Settings**, **Devices
-& services**, **Envisalink Field Programmer**, then the device. There is
+Field programming lives on the panel's own device page: Settings, Devices
+& services, Envisalink Field Programmer, then the device. There is
 nothing to add to a dashboard and no card to install. Everything below is in
-the device's **Configuration** section, except the result, which is under
-**Diagnostic**.
+the device's Configuration section, except the result, which is under
+Diagnostic.
 
-**Setting any of these changes nothing on the panel.** They are a form. The
+Setting any of these changes nothing on the panel. They are a form. The
 panel hears nothing until you press a button, and a button refuses unless
-**Confirm programming** is on.
+Confirm programming is on.
 
 | Field | Entity | Notes |
 |---|---|---|
@@ -573,26 +571,26 @@ panel hears nothing until you press a button, and a button refuses unless
 | Function key action | **Function key action** (select) | Arm Away, Show the time, and so on. |
 | Function key partition | **Function key partition** (select) | 1 to 3, as the `*57` menu takes. |
 
-Three buttons submit what the form holds: **Program zone**, **Set system
-timing**, **Program function key**. Each one runs exactly the operation the
+Three buttons submit what the form holds: Program zone, Set system
+timing, Program function key. Each one runs exactly the operation the
 action of the same name runs.
 
-**The safety model is the Confirm programming switch.** It has to be on for any
-write, and **it turns itself off again after every attempt** -- whether the
+The safety model is the Confirm programming switch. It has to be on for any
+write, and it turns itself off again after every attempt -- whether the
 panel accepted the sequence, a guard refused it, or the module never answered.
 One confirmation authorizes one write, so a switch left on cannot arm a later
 press nobody meant. Two more switches work the same way and are spent by the
 same press:
 
-- **Confirm life-safety zone type**, needed to program a zone to a fire or CO
+- Confirm life-safety zone type, needed to program a zone to a fire or CO
   type. Nothing can read back what type a zone is now, so this is the only
   thing standing between a slip and a silenced smoke detector.
-- **Confirm unverified panel model**, shown only for a model whose field
+- Confirm unverified panel model, shown only for a model whose field
   numbers are not verified against its own programming guide (the commercial
   VISTA panels). Not shown on the models built from their own guide, because
   there is nothing there to acknowledge.
 
-**Last programming result** (diagnostic) reports what became of the last press:
+Last programming result (diagnostic) reports what became of the last press:
 `Accepted`, `Refused before sending`, or `Failed while sending`, with the reply
 that decided it in its `detail` attribute and which operation it was in
 `action`. Note what "Accepted" means: the Envisalink acknowledged every
@@ -610,33 +608,22 @@ submitted later out of context.
 
 ## Known limitations
 
-- **One TPI client.** The Envisalink serves one client at a time; see above.
-- **No read-back.** Nothing about the panel's programming can be read over
-  TPI, so every field-programming action is blind and must be checked at the
-  keypad.
-- **No entry-delay ("pending") state.** Exit delay is detected from the
-  keypad's display text; entry delay is not represented, matching the
-  reference `pyenvisalink` implementation.
-- **Zone state lags up to 30 seconds** (the zone timer dump cadence);
-  partition state is immediate.
-- **Bypass state is optimistic.** The panel does not say which zone was
-  bypassed, so the switch assumes success and clears with the partition's
-  bypass flag.
-- **Guided programming is refused on the DSC models and for zones on the
-  commercial VISTA models**; arm, disarm and bypass still work there. The
-  device page leaves those fields out rather than offering buttons that always
-  refuse.
-- **The programming form is not remembered.** It lives in memory while the
-  entry is loaded and clears on a reload or restart.
-- **The panel has no identity over TPI.** No serial, no MAC, so an entry is
-  identified by its address. A module's MAC is known only if a DHCP discovery
-  supplied it, and that is what lets a move be followed automatically.
+| Limitation | Detail |
+|---|---|
+| **One TPI client** | The Envisalink serves one client at a time. See [above](#the-envisalink-only-accepts-one-tpi-client-at-a-time). |
+| **No read-back** | Nothing about the panel's programming can be read over TPI. Every field-programming action is blind and must be checked at the keypad. |
+| **No entry-delay state** | Exit delay is detected from the keypad's display text. Entry delay, "pending", is not represented, matching the reference `pyenvisalink` implementation. |
+| **Zone state lags up to 30 seconds** | That is the zone timer dump cadence. Partition state is immediate. |
+| **Bypass state is optimistic** | The panel does not say which zone was bypassed, so the switch assumes success and clears with the partition's bypass flag. |
+| **Guided programming is refused on DSC, and for zones on commercial VISTA** | Arm, disarm and bypass still work there. The device page leaves those fields out rather than offering buttons that always refuse. |
+| **The programming form is not remembered** | It lives in memory while the entry is loaded and clears on a reload or restart. |
+| **The panel has no identity over TPI** | No serial and no MAC, so an entry is identified by its address. A module's MAC is known only if a DHCP discovery supplied it, and that is what lets a move be followed. |
 
 ## Troubleshooting
 
 Hit "Could not connect", a config entry that fails to set up, a request to
 re-authenticate, an action refused as "not loaded", or a programming button
-that refuses? See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**. It covers the
+that refuses? See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). It covers the
 real issues hit setting this up: connection errors including the
 single-TPI-client limit, a Home Assistant update breaking compatibility, what
 each programming refusal means, and what to check when field programming does
@@ -659,8 +646,8 @@ data:
 Set it back to `info` the same way when you are done. What you get is the
 login handshake in full: the prompt the module sent, the length of the
 password being sent, whether it is plain ASCII and whether it has whitespace
-around it, and the module's answer. **The password itself is never written to
-the log**, and a test enforces that. This is what tells a password the module
+around it, and the module's answer. The password itself is never written to
+the log, and a test enforces that. This is what tells a password the module
 rejected (`answered 'FAILED'`) apart from a password that never arrived
 intact (`answered None`, meaning the module closed the connection without
 replying, which usually means it has not yet noticed the previous client
@@ -669,101 +656,70 @@ the same level.
 
 ## What's verified vs. what needs your hardware
 
-**Protocol correction (2026-07-04):** this integration still talks **TPI**,
-the same Envisalink protocol on the same port 4025 it always has. What was
-wrong was not the protocol's name or which system it connects to; it was this
-integration's understanding of TPI's **wire-level framing**. An earlier
-version was built from the "EnvisaLink TPI Programmer's Document v1.08" PDF
-(checksum framing, 3-digit numeric command codes), which describes a real but
-different variant of TPI than what a real EVL-4 + VISTA-21iP speaks. This was
-caught during real-hardware testing (a `checksum mismatch for 'Login:'` error
-in the core logs) and confirmed by reading raw socket traffic and the
-actively maintained `pyenvisalink` library (used by the confirmed-working
-`envisalink_new` integration). The whole client/state-machine layer was
-rewritten against the real protocol: a plain-text `Login:`/`OK`/`FAILED`
-handshake, then `%CODE,DATA$` / `^CODE,DATA$` framing with **no checksum**,
-one-keystroke-per-frame transmission, and arm/disarm done by typing the user
-code plus a mode digit (exactly like a physical keypad) rather than a
-dedicated command. See `client.py`'s and `state_machine.py`'s module
-docstrings, and DEVELOPMENT.md, for the full details. The Vista `*56`/`*57`
-field-programming *keystroke* language itself (as opposed to how those
-keystrokes get sent over the wire) was unaffected by this correction.
+Observed on a live Envisalink EVL-4 and VISTA-21iP on 2026-07-04: the config
+flow's login handshake, its error handling, and HACS installation and setup
+end to end. The Envisalink's TPI server accepts one client connection at a
+time, observed the same day.
 
 What the automated test suite exercises (`pytest tests/`; the count is in
 the CI run, not here, because it goes stale):
 
-- **TPI wire protocol**: sentinel stripping, frame parsing and per-event field
+- TPI wire protocol: sentinel stripping, frame parsing and per-event field
   tokenizing (`%00` keypad updates, `%03` realtime CID events, `%FF` zone
-  timer dumps) against hand-built frames matching the real format.
-- **Login handshake, keepalive, disconnect and reconnect, one-keystroke-per-
-  frame transmission**, against a real asyncio TCP server standing in for the
-  Envisalink (`tests/helpers.py::FakeEnvisalinkServer`, itself implementing
-  the real protocol), not a mocked transport.
-- **State machine**: icon-LED flag decoding into partition state (ready,
+  timer dumps) against hand-built frames.
+- Login handshake, keepalive, disconnect and reconnect, and
+  one-keystroke-per-frame transmission, against an asyncio TCP server
+  standing in for the Envisalink and speaking the same protocol
+  (`tests/helpers.py::FakeEnvisalinkServer`), not a mocked transport.
+- State machine: icon-LED flag decoding into partition state (ready,
   armed mode, alarm, trouble, AC/battery), zone open/closed detection from
   the periodic zone timer dump, and CID-event-based installer-mode and
   last-armed/disarmed-user tracking.
-- **Keystroke safety guard**: every branch (valid characters, Program Mode
+- Keystroke safety guard: every branch (valid characters, Program Mode
   detection with and without a known installer code, confirmation override).
-- **Field-programming keystroke translation**: every builder function (zone
+- Field-programming keystroke translation: every builder function (zone
   programming across the zone-1 / zone-2-8 / zone-9+ prompt variations,
-  system timing including the special extended-delay codes, function keys)
+  system timing including the extended-delay codes, function keys)
   checked against exact expected keystroke strings, both as pure unit tests
   and end to end against the fake TPI server.
-- **Config flow with recovery from every error, reauth, options, entity
+- Config flow with recovery from every error, reauth, options, entity
   creation, setup failure handling, disconnect and reconnect, action
   refusals, diagnostics redaction, and all three field-programming actions'
-  confirm / confirm_life_safety / installer-code gates**: against the real
+  confirm / confirm_life_safety / installer-code gates: against the real
   Home Assistant config-entry machinery via
   `pytest-homeassistant-custom-component`, still driven by the fake TPI
   server.
 
-**Confirmed against real hardware (2026-07-04):** the config flow's login
-handshake (once corrected to the real protocol), error handling, and HACS
-installation and setup work end to end against a live Envisalink EVL-4 +
-VISTA-21iP. Also confirmed: the Envisalink's TPI server only accepts one
-client connection at a time.
+Five behaviours rest on the protocol reference and the programming guide
+rather than on a reading taken from a panel. Each is untested against
+hardware as of 2026-09-15; the first run on your panel is the test.
 
-**What still needs your real Envisalink and panel to confirm:**
+| Behaviour | What it rests on | What would settle it |
+|---|---|---|
+| **Arm and disarm by keystrokes** | User code plus a mode digit, the mechanism a physical keypad uses. | Arming and disarming a live partition end to end. |
+| **Zone bypass `*1zz#`** | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
+| **Zone open/closed from `%FF`** | Decode logic matching the reference `pyenvisalink` implementation. | Reading a zone that is genuinely open and one that is closed. |
+| **Exit-delay detection** | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
+| **The field-programming keystroke sequences** | The programming guide's documented prompt flow: `*56` zone prompt order, `*57` function key A/B/C/D-to-digit mapping, numbered data field entry. | Programming a non-critical zone and reading the result at the keypad. |
 
-- Arm/disarm via keystrokes (user code + mode digit) end to end against a
-  live partition; the wire mechanism is confirmed correct against the real
-  protocol but has not been exercised against a real panel while armed.
-- Whether your Vista panel accepts the zone-bypass keystroke sequence
-  (`*1zz#`) exactly as documented; this is standard Vista/Ademco keypad
-  behaviour but has not been confirmed against your specific panel revision.
-- Zone open/closed detection via the periodic zone timer dump (`%FF`); the
-  decode logic matches the reference `pyenvisalink` implementation exactly
-  but has not been cross-checked against a real open or closed zone.
-- Exit-delay detection, which relies on a substring check ("You may exit
-  now" / "May Exit Now") against the keypad's free-text display; this
-  integration deliberately does not attempt fuller alpha-text parsing (see
-  `state_machine.py`), so entry-delay ("pending") state is not represented
-  at all, matching a known limitation in the reference implementation too.
-- **The entire field-programming keystroke sequences** (`*56` zone
-  programming prompt order, `*57` function key A/B/C/D-to-digit mapping,
-  numbered data field entry): built strictly from the programming guide's
-  documented prompt flow, never confirmed against a live panel. The A/B/C/D
-  key digit mapping in particular (`field_programming.py::_FUNCTION_KEY_DIGIT`)
-  is flagged in code as the first thing to check if `program_function_key`
-  does not do what is expected. **Test any field-programming change on a
-  non-critical zone first, and verify the result at the physical keypad**
-  (installer code + `#` + `56`, the review-only mode) before trusting it on a
-  real fire or security zone.
+The A/B/C/D key digit mapping (`field_programming.py::_FUNCTION_KEY_DIGIT`)
+is flagged in code as the first thing to check if `program_function_key` does
+not do what is expected. Test any field-programming change on a non-critical
+zone first and verify at the physical keypad, installer code + `#` + `56`,
+the review-only mode, before trusting it on a fire or security zone.
 
 ## Panel model support
 
 You pick your panel model in the config flow. Support is delivered through a
-**dialect** layer (`custom_components/envisalink_field_programmer/panels/`)
+dialect layer (`custom_components/envisalink_field_programmer/panels/`)
 that separates the panel-agnostic guided UI from the family-specific
 keystroke grammar and zone-type data.
 
-Because sending the *wrong* keystrokes to a real fire/security panel can
-silence a smoke detector or lock the panel up, and the TPI protocol gives no
-read-back to catch it, every model carries an honest **verification level**,
-and guided programming against anything less than fully verified requires an
-explicit `confirm_unverified_model: true` acknowledgment on top of the normal
-confirmations.
+The wrong keystrokes on a fire or security panel can silence a smoke detector
+or lock the panel up, and TPI gives no read-back to catch it. Every model
+therefore carries a verification level, and guided programming against
+anything below Verified requires `confirm_unverified_model: true` on top of
+the normal confirmations.
 
 | Model | Family | Verification | Notes |
 |---|---|---|---|
@@ -773,12 +729,11 @@ confirmations.
 | VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** is supported (its own dialect); guided **zone** programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
 | DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke *builders* (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport still speaks Honeywell TPI, so guided DSC programming needs a DSC transport (and hardware verification) before it can be enabled. |
 
-The four **Verified** residential VISTA panels are fully field-programmable.
-The commercial VISTA panels add guided **timing** (Provisional; verify at the
-keypad); their `#93` zone flow and the DSC panels remain selectable and safe
-(the DSC keystroke builders exist and are tested, but unwired). What is left
-is genuinely hardware-gated: a conditional commercial `#93` zone builder, and
-a DSC transport layer. Both need a real panel to trust. Contributions welcome.
+The four Verified residential VISTA panels are fully field-programmable. The
+commercial VISTA panels add guided timing at Provisional, so verify at the
+keypad. Their `#93` zone flow and the DSC panels stay selectable, and arm,
+disarm and bypass work there. Two pieces are hardware-gated: a conditional
+commercial `#93` zone builder, and a DSC transport layer.
 
 ## Development
 

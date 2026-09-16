@@ -21,3 +21,9 @@ Thumbs.db
 # HA config artifacts if a local test HA instance is ever run here
 config/.storage/
 config/home-assistant.log
+
+# Agent instructions and settings are per-developer and are never shipped
+.claude/
+CLAUDE.md
+AGENTS.md
+.cursorrules
