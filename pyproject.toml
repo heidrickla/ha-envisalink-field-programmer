@@ -17,6 +17,9 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 # pytest-asyncio 0.24+ warns until the fixture loop scope is stated.
 asyncio_default_fixture_loop_scope = "function"
+# tests/winposix.py supplies the POSIX modules the harness imports at plugin
+# load, which is earlier than any conftest runs. It is a no-op off Windows.
+addopts = "-p tests.winposix"
 
 # strict-typing is the Platinum rule with teeth: Home Assistant runs mypy in
 # strict mode over integrations that claim it. This mirrors the strict block

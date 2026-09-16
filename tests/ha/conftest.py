@@ -14,12 +14,11 @@ Two things here are unusual and both are deliberate:
    integrations (see ``get_test_config_dir``), not this repo's tree.
 
 2. ``pytest_socket.disable_socket`` is neutered at import time. The harness
-   calls it before every test. On Windows, asyncio's ProactorEventLoop needs
-   a real AF_INET socketpair for its self-pipe, so event loop creation itself
-   fails with the guard active. The tests here also open real loopback TCP
-   connections against an in-process fake Envisalink server, which the guard
-   would block. Module import is the earliest deterministic point before the
-   harness's own pytest_runtest_setup runs.
+   calls it before every test, and the tests here open real loopback TCP
+   connections against an in-process fake Envisalink server. Module import is
+   the earliest deterministic point before the harness's own
+   pytest_runtest_setup runs. The Windows event loop's own socket needs are
+   separate and are handled by ``tests/winposix.py``.
 """
 
 from __future__ import annotations
@@ -30,6 +29,10 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("pytest_homeassistant_custom_component")
+
+from tests.winposix import install_ha_layer_shims  # noqa: E402
+
+install_ha_layer_shims()
 
 import pytest_socket  # noqa: E402
 from pytest_homeassistant_custom_component.common import (  # noqa: E402

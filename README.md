@@ -744,7 +744,7 @@ data came from. Quick start:
 python -m venv .venv
 source .venv/Scripts/activate  # or .venv/bin/activate on Linux/Mac
 pip install pytest-homeassistant-custom-component pytest-cov ruff mypy
-python -m pytest tests -q                       # add PYTHONPATH=tools/winshim on Windows
+python -m pytest tests -q                       # Windows needs nothing extra
 ruff check . && ruff format --check .
 python -m mypy custom_components/envisalink_field_programmer
 python tools/validate_local.py

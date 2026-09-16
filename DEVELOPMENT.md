@@ -27,17 +27,31 @@ imports `resource`, both POSIX-only, and the harness's pytest plugin imports
 loading with `ModuleNotFoundError: No module named 'fcntl'` before a test is
 collected.
 
-`tools/winshim/` supplies both modules. Each raises on a call and exists only
-so the import succeeds; nothing the test harness runs calls into either, since
-the single-instance lock and the descriptor-limit call are startup paths of
-the real `hass` binary.
+`tests/winposix.py` supplies both modules and two further shims:
+
+| Blocker | Where | Stand-in |
+|---|---|---|
+| `import fcntl` | `homeassistant/runner.py` | module with `LOCK_EX`, `LOCK_NB` and a `flock` that does nothing; the lock file is never taken under pytest |
+| `import resource` | `homeassistant/util/resource.py` | module reporting a descriptor limit already high enough to leave alone |
+| `pytest_socket` refuses `socket.socketpair()` | ProactorEventLoop self-pipe | the real socket class, for the length of that one call |
+| `aiodns` refuses the Proactor loop | `homeassistant.runner` loop factory | the selector loop |
+
+`pyproject.toml` carries `addopts = "-p tests.winposix"`, and pytest handles
+`-p` before entry point plugins, which is early enough for the first two.
+`tests/ha/conftest.py` calls `install_ha_layer_shims()` for the last two.
+This conftest also neuters `pytest_socket.disable_socket` wholesale for its
+loopback connections to the fake server, which covers the socketpair case as a
+side effect. Measured 2026-09-16: `212 passed` with the call, `212 passed`
+with it commented out. The call stays so the suite does not rest on that side
+effect. Every function returns immediately off Windows, so Linux and CI are
+unchanged. No environment variable to remember:
 
 ```bash
-PYTHONPATH=tools/winshim venv/Scripts/python -m pytest tests -q
+venv/Scripts/python -m pytest tests -q
 ```
 
-Observed on Windows 11 with Python 3.14 and Home Assistant 2026.8.3 on
-2026-09-15: `212 passed`, the full suite, pure and `tests/ha` together.
+Observed on Windows 11 with Python 3.14.7 and Home Assistant 2026.8.3 on
+2026-09-16: `212 passed`, the full suite, pure and `tests/ha` together.
 
 Two ways to run the pure suite alone:
 
@@ -52,7 +66,7 @@ the plugin and lets `tests/ha/conftest.py` skip that directory on its
 `importorskip`; it gives `81 passed, 1 skipped`, the skip being `tests/ha`.
 
 The GitHub `Tests` workflow runs the same suite on Linux with the coverage
-gate and `mypy --strict`. `mypy` needs no shim on Windows: it reads Home
+gate and `mypy --strict`. `mypy` needs no stand-in on Windows: it reads Home
 Assistant's source rather than importing it.
 
 ## Test layout: a pure suite and a Home Assistant layer
@@ -69,8 +83,6 @@ flow, setup and unload, entities, the actions, diagnostics. Its
 
 ## Why `tests/ha/conftest.py` does two unusual things
 
-Both are explained inline in the file itself:
-
 1. It mirrors `custom_components/envisalink_field_programmer/` into the test harness's
    own `testing_config/custom_components/` directory before the session
    starts. `pytest-homeassistant-custom-component`'s `enable_custom_integrations`
@@ -82,16 +94,14 @@ Both are explained inline in the file itself:
 
 2. It neuters `pytest_socket.disable_socket` at module-import time. The
    harness calls `pytest_socket.disable_socket(allow_unix_socket=True)`
-   before every test. On Windows, `asyncio`'s `ProactorEventLoop` needs a
-   real `AF_INET` socketpair just to construct its self-pipe -- unix
-   sockets don't cover it -- so with the guard active, creating any new
-   event loop at all fails before any test code runs. Our tests also open
-   real loopback TCP connections against an in-process fake Envisalink
-   server (`tests/helpers.py::FakeEnvisalinkServer`), which the guard would
-   also block. If you see `pytest_socket.SocketBlockedError` wrapped in an
-   `asyncio.proactor_events` traceback, this is almost certainly it --
-   confirm the neutering line is still present and runs at import time (not
-   inside a fixture, which would be too late).
+   before every test, and these tests open real loopback TCP connections
+   against an in-process fake Envisalink server
+   (`tests/helpers.py::FakeEnvisalinkServer`), which the guard blocks. The
+   line has to run at import time; inside a fixture is too late. A
+   `pytest_socket.SocketBlockedError` in the output means it is gone or has
+   moved. `tests/winposix.py` covers the same guard against the Windows
+   event loop's own self-pipe, narrowly, and is what would carry the suite
+   if this wholesale neutering were ever dropped.
 
 ## A second Windows and asyncio trap: `Server.wait_closed()`
 
@@ -116,13 +126,13 @@ indirectly.
 ## Running tests, lint, mypy and the validator
 
 ```bash
-PYTHONPATH=tools/winshim venv/Scripts/python -m pytest tests -q   # full suite on Windows
+venv/Scripts/python -m pytest tests -q   # full suite, Windows or Linux
 ruff check . && ruff format --check .
 venv/Scripts/python -m mypy custom_components/envisalink_field_programmer
 python tools/validate_local.py
 ```
 
-Observed on 2026-09-15: `212 passed` for the full suite, `81 passed, 1
+Observed on 2026-09-16: `212 passed` for the full suite, `81 passed, 1
 skipped` for the pure suite alone (the skip is `tests/ha` on its
 `importorskip`), `Success: no issues found in 23 source files` from mypy, and
 `all offline checks passed` from the validator.

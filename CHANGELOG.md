@@ -37,6 +37,13 @@ was cut.
   both; loopback, the unspecified address and `localhost` fail the manifest
   rule only, since they name no machine here and are ordinary in a socket
   test.
+- `tests/winposix.py` lets the `tests/ha` suite run on Windows. It stands in
+  for the POSIX-only `fcntl` and `resource` imports in Home Assistant's own
+  startup path, lets the ProactorEventLoop self-pipe through `pytest_socket`,
+  and runs the suite on the selector loop, which `aiodns` accepts. It replaces
+  `tools/winshim/`, which covered the first two and needed `PYTHONPATH` set on
+  every invocation. `pyproject.toml` loads it with
+  `addopts = "-p tests.winposix"`; it returns immediately off Windows.
 - Module docstrings, the README, TROUBLESHOOTING.md and DEVELOPMENT.md state
   the protocol the hardware speaks without the narrative of how an earlier
   reading of it was corrected.
