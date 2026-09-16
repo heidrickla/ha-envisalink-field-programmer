@@ -609,7 +609,7 @@ what it stored is still only visible at the keypad.
 
 What the device page offers depends on the panel model: a DSC entry gets none
 of this (no guided operation is driven for that family), and a commercial VISTA
-gets the timing form only. Arm, disarm and bypass are unaffected either way.
+gets the timing form only, with arm, disarm and bypass unaffected.
 
 The form is held in memory for as long as the entry is loaded. Reloading the
 entry or restarting Home Assistant clears it back to unset, which is
@@ -625,7 +625,8 @@ submitted later out of context.
 | **No entry-delay state** | Exit delay is detected from the keypad's display text. Entry delay, "pending", is not represented, matching the reference `pyenvisalink` implementation. |
 | **Zone state lags up to 30 seconds** | That is the zone timer dump cadence. Partition state is immediate. |
 | **Bypass state is optimistic** | The panel does not say which zone was bypassed, so the switch assumes success and clears with the partition's bypass flag. |
-| **Guided programming is refused on DSC, and for zones on commercial VISTA** | Arm, disarm and bypass still work there. The device page leaves those fields out rather than offering buttons that always refuse. |
+| **Guided zone programming is refused on commercial VISTA** | Arm, disarm, bypass and guided timing work there. The device page leaves the zone fields out rather than offering buttons that always refuse. |
+| **DSC PowerSeries is reference only** | `client.py` speaks Honeywell TPI framing. A DSC panel needs a transport this tree does not carry, and arm, disarm, zone state and guided programming all wait on it. The DSC dialect supplies the section grammar and the zone-type table and drives nothing. |
 | **The programming form is not remembered** | It lives in memory while the entry is loaded and clears on a reload or restart. |
 | **The panel has no identity over TPI** | No serial and no MAC, so an entry is identified by its address. A module's MAC is known only if a DHCP discovery supplied it, and that is what lets a move be followed. |
 
@@ -737,13 +738,14 @@ the normal confirmations.
 | **VISTA-20P / 15P** | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide (2026-07-05): program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. |
 | **VISTA-10P** | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired + 9-24 RF (no zones 7-8), single partition. |
 | VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** is supported (its own dialect); guided **zone** programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
-| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke *builders* (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport still speaks Honeywell TPI, so guided DSC programming needs a DSC transport (and hardware verification) before it can be enabled. |
+| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke *builders* (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport speaks Honeywell TPI framing, so a DSC panel needs a DSC transport (and hardware verification) before anything reaches it, guided programming and arm, disarm and zone state alike. |
 
 The four Verified residential VISTA panels are fully field-programmable. The
 commercial VISTA panels add guided timing at Provisional, so verify at the
-keypad. Their `#93` zone flow and the DSC panels stay selectable, and arm,
-disarm and bypass work there. Two pieces are hardware-gated: a conditional
-commercial `#93` zone builder, and a DSC transport layer.
+keypad; their `#93` zone flow stays selectable and arm, disarm and bypass work
+on it. The DSC models are selectable for the zone-type reference the dialect
+carries, and reach the panel with nothing. Two pieces are hardware-gated: a
+conditional commercial `#93` zone builder, and a DSC transport layer.
 
 ## Development
 

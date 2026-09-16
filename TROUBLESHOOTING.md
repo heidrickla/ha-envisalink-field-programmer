@@ -145,7 +145,8 @@ written into your dashboard resources.
 The device page only offers the operations the selected panel model's
 dialect drives. A DSC entry gets none of them, and a commercial VISTA
 (128BP/250BP) gets the timing form only, rather than buttons that always
-refuse. Arm, disarm and bypass work on all of them. See
+refuse. Arm, disarm and bypass work on every VISTA model. On DSC they wait on
+a DSC transport, the same one guided programming waits on. See
 [Panel model support](README.md#panel-model-support).
 
 ### A button says it needs the Confirm programming switch on
