@@ -2,13 +2,13 @@
 name = "ha-envisalink-field-programmer"
 version = "0.4.2"
 description = "Home Assistant integration for guided Vista field programming over an Envisalink."
-requires-python = ">=3.12"
+# The source uses PEP 758 unparenthesised `except` tuples, which need 3.14.
+# Home Assistant 2026.3.0, the oldest release hacs.json admits, itself declares
+# requires-python >=3.14.2, so no install this integration admits is below it.
+requires-python = ">=3.14.2"
 
 [tool.ruff]
-# The interpreter every gate runs on: CI installs 3.14 and the mypy block below
-# pins python_version 3.14. requires-python stays at 3.12, the floor this source
-# parses on, because the declared minimum Home Assistant in hacs.json is older
-# than the 3.14.2 floor Home Assistant 2026.8.3 declares.
+# CI installs 3.14 and the mypy block below pins python_version 3.14.
 target-version = "py314"
 line-length = 88
 
