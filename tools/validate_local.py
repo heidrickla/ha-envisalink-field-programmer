@@ -195,7 +195,11 @@ def entity_translation_keys(source: str) -> set[str]:
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for target in targets:
-                name = target.id if isinstance(target, ast.Name) else getattr(target, "attr", "")
+                name = (
+                    target.id
+                    if isinstance(target, ast.Name)
+                    else getattr(target, "attr", "")
+                )
                 if (
                     name == "_attr_translation_key"
                     and isinstance(node.value, ast.Constant)
@@ -204,7 +208,9 @@ def entity_translation_keys(source: str) -> set[str]:
                     keys.add(node.value.value)
         elif isinstance(node, ast.Call):
             name = (
-                node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else getattr(node.func, "attr", "")
             )
             if name in TRANSLATED_EXCEPTIONS:
                 continue
@@ -236,7 +242,9 @@ def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
         for keyword in node.exc.keywords:
             if keyword.arg != "translation_key":
                 continue
-            if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
+            if isinstance(keyword.value, ast.Constant) and isinstance(
+                keyword.value.value, str
+            ):
                 key = keyword.value.value
             else:
                 key = "<not a literal>"
@@ -277,7 +285,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _netblocks  # noqa: E402
 
 MANIFEST_NETS = tuple(
-    ipaddress.ip_network(c) for c in _netblocks.TREE_CIDRS + _netblocks.MANIFEST_ONLY_CIDRS
+    ipaddress.ip_network(c)
+    for c in _netblocks.TREE_CIDRS + _netblocks.MANIFEST_ONLY_CIDRS
 )
 TREE_NETS = tuple(ipaddress.ip_network(c) for c in _netblocks.TREE_CIDRS)
 MANIFEST_ONLY_NAMES = ("localhost",)
@@ -433,7 +442,7 @@ def published_files() -> list[str]:
             text=True,
             timeout=30,
         )
-    except (OSError, _subprocess.SubprocessError):
+    except OSError, _subprocess.SubprocessError:
         listing = None
     if listing is not None and listing.returncode == 0:
         paths = [p for p in listing.stdout.split("\0") if p]
@@ -447,13 +456,18 @@ def published_files() -> list[str]:
                 and not (d.startswith(".") and d not in {".gitea", ".github"})
             ]
             for f in files:
-                paths.append(os.path.relpath(os.path.join(dirpath, f), ROOT).replace("\\", "/"))
+                paths.append(
+                    os.path.relpath(os.path.join(dirpath, f), ROOT).replace("\\", "/")
+                )
     keep: list[str] = []
     for path in paths:
         if path in SCAN_EXEMPT:
             continue
         name = path.rsplit("/", 1)[-1]
-        if os.path.splitext(name)[1].lower() in PUBLISHED_SUFFIXES or name in PUBLISHED_NAMES:
+        if (
+            os.path.splitext(name)[1].lower() in PUBLISHED_SUFFIXES
+            or name in PUBLISHED_NAMES
+        ):
             keep.append(path)
     return sorted(keep)
 
@@ -495,7 +509,9 @@ def scan_published_tree() -> None:
             if isinstance(node, ast.ImportFrom) and node.module == "__future__":
                 continue
             targets = node.targets if isinstance(node, ast.Assign) else []
-            if not all(isinstance(t, ast.Name) and t.id in allowed_names for t in targets):
+            if not all(
+                isinstance(t, ast.Name) and t.id in allowed_names for t in targets
+            ):
                 failures.append(
                     f"{SCAN_EXEMPT[0]} holds more than the pinned address space; "
                     "the tree scan skips this file, so nothing else may live in it"
@@ -511,7 +527,9 @@ def scan_published_tree() -> None:
     name_re = None
     finder = globals().get("internal_names")
     if not callable(finder):
-        notes.append("addresses only in the tree scan; no internal_names callable supplied")
+        notes.append(
+            "addresses only in the tree scan; no internal_names callable supplied"
+        )
     else:
         names = finder()
         if names:
@@ -529,7 +547,7 @@ def scan_published_tree() -> None:
             continue
         try:
             text = read(full)
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         seen += 1
         for number, host in tree_hits(text, name_re):
@@ -590,7 +608,9 @@ def main() -> int:
     for f in os.listdir(COMP):
         if f.endswith(".py"):
             used_components |= set(
-                re.findall(r"^from homeassistant\.components\.(\w+)", read(COMP, f), re.M)
+                re.findall(
+                    r"^from homeassistant\.components\.(\w+)", read(COMP, f), re.M
+                )
             )
     # Entity platform bases are imported by every platform and never declared.
     used_components -= set(PLATFORMS) | {"diagnostics"}
@@ -780,7 +800,9 @@ def main() -> int:
                 else:
                     check(value == "done", f"{rule}: bare value must be 'done'")
             todo = sorted(
-                r for r, v in declared.items() if isinstance(v, dict) and v.get("status") == "todo"
+                r
+                for r, v in declared.items()
+                if isinstance(v, dict) and v.get("status") == "todo"
             )
             if todo:
                 notes.append(f"quality scale still todo: {', '.join(todo)}")
@@ -821,7 +843,9 @@ def main() -> int:
 
     # ------------------------------------------------------------ platforms
     init_src = read(COMP, "__init__.py")
-    check("CONFIG_SCHEMA" in init_src, "__init__.py has async_setup but no CONFIG_SCHEMA")
+    check(
+        "CONFIG_SCHEMA" in init_src, "__init__.py has async_setup but no CONFIG_SCHEMA"
+    )
     for platform in PLATFORMS:
         check(
             f"Platform.{platform.upper()}" in init_src,

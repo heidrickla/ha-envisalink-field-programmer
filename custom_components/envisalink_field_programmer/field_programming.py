@@ -172,7 +172,9 @@ ZONE_TYPES: dict[int, ZoneType] = {
     ),
 }
 
-LIFE_SAFETY_ZONE_TYPE_CODES = frozenset(code for code, zt in ZONE_TYPES.items() if zt.life_safety)
+LIFE_SAFETY_ZONE_TYPE_CODES = frozenset(
+    code for code, zt in ZONE_TYPES.items() if zt.life_safety
+)
 
 
 class HardwireType(StrEnum):
@@ -255,7 +257,9 @@ def build_zone_program_keystrokes(program: ZoneProgram) -> str:
     if program.is_hardwired_prompt_zone:
         keys.append(f"{program.response_time.value}*")  # RESPONSE TIME (zones 1-8)
     else:
-        keys.append("2*")  # INPUT TYPE: AW (aux wired) -- see module docstring scope note
+        keys.append(
+            "2*"
+        )  # INPUT TYPE: AW (aux wired) -- see module docstring scope note
     keys.append("0*")  # PROGRAM ALPHA? -- no
     keys.append("00*")  # exit back to ENTER ZN NUM, then to Data Field mode
     return "".join(keys)
@@ -336,7 +340,9 @@ def build_system_timing_keystrokes(field: SystemTimingField, value: int) -> str:
         digits = f"{value:02d}"
     else:
         allowed = ", ".join(f"{k} ({v})" for k, v in specials.items())
-        raise ValueError(f"{field.name} must be {low}-{high} seconds, or one of: {allowed}")
+        raise ValueError(
+            f"{field.name} must be {low}-{high} seconds, or one of: {allowed}"
+        )
     return f"*{field.value}{digits}*"
 
 
@@ -410,7 +416,9 @@ def build_program_mode_wrapper(installer_code: str, action_keystrokes: str) -> s
     Always exits via *99 (normal exit, re-enterable), never *98 (the
     lockout exit) -- see const.py's EXIT_PROGRAM_MODE for why.
     """
-    return f"{installer_code}{PROGRAM_MODE_SUFFIX}{action_keystrokes}{EXIT_PROGRAM_MODE}"
+    return (
+        f"{installer_code}{PROGRAM_MODE_SUFFIX}{action_keystrokes}{EXIT_PROGRAM_MODE}"
+    )
 
 
 # ---------------------------------------------------------------------------

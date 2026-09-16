@@ -75,7 +75,9 @@ async def test_program_zone_sends_expected_keystrokes(hass, fake_server):
     )
     await asyncio.sleep(0.05)
     keystroke_frames = [d for c, d in fake_server.received if c == "03"]
-    full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)  # strip partition prefix
+    full_sent = "".join(
+        d.split(",", 1)[1] for d in keystroke_frames
+    )  # strip partition prefix
     # 4112800 (enter Program Mode) + *56 zone menu: confirm=no, zone 03,
     # accept summary, type=03 (Perimeter), partition=1, report=on,
     # hardwire=EOL(default), response=350ms(default), alpha=no, exit zone
@@ -295,7 +297,9 @@ async def test_set_system_timing_rejects_value_out_of_range(hass, fake_server):
     await _unload(hass, entry)
 
 
-async def test_guided_action_reports_device_refusal_as_device_error(hass, fake_server, monkeypatch):
+async def test_guided_action_reports_device_refusal_as_device_error(
+    hass, fake_server, monkeypatch
+):
     # A refused or unacknowledged command is a device failure, not bad input:
     # HomeAssistantError, and not the ServiceValidationError subclass. The
     # fake server always acknowledges, so the client is made to refuse here.

@@ -70,7 +70,11 @@ async def test_disconnect_waits_for_the_close_instead_of_only_asking_for_it():
         return _Reader(), _Writer()
 
     client = EnvisalinkClient(
-        "127.0.0.1", 4025, SECRET, event_callback=lambda _event: None, open_connection=_open
+        "127.0.0.1",
+        4025,
+        SECRET,
+        event_callback=lambda _event: None,
+        open_connection=_open,
     )
     await client.connect()
     await client.disconnect()
@@ -173,7 +177,11 @@ async def test_a_connect_cancelled_mid_login_still_closes_its_socket():
         return _Reader(), _NeverAnsweringWriter(log)
 
     client = EnvisalinkClient(
-        "127.0.0.1", 4025, SECRET, event_callback=lambda _event: None, open_connection=_open
+        "127.0.0.1",
+        4025,
+        SECRET,
+        event_callback=lambda _event: None,
+        open_connection=_open,
     )
     connecting = asyncio.ensure_future(client.connect())
     await reached_login.wait()
@@ -216,7 +224,11 @@ async def test_a_failed_login_also_waits_for_its_close():
         return _Reader(), _Writer()
 
     client = EnvisalinkClient(
-        "127.0.0.1", 4025, SECRET, event_callback=lambda _event: None, open_connection=_open
+        "127.0.0.1",
+        4025,
+        SECRET,
+        event_callback=lambda _event: None,
+        open_connection=_open,
     )
     with pytest.raises(OSError):
         await client.connect()
@@ -261,7 +273,9 @@ async def test_the_retry_gives_up_when_the_module_keeps_dropping(fake_server):
     assert fake_server.connections == 2
 
 
-async def test_the_next_client_gets_in_as_soon_as_the_last_one_has_disconnected(fake_server):
+async def test_the_next_client_gets_in_as_soon_as_the_last_one_has_disconnected(
+    fake_server,
+):
     # The whole reason disconnect() waits: with the server admitting one
     # client at a time, the second connect is dropped while the first holds
     # the session and succeeds the moment the first has let go.

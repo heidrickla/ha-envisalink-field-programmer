@@ -67,7 +67,9 @@ class FakeEnvisalinkServer:
         self._writer.write(f"%{code},{data}$".encode("ascii"))
         await self._writer.drain()
 
-    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def _handle(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         self.connections += 1
         # Counted before the handshake: the module's slot is taken by the
         # connection, not by the login that follows it.
@@ -80,13 +82,17 @@ class FakeEnvisalinkServer:
             self.closed_connections += 1
 
     async def _serve(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, *, busy: bool = False
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        *,
+        busy: bool = False,
     ) -> None:
         writer.write(b"Login:\r\n")
         await writer.drain()
         try:
             raw = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=5)
-        except (TimeoutError, asyncio.IncompleteReadError):
+        except TimeoutError, asyncio.IncompleteReadError:
             return
         password = raw.decode("ascii", errors="ignore").strip("\r\n")
 
@@ -123,9 +129,11 @@ class FakeEnvisalinkServer:
                     parsed = self._record_frame(raw_frame)
                     if parsed is not None and self.ack_commands:
                         code, _ = parsed
-                        writer.write(f"^{code},{self._next_response(code)}$".encode("ascii"))
+                        writer.write(
+                            f"^{code},{self._next_response(code)}$".encode("ascii")
+                        )
                         await writer.drain()
-        except (asyncio.IncompleteReadError, ConnectionResetError):
+        except asyncio.IncompleteReadError, ConnectionResetError:
             pass
 
     def _next_response(self, code: str) -> str:

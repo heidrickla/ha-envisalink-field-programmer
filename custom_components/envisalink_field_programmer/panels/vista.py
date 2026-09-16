@@ -74,7 +74,9 @@ _VISTA_ZONE_TYPES: dict[int, ZoneTypeDef] = {
 }
 
 
-def _vista_opens_program_mode(keys: str, installer_code: str | None, suffix: str) -> bool:
+def _vista_opens_program_mode(
+    keys: str, installer_code: str | None, suffix: str
+) -> bool:
     """Shared VISTA Program-Mode detector for a given entry suffix (800/8000)."""
     import re
 
@@ -87,7 +89,9 @@ class VistaDialect:
     """Residential VISTA dialect (21iP/20P/15P/10P): ``*56`` / ``<code>800``."""
 
     family = PanelFamily.VISTA
-    supported_guided_ops = frozenset({GuidedOp.ZONE, GuidedOp.TIMING, GuidedOp.FUNCTION_KEY})
+    supported_guided_ops = frozenset(
+        {GuidedOp.ZONE, GuidedOp.TIMING, GuidedOp.FUNCTION_KEY}
+    )
     guided_field_programming_note = (
         "Residential VISTA *56 zone programming, *34/*35/*36 timing, and *57 "
         "function keys are all wired into the guided flow."
@@ -116,7 +120,9 @@ class VistaDialect:
             for f in SystemTimingField
         }
 
-    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+    def build_timing_keystrokes(
+        self, field_key: str, value: int, partition: int
+    ) -> str:
         # Residential timing is system-wide; partition is ignored.
         return build_system_timing_keystrokes(SystemTimingField(field_key), value)
 
@@ -130,15 +136,29 @@ VISTA_DIALECT: PanelDialect = VistaDialect()
 # types (20/21/22), access-point (27), and supervisory types (12/28/29).
 _COMMERCIAL_VISTA_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     0: ZoneTypeDef(0, "Unused", "No zone assigned."),
-    1: ZoneTypeDef(1, "Entry/Exit #1 (burglary)", "Main entry door; entry/exit delay #1."),
-    2: ZoneTypeDef(2, "Entry/Exit #2 (burglary)", "Secondary entry door; entry/exit delay #2."),
-    3: ZoneTypeDef(3, "Perimeter (burglary)", "Exterior door/window; instant alarm when armed."),
-    4: ZoneTypeDef(
-        4, "Interior Follower (burglary)", "Interior zone; delayed only after an entry door."
+    1: ZoneTypeDef(
+        1, "Entry/Exit #1 (burglary)", "Main entry door; entry/exit delay #1."
     ),
-    5: ZoneTypeDef(5, "Trouble Day / Alarm Night", "Trouble by day, alarm when armed at night."),
-    6: ZoneTypeDef(6, "24-Hour Silent Alarm", "Silent report to the monitoring station."),
-    7: ZoneTypeDef(7, "24-Hour Audible Alarm", "Audible alarm + report, always active."),
+    2: ZoneTypeDef(
+        2, "Entry/Exit #2 (burglary)", "Secondary entry door; entry/exit delay #2."
+    ),
+    3: ZoneTypeDef(
+        3, "Perimeter (burglary)", "Exterior door/window; instant alarm when armed."
+    ),
+    4: ZoneTypeDef(
+        4,
+        "Interior Follower (burglary)",
+        "Interior zone; delayed only after an entry door.",
+    ),
+    5: ZoneTypeDef(
+        5, "Trouble Day / Alarm Night", "Trouble by day, alarm when armed at night."
+    ),
+    6: ZoneTypeDef(
+        6, "24-Hour Silent Alarm", "Silent report to the monitoring station."
+    ),
+    7: ZoneTypeDef(
+        7, "24-Hour Audible Alarm", "Audible alarm + report, always active."
+    ),
     8: ZoneTypeDef(
         8, "24-Hour Auxiliary", "Aux emergency/monitoring zone; keypad beeps, no siren."
     ),
@@ -154,7 +174,10 @@ _COMMERCIAL_VISTA_ZONE_TYPES: dict[int, ZoneTypeDef] = {
         "Interior zone that always gets entry delay when armed Away.",
     ),
     14: ZoneTypeDef(
-        14, "Carbon Monoxide Detector", "CO detector, always active. Life safety.", life_safety=True
+        14,
+        "Carbon Monoxide Detector",
+        "CO detector, always active. Life safety.",
+        life_safety=True,
     ),
     16: ZoneTypeDef(
         16,
@@ -162,7 +185,9 @@ _COMMERCIAL_VISTA_ZONE_TYPES: dict[int, ZoneTypeDef] = {
         "Smoke/heat detector with alarm verification. Always active. Life safety.",
         life_safety=True,
     ),
-    23: ZoneTypeDef(23, "No Alarm Response", "No security response (e.g. relay-trigger only)."),
+    23: ZoneTypeDef(
+        23, "No Alarm Response", "No security response (e.g. relay-trigger only)."
+    ),
 }
 
 _COMMERCIAL_LIFE_SAFETY = frozenset(
@@ -173,10 +198,16 @@ _COMMERCIAL_LIFE_SAFETY = frozenset(
 # units of 15 seconds (value 00, or 02-15). Verified against K5894PRV6.
 _COMMERCIAL_TIMING_FIELDS: dict[str, TimingFieldDef] = {
     "09": TimingFieldDef(
-        "09", "Entry Delay #1", "Entry delay 1, in units of 15 seconds (0, or 2-15).", True
+        "09",
+        "Entry Delay #1",
+        "Entry delay 1, in units of 15 seconds (0, or 2-15).",
+        True,
     ),
     "10": TimingFieldDef(
-        "10", "Exit Delay #1", "Exit delay 1, in units of 15 seconds (0, or 2-15).", True
+        "10",
+        "Exit Delay #1",
+        "Exit delay 1, in units of 15 seconds (0, or 2-15).",
+        True,
     ),
     "11": TimingFieldDef(
         "11",
@@ -228,11 +259,15 @@ class CommercialVistaDialect:
     def timing_fields(self) -> dict[str, TimingFieldDef]:
         return _COMMERCIAL_TIMING_FIELDS
 
-    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+    def build_timing_keystrokes(
+        self, field_key: str, value: int, partition: int
+    ) -> str:
         if field_key not in _COMMERCIAL_TIMING_FIELDS:
             raise ValueError(f"unknown commercial timing field {field_key!r}")
         if not (value == 0 or 2 <= value <= 15):
-            raise ValueError(f"{field_key} must be 0 or 2-15 (units of 15 seconds), got {value}")
+            raise ValueError(
+                f"{field_key} must be 0 or 2-15 (units of 15 seconds), got {value}"
+            )
         if not 1 <= partition <= 8:
             raise ValueError(f"partition must be 1-8, got {partition}")
         # Select the partition (*91<p>), then edit the 2-digit field (*<ff><vv>).

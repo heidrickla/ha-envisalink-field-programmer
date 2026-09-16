@@ -71,13 +71,15 @@ ATTR_ACTION = "action"
 PROGRAM_ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTRY_ID): cv.string,
-        vol.Required(ATTR_ZONE_NUMBER): vol.All(vol.Coerce(int), vol.Range(min=1, max=64)),
+        vol.Required(ATTR_ZONE_NUMBER): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=64)
+        ),
         vol.Required(ATTR_ZONE_TYPE): vol.All(vol.Coerce(int), vol.In(ZONE_TYPES)),
         vol.Required(ATTR_PARTITION): vol.All(vol.Coerce(int), vol.Range(min=1, max=3)),
         vol.Optional(ATTR_REPORT_ENABLED, default=True): cv.boolean,
-        vol.Optional(ATTR_HARDWIRE_TYPE, default=HardwireType.END_OF_LINE.value): vol.In(
-            [t.value for t in HardwireType]
-        ),
+        vol.Optional(
+            ATTR_HARDWIRE_TYPE, default=HardwireType.END_OF_LINE.value
+        ): vol.In([t.value for t in HardwireType]),
         vol.Optional(ATTR_RESPONSE_TIME, default=ResponseTime.MS_350.value): vol.In(
             [t.value for t in ResponseTime]
         ),
@@ -96,7 +98,9 @@ SET_SYSTEM_TIMING_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTRY_ID): cv.string,
         vol.Required(ATTR_FIELD): cv.string,
         vol.Required(ATTR_VALUE): vol.Coerce(int),
-        vol.Optional(ATTR_PARTITION, default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=8)),
+        vol.Optional(ATTR_PARTITION, default=1): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=8)
+        ),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
     }
@@ -189,7 +193,9 @@ async def _send_program_mode_sequence(
     _require_guided_support(coordinator, op)
     _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
-    full_sequence = coordinator.dialect.program_mode_wrapper(installer_code, action_keystrokes)
+    full_sequence = coordinator.dialect.program_mode_wrapper(
+        installer_code, action_keystrokes
+    )
     # allow_installer_mode=True: every one of these operations always opens
     # Program Mode by design, gated on the caller's own confirmation instead of
     # the generic send_keystrokes confirmation flag. The coordinator's dialect
@@ -225,7 +231,9 @@ async def async_program_zone(
                 "zone_type": str(zone_type),
                 "label": ZONE_TYPES[zone_type].label,
                 "switch": programming_entity_display_name(
-                    coordinator.hass, coordinator.entry.entry_id, "program_confirm_life_safety"
+                    coordinator.hass,
+                    coordinator.entry.entry_id,
+                    "program_confirm_life_safety",
                 ),
             },
         )
@@ -272,7 +280,9 @@ async def async_set_system_timing(
     # The value range depends on the field and the dialect, so the schema
     # cannot check it; the builder's ValueError is the user's mistake.
     try:
-        keystrokes = coordinator.dialect.build_timing_keystrokes(field, value, partition)
+        keystrokes = coordinator.dialect.build_timing_keystrokes(
+            field, value, partition
+        )
     except ValueError as err:
         raise ServiceValidationError(
             translation_domain=DOMAIN,

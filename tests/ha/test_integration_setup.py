@@ -100,7 +100,9 @@ async def test_several_partitions_get_numbered_names(hass, fake_server):
             _entity_id(hass, entry, "sensor", f"partition_{number}_last_user")
         )
         assert last_user is not None
-        assert last_user.attributes["friendly_name"].endswith(f"Partition {number} Last User")
+        assert last_user.attributes["friendly_name"].endswith(
+            f"Partition {number} Last User"
+        )
     await unload_entry(hass, entry)
 
 
@@ -121,10 +123,16 @@ async def test_noisy_diagnostics_are_disabled_by_default(hass, fake_server):
     registry = er.async_get(hass)
     for domain, suffix in (("sensor", "last_event"), ("switch", "zone_1_bypass")):
         entity_id = _entity_id(hass, entry, domain, suffix)
-        assert registry.async_get(entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+        assert (
+            registry.async_get(entity_id).disabled_by
+            is er.RegistryEntryDisabler.INTEGRATION
+        )
         assert hass.states.get(entity_id) is None
     # The other diagnostic sensor stays enabled.
-    assert hass.states.get(_entity_id(hass, entry, "sensor", "partition_1_last_user")) is not None
+    assert (
+        hass.states.get(_entity_id(hass, entry, "sensor", "partition_1_last_user"))
+        is not None
+    )
     await unload_entry(hass, entry)
 
 
@@ -156,7 +164,9 @@ async def test_zone_open_event_updates_binary_sensor(hass, fake_server):
     await unload_entry(hass, entry)
 
 
-async def test_disconnect_marks_entities_unavailable_and_logs_once(hass, fake_server, caplog):
+async def test_disconnect_marks_entities_unavailable_and_logs_once(
+    hass, fake_server, caplog
+):
     entry = await setup_entry(hass, fake_server, num_zones=4)
     with caplog.at_level(logging.INFO):
         await fake_server.stop()
@@ -233,7 +243,9 @@ class _StallingClient:
         return None
 
 
-async def test_releasing_the_session_waits_out_a_reconnect_that_is_mid_login(hass, fake_server):
+async def test_releasing_the_session_waits_out_a_reconnect_that_is_mid_login(
+    hass, fake_server
+):
     # The reconfigure flow releases the session so its probe can get in. A
     # reconnect caught inside client.connect() holds a socket the module counts
     # against its single slot, and that socket is not the client's yet, so
@@ -262,7 +274,9 @@ async def test_releasing_the_session_waits_out_a_reconnect_that_is_mid_login(has
 
 
 async def test_wrong_password_starts_reauth_instead_of_crashing(hass, fake_server):
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, password="wrong"))
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, password="wrong")
+    )
     entry.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -280,7 +294,8 @@ async def test_a_login_the_module_drops_is_tried_again_before_the_entry_fails(
     # login because it had not yet noticed its one session was free. Setup
     # makes the second attempt itself rather than failing the entry first.
     monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY",
+        0.05,
     )
     fake_server.drop_logins = 1
     entry = await setup_entry(hass, fake_server, num_zones=4)
@@ -295,7 +310,8 @@ async def test_a_module_that_keeps_dropping_the_login_leaves_the_entry_retrying(
     # The positive control for the test above: the retry is one more attempt,
     # not a loop that hides a module which is really unavailable.
     monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY",
+        0.05,
     )
     fake_server.drop_logins = 5
     entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, num_zones=4))
@@ -308,7 +324,8 @@ async def test_a_module_that_keeps_dropping_the_login_leaves_the_entry_retrying(
 
 async def test_unreachable_envisalink_is_retried(hass, monkeypatch):
     monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY", 0.05
+        "custom_components.envisalink_field_programmer.coordinator.SETUP_RETRY_DELAY",
+        0.05,
     )
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -333,7 +350,8 @@ async def test_a_long_outage_raises_a_repair_issue_and_recovery_clears_it(
     # like an unreachable host. After a few failed reconnects the repair
     # issue says so; the reconnection takes it away again.
     monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN", 0.02
+        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN",
+        0.02,
     )
     monkeypatch.setattr(
         "custom_components.envisalink_field_programmer.coordinator.RECONNECT_FAILURES_BEFORE_ISSUE",
@@ -471,7 +489,10 @@ async def test_disarm_types_the_default_code(hass, fake_server):
     entry = await setup_entry(hass, fake_server, num_zones=4, user_code="1234")
     alarm_entity_id = _entity_id(hass, entry, "alarm_control_panel", "partition_1")
     await hass.services.async_call(
-        "alarm_control_panel", "alarm_disarm", {"entity_id": alarm_entity_id}, blocking=True
+        "alarm_control_panel",
+        "alarm_disarm",
+        {"entity_id": alarm_entity_id},
+        blocking=True,
     )
     await asyncio.sleep(0.05)
     keys = "".join(d.split(",", 1)[1] for c, d in fake_server.received if c == "03")
@@ -499,7 +520,10 @@ async def test_setup_leaves_registry_entries_it_does_not_own(hass, fake_server):
 
 async def test_diagnostics_redact_every_code(hass, fake_server):
     entry = await setup_entry(
-        hass, fake_server, num_zones=4, options={"installer_code": "4112", "user_code": "1234"}
+        hass,
+        fake_server,
+        num_zones=4,
+        options={"installer_code": "4112", "user_code": "1234"},
     )
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
     assert diagnostics["config_entry"]["data"]["password"] == "**REDACTED**"

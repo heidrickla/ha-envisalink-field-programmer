@@ -214,7 +214,9 @@ def test_empty_and_malformed_frames_are_dropped_without_stopping_the_stream():
 
 
 async def test_a_command_sent_without_a_session_is_a_connection_error():
-    client = EnvisalinkClient("127.0.0.1", 4025, "user", event_callback=lambda event: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", 4025, "user", event_callback=lambda event: None
+    )
     with pytest.raises(TPIConnectionError, match="not connected"):
         await client.keep_alive()
 
@@ -238,6 +240,8 @@ async def test_the_default_partition_command_reaches_the_panel():
 
 
 async def test_a_keypress_is_one_character_at_a_time():
-    client = EnvisalinkClient("127.0.0.1", 4025, "user", event_callback=lambda event: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", 4025, "user", event_callback=lambda event: None
+    )
     with pytest.raises(ValueError, match="one character"):
         await client.send_keypress(1, "12")

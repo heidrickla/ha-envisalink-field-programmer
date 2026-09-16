@@ -96,7 +96,9 @@ class VistaState:
     @classmethod
     def create(cls, num_partitions: int, num_zones: int) -> VistaState:
         return cls(
-            partitions={n: PartitionState(number=n) for n in range(1, num_partitions + 1)},
+            partitions={
+                n: PartitionState(number=n) for n in range(1, num_partitions + 1)
+            },
             zones={n: ZoneState(number=n) for n in range(1, num_zones + 1)},
         )
 

@@ -43,7 +43,9 @@ def test_ready_idle_partition():
 
 def test_armed_away():
     state = _state()
-    apply_event(state, _keypad_update(1, "armed_away", "ac_present", alpha="ARMED AWAY"))
+    apply_event(
+        state, _keypad_update(1, "armed_away", "ac_present", alpha="ARMED AWAY")
+    )
     partition = state.partition(1)
     assert partition.armed is True
     assert partition.arm_state == "armed_away"

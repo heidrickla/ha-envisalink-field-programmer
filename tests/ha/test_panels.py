@@ -105,7 +105,10 @@ def test_vista_residential_timing_builder():
 
 
 def test_commercial_vista_dialect_supports_timing_only():
-    from custom_components.envisalink_field_programmer.panels import GuidedOp, get_dialect
+    from custom_components.envisalink_field_programmer.panels import (
+        GuidedOp,
+        get_dialect,
+    )
 
     dialect = get_dialect("vista_128bp")
     assert dialect.supported_guided_ops == frozenset({GuidedOp.TIMING})
@@ -261,7 +264,9 @@ def _fake_coordinator(hass, model):
     from types import SimpleNamespace
 
     # Only what the guard reads: the model, and what the switch-name lookup needs.
-    return SimpleNamespace(panel_model=model, hass=hass, entry=SimpleNamespace(entry_id="fake"))
+    return SimpleNamespace(
+        panel_model=model, hass=hass, entry=SimpleNamespace(entry_id="fake")
+    )
 
 
 async def test_verified_or_ack_allows_verified_model_without_ack(hass):
@@ -271,7 +276,9 @@ async def test_verified_or_ack_allows_verified_model_without_ack(hass):
 
     model = get_model("vista_21ip")
     assert model.verification == Verification.VERIFIED
-    _require_verified_or_ack(_fake_coordinator(hass, model), confirm_unverified=False)  # no raise
+    _require_verified_or_ack(
+        _fake_coordinator(hass, model), confirm_unverified=False
+    )  # no raise
 
 
 async def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with(hass):
@@ -290,9 +297,13 @@ async def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with(has
         notes="not checked yet",
     )
     with pytest.raises(KeystrokeGuardError) as raised:
-        _require_verified_or_ack(_fake_coordinator(hass, provisional), confirm_unverified=False)
+        _require_verified_or_ack(
+            _fake_coordinator(hass, provisional), confirm_unverified=False
+        )
     assert raised.value.translation_key == "unverified_model"
     # No such switch is registered for the fake entry, so the name falls back.
     assert raised.value.translation_placeholders["switch"] == "confirm unverified model"
     # With the explicit acknowledgment it proceeds.
-    _require_verified_or_ack(_fake_coordinator(hass, provisional), confirm_unverified=True)
+    _require_verified_or_ack(
+        _fake_coordinator(hass, provisional), confirm_unverified=True
+    )

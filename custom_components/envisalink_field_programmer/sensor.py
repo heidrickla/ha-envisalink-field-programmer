@@ -26,7 +26,8 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     entities: list[SensorEntity] = [VistaLastEventSensor(coordinator)]
     entities.extend(
-        VistaLastUserSensor(coordinator, number) for number in sorted(coordinator.data.partitions)
+        VistaLastUserSensor(coordinator, number)
+        for number in sorted(coordinator.data.partitions)
     )
     # Only where there is a programming button that could produce a result.
     if coordinator.dialect.supported_guided_ops:
@@ -69,7 +70,9 @@ class VistaLastUserSensor(VistaConsoleEntity, SensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: VistaConsoleCoordinator, partition_number: int) -> None:
+    def __init__(
+        self, coordinator: VistaConsoleCoordinator, partition_number: int
+    ) -> None:
         super().__init__(coordinator, f"partition_{partition_number}_last_user")
         self._partition_number = partition_number
         # One partition needs no number in the name; several do.

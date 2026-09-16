@@ -68,8 +68,12 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     4: ZoneTypeDef(
         4, "Interior", "Interior follower; delayed only if an entry door tripped first."
     ),
-    5: ZoneTypeDef(5, "Interior Stay/Away", "Interior zone auto-bypassed when armed in Stay mode."),
-    6: ZoneTypeDef(6, "Delay Stay/Away", "Delay-1 zone auto-bypassed when armed in Stay mode."),
+    5: ZoneTypeDef(
+        5, "Interior Stay/Away", "Interior zone auto-bypassed when armed in Stay mode."
+    ),
+    6: ZoneTypeDef(
+        6, "Delay Stay/Away", "Delay-1 zone auto-bypassed when armed in Stay mode."
+    ),
     7: ZoneTypeDef(
         7,
         "Delayed 24-Hour Fire",
@@ -89,9 +93,15 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
         "24-Hour Supervision",
         "Instant alarm/communication; does not sound the bell or keypad buzzer.",
     ),
-    10: ZoneTypeDef(10, "24-Hour Supervisory Buzzer", "Instant alarm; sounds the keypad buzzer."),
-    11: ZoneTypeDef(11, "24-Hour Burglary", "Always-armed burglary zone; audible alarm."),
-    16: ZoneTypeDef(16, "24-Hour Panic", "Hold-up/panic zone; reports to the monitoring station."),
+    10: ZoneTypeDef(
+        10, "24-Hour Supervisory Buzzer", "Instant alarm; sounds the keypad buzzer."
+    ),
+    11: ZoneTypeDef(
+        11, "24-Hour Burglary", "Always-armed burglary zone; audible alarm."
+    ),
+    16: ZoneTypeDef(
+        16, "24-Hour Panic", "Hold-up/panic zone; reports to the monitoring station."
+    ),
     41: ZoneTypeDef(
         41,
         "24-Hour Carbon Monoxide (hardwired)",
@@ -106,7 +116,9 @@ _DSC_ZONE_TYPES: dict[int, ZoneTypeDef] = {
     ),
 }
 
-_DSC_LIFE_SAFETY_CODES = frozenset(code for code, zt in _DSC_ZONE_TYPES.items() if zt.life_safety)
+_DSC_LIFE_SAFETY_CODES = frozenset(
+    code for code, zt in _DSC_ZONE_TYPES.items() if zt.life_safety
+)
 
 
 class DscPowerSeriesDialect:
@@ -135,7 +147,9 @@ class DscPowerSeriesDialect:
         # timing builder exists as a pure function (see build_dsc_partition_timing).
         return {}
 
-    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+    def build_timing_keystrokes(
+        self, field_key: str, value: int, partition: int
+    ) -> str:
         raise NotImplementedError(
             "DSC guided timing is not driven (no DSC transport yet); use "
             "build_dsc_partition_timing() directly for the keystroke string."
@@ -143,9 +157,7 @@ class DscPowerSeriesDialect:
 
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         """Wrap section keystrokes: ``*8`` + code + <sections> + ``##``."""
-        return (
-            f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
-        )
+        return f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
 
     def opens_program_mode(self, keys: str, installer_code: str | None) -> bool:
         """DSC opens installer programming via ``*8`` + installer code.

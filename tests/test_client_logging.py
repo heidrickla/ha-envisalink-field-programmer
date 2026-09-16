@@ -45,7 +45,9 @@ def _assert_secret_absent(caplog: pytest.LogCaptureFixture) -> None:
         assert SECRET not in str(record.msg)
 
 
-async def test_the_handshake_log_describes_the_password_without_recording_it(fake_server, caplog):
+async def test_the_handshake_log_describes_the_password_without_recording_it(
+    fake_server, caplog
+):
     with caplog.at_level(logging.DEBUG, logger=LOGGER_NAME):
         client = EnvisalinkClient(
             "127.0.0.1", fake_server.port, SECRET, event_callback=lambda _event: None
@@ -56,7 +58,9 @@ async def test_the_handshake_log_describes_the_password_without_recording_it(fak
     # Positive control on the same axis: the log really did describe this
     # login, so the absence below is not just an absence of logging.
     messages = [record.getMessage() for record in caplog.records]
-    assert any(f"sending a {len(SECRET)}-character password" in message for message in messages)
+    assert any(
+        f"sending a {len(SECRET)}-character password" in message for message in messages
+    )
     assert any("module answered 'OK'" in message for message in messages)
     _assert_secret_absent(caplog)
 
@@ -70,5 +74,7 @@ async def test_a_rejected_password_is_not_written_to_the_log(fake_server, caplog
         with pytest.raises(TPIAuthError):
             await client.connect()
 
-    assert any("module answered 'FAILED'" in record.getMessage() for record in caplog.records)
+    assert any(
+        "module answered 'FAILED'" in record.getMessage() for record in caplog.records
+    )
     _assert_secret_absent(caplog)

@@ -30,7 +30,9 @@ async def fake_server():
 
 async def test_successful_login_and_keepalive(fake_server):
     events = []
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=events.append)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=events.append
+    )
     await client.connect()
     try:
         assert client.connected
@@ -42,7 +44,9 @@ async def test_successful_login_and_keepalive(fake_server):
 
 
 async def test_wrong_password_raises_auth_error(fake_server):
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "wrong", event_callback=lambda e: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "wrong", event_callback=lambda e: None
+    )
     with pytest.raises(TPIAuthError):
         await client.connect()
 
@@ -55,7 +59,9 @@ async def test_connection_refused_raises_connection_error():
 
 async def test_events_are_delivered_to_callback(fake_server):
     events = []
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=events.append)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=events.append
+    )
     await client.connect()
     try:
         await fake_server.push("00", "1,1020,0,08,ready")
@@ -81,7 +87,9 @@ async def test_disconnect_callback_invoked_on_server_close(fake_server):
 
 
 async def test_send_keystrokes_sends_one_character_per_frame(fake_server):
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=lambda e: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
     await client.connect()
     try:
         await client.send_keystrokes(1, "1234")
@@ -97,7 +105,9 @@ async def test_send_retries_keypress_after_buffer_overrun(fake_server):
     # while the previous one is still being processed; the client must
     # re-send rather than silently dropping the keystroke.
     fake_server.scripted_responses["03"] = ["01"]
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=lambda e: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
     await client.connect()
     try:
         await client.send_keypress(1, "4")
@@ -109,7 +119,9 @@ async def test_send_retries_keypress_after_buffer_overrun(fake_server):
 
 async def test_send_raises_on_rejected_command(fake_server):
     fake_server.scripted_responses["03"] = ["02"]  # Unknown Command
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=lambda e: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
     await client.connect()
     try:
         with pytest.raises(TPICommandError, match="Unknown Command"):
@@ -161,7 +173,9 @@ async def test_keystrokes_wait_for_each_ack_before_next_send(fake_server):
 
 
 async def test_dump_zone_timers_sends_expected_command(fake_server):
-    client = EnvisalinkClient("127.0.0.1", fake_server.port, "user", event_callback=lambda e: None)
+    client = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, "user", event_callback=lambda e: None
+    )
     await client.connect()
     try:
         await client.dump_zone_timers()

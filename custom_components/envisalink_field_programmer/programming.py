@@ -162,7 +162,9 @@ async def async_send_guarded_keystrokes(
         ) from err
 
 
-def get_loaded_coordinator(hass: HomeAssistant, entry_id: str) -> VistaConsoleCoordinator:
+def get_loaded_coordinator(
+    hass: HomeAssistant, entry_id: str
+) -> VistaConsoleCoordinator:
     """The loaded coordinator an action call names, or a translated refusal."""
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None or entry.domain != DOMAIN:

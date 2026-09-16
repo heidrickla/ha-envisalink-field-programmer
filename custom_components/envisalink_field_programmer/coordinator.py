@@ -147,7 +147,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.async_clear_connection_issue()
         try:
             await self.client.dump_zone_timers()
-        except (TPIError, OSError):
+        except TPIError, OSError:
             # Through async_shutdown so the read loop's disconnect callback
             # sees the shutting-down flag and does not start a reconnect.
             self.data.system.connected = False
@@ -210,8 +210,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.async_clear_connection_issue()
         try:
             await self.client.dump_zone_timers()
-        except (TPIError, OSError):
-            _LOGGER.debug("Zone timer dump after taking the session back failed", exc_info=True)
+        except TPIError, OSError:
+            _LOGGER.debug(
+                "Zone timer dump after taking the session back failed", exc_info=True
+            )
         self.async_set_updated_data(self.data)
 
     async def _handle_hass_stop(self, _event: Event) -> None:
@@ -276,7 +278,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             return
         # Once per outage; the retries below log at debug and the recovery
         # is logged once when it happens.
-        _LOGGER.info("Lost the connection to the Envisalink at %s: %s", self._host, error)
+        _LOGGER.info(
+            "Lost the connection to the Envisalink at %s: %s", self._host, error
+        )
         self._reconnect_task = self.entry.async_create_background_task(
             self.hass, self._reconnect_loop(), name=f"{self.name} reconnect"
         )
@@ -315,7 +319,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 try:
                     await self.client.connect()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Envisalink Field Programmer reconnect attempt failed: %s", err)
+                    _LOGGER.debug(
+                        "Envisalink Field Programmer reconnect attempt failed: %s", err
+                    )
                     self._failed_reconnects += 1
                     if self._failed_reconnects == RECONNECT_FAILURES_BEFORE_ISSUE:
                         self._async_raise_connection_issue()
@@ -328,8 +334,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 _LOGGER.info("Reconnected to the Envisalink at %s", self._host)
                 try:
                     await self.client.dump_zone_timers()
-                except (TPIError, OSError):
-                    _LOGGER.debug("Zone timer dump after reconnect failed", exc_info=True)
+                except TPIError, OSError:
+                    _LOGGER.debug(
+                        "Zone timer dump after reconnect failed", exc_info=True
+                    )
                 self.async_set_updated_data(self.data)
                 return
         except asyncio.CancelledError:
@@ -349,7 +357,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
     async def async_disarm(self, partition: int, code: str) -> None:
         await self._async_send_arm_disarm_keystrokes(partition, f"{code}1")
 
-    async def _async_send_arm_disarm_keystrokes(self, partition: int, keys: str) -> None:
+    async def _async_send_arm_disarm_keystrokes(
+        self, partition: int, keys: str
+    ) -> None:
         """Arm/disarm by typing the user code + mode digit(s), like a real keypad.
 
         Routed through the same guardrail as every other keystroke send
@@ -379,6 +389,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
         zone = self.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(self.client, zone.partition, keys, dialect=self.dialect)
+        await async_send_guarded_keystrokes(
+            self.client, zone.partition, keys, dialect=self.dialect
+        )
         zone.bypassed = not zone.bypassed
         self.async_set_updated_data(self.data)

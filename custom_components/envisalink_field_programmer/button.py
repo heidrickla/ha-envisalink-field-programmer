@@ -80,7 +80,9 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
         return self._display_name(self.action_id)
 
     def _display_name(self, suffix: str) -> str:
-        return programming_entity_display_name(self.hass, self.coordinator.entry.entry_id, suffix)
+        return programming_entity_display_name(
+            self.hass, self.coordinator.entry.entry_id, suffix
+        )
 
     async def _async_program(self, form: ProgrammingForm) -> None:
         """Run the operation. Subclasses read the values they need."""
@@ -129,7 +131,9 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
             self._record(ProgrammingOutcome.FAILED, str(err))
             raise
         else:
-            self._record(ProgrammingOutcome.SUCCESS, TPI_RESPONSE_CODES[RESPONSE_ACCEPTED])
+            self._record(
+                ProgrammingOutcome.SUCCESS, TPI_RESPONSE_CODES[RESPONSE_ACCEPTED]
+            )
         finally:
             # An authorization is spent on exactly one attempt, however it went.
             form.clear_confirmations()
@@ -198,7 +202,9 @@ class ProgramFunctionKeyButton(ProgrammingButton):
     async def _async_program(self, form: ProgrammingForm) -> None:
         key = self._require(form.function_key, "program_function_key_letter")
         action = self._require(form.function_key_action, "program_function_key_action")
-        partition = self._require(form.function_key_partition, "program_function_key_partition")
+        partition = self._require(
+            form.function_key_partition, "program_function_key_partition"
+        )
         await async_program_function_key(
             self.coordinator,
             key=key,

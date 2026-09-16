@@ -106,14 +106,16 @@ def test_build_system_timing_exit_delay_out_of_range_rejected():
 
 
 def test_build_system_timing_entry_delay_allows_extended_specials():
-    assert build_system_timing_keystrokes(SystemTimingField.ENTRY_DELAY_1, 99) == "*3599*"
+    assert (
+        build_system_timing_keystrokes(SystemTimingField.ENTRY_DELAY_1, 99) == "*3599*"
+    )
 
 
 def test_build_system_timing_auto_stay_arm_valid_values():
     for value in (0, 1, 2, 3):
-        assert build_system_timing_keystrokes(SystemTimingField.AUTO_STAY_ARM, value) == (
-            f"*84{value}"
-        )
+        assert build_system_timing_keystrokes(
+            SystemTimingField.AUTO_STAY_ARM, value
+        ) == (f"*84{value}")
 
 
 def test_build_system_timing_auto_stay_arm_rejects_invalid():

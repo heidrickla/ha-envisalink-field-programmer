@@ -38,7 +38,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
     entities: list[SwitchEntity] = [
-        VistaZoneBypassSwitch(coordinator, number) for number in sorted(coordinator.data.zones)
+        VistaZoneBypassSwitch(coordinator, number)
+        for number in sorted(coordinator.data.zones)
     ]
     supported = coordinator.dialect.supported_guided_ops
     if supported:

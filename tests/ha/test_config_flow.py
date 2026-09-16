@@ -13,7 +13,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.envisalink_field_programmer.config_flow import VistaConsoleConfigFlow
+from custom_components.envisalink_field_programmer.config_flow import (
+    VistaConsoleConfigFlow,
+)
 from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import PASSWORD, entry_data, setup_entry, unload_entry
@@ -105,7 +107,8 @@ async def test_unexpected_error_then_success(hass, fake_server, monkeypatch):
         raise RuntimeError("something else entirely")
 
     monkeypatch.setattr(
-        "custom_components.envisalink_field_programmer.config_flow._test_connection", _boom
+        "custom_components.envisalink_field_programmer.config_flow._test_connection",
+        _boom,
     )
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -128,7 +131,9 @@ async def test_unexpected_error_then_success(hass, fake_server, monkeypatch):
         ("num_partitions", 8, "too_many_partitions"),
     ],
 )
-async def test_capacity_over_the_model_limit_then_within_it(hass, fake_server, field, value, error):
+async def test_capacity_over_the_model_limit_then_within_it(
+    hass, fake_server, field, value, error
+):
     # The VISTA-21iP takes 48 zones and 2 partitions.
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -220,7 +225,9 @@ async def test_dhcp_at_a_new_address_moves_the_entry_it_belongs_to(hass, fake_se
     await unload_entry(hass, entry)
 
 
-async def test_dhcp_at_a_known_address_learns_the_mac_of_a_handmade_entry(hass, fake_server):
+async def test_dhcp_at_a_known_address_learns_the_mac_of_a_handmade_entry(
+    hass, fake_server
+):
     entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server))
     entry.add_to_hass(hass)
     assert "mac" not in entry.data
@@ -258,11 +265,15 @@ def _unique_id_suffixes(hass, entry) -> set[str]:
     prefix = f"{entry.entry_id}_"
     return {
         registry_entry.unique_id.removeprefix(prefix)
-        for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
+        for registry_entry in er.async_entries_for_config_entry(
+            registry, entry.entry_id
+        )
     }
 
 
-async def test_reconfigure_lowering_the_counts_removes_the_orphaned_entities(hass, fake_server):
+async def test_reconfigure_lowering_the_counts_removes_the_orphaned_entities(
+    hass, fake_server
+):
     # An entity that is simply no longer added keeps its registry entry and
     # shows as unavailable forever, so setup deletes the ones above the counts.
     entry = await setup_entry(hass, fake_server, num_partitions=2, num_zones=8)
@@ -271,7 +282,8 @@ async def test_reconfigure_lowering_the_counts_removes_the_orphaned_entities(has
 
     result = await entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _reconfigure_input(fake_server, num_zones=4, num_partitions=1)
+        result["flow_id"],
+        _reconfigure_input(fake_server, num_zones=4, num_partitions=1),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
@@ -295,7 +307,9 @@ async def test_reconfigure_moves_the_entry_to_a_new_address(hass, fake_server):
     # it moves with the entry. The entry is added without being set up because
     # that is the state a moved unit leaves it in: nothing answers at the old
     # address, so the entry has no update listener and the flow reloads it.
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS)
+    )
     entry.add_to_hass(hass)
     assert entry.unique_id is None
     result = await entry.start_reconfigure_flow(hass)
@@ -332,7 +346,9 @@ async def test_reconfigure_stores_a_new_password(hass, fake_server):
     await unload_entry(hass, entry)
 
 
-async def test_reconfigure_rejects_a_wrong_password_then_accepts_the_right_one(hass, fake_server):
+async def test_reconfigure_rejects_a_wrong_password_then_accepts_the_right_one(
+    hass, fake_server
+):
     entry = await setup_entry(hass, fake_server)
     result = await entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -363,7 +379,9 @@ async def test_reconfigure_refuses_counts_over_the_model_limit(hass, fake_server
 
 
 async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_server):
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS)
+    )
     entry.add_to_hass(hass)
     MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server)).add_to_hass(hass)
     result = await entry.start_reconfigure_flow(hass)
@@ -375,7 +393,9 @@ async def test_reconfigure_refuses_an_address_another_entry_owns(hass, fake_serv
     assert entry.data["host"] == OLD_ADDRESS
 
 
-async def test_reconfigure_of_a_loaded_entry_borrows_its_session_to_probe(hass, fake_server):
+async def test_reconfigure_of_a_loaded_entry_borrows_its_session_to_probe(
+    hass, fake_server
+):
     # Measured against the hardware on 2026-09-05: the module admits one TPI
     # client, so a probe made while the coordinator holds the session was
     # answered "cannot connect" every time and the form could never be
@@ -399,7 +419,9 @@ async def test_reconfigure_of_a_loaded_entry_borrows_its_session_to_probe(hass, 
     await unload_entry(hass, entry)
 
 
-async def test_a_failed_probe_hands_the_session_back_to_the_coordinator(hass, fake_server):
+async def test_a_failed_probe_hands_the_session_back_to_the_coordinator(
+    hass, fake_server
+):
     # The entry is staying exactly as it was, so it must not be left
     # disconnected because a reconfigure was abandoned on the error.
     fake_server.single_session = True
@@ -417,7 +439,9 @@ async def test_a_failed_probe_hands_the_session_back_to_the_coordinator(hass, fa
     await unload_entry(hass, entry)
 
 
-async def test_reconfigure_submitted_unchanged_still_gets_its_session_back(hass, fake_server):
+async def test_reconfigure_submitted_unchanged_still_gets_its_session_back(
+    hass, fake_server
+):
     # The same settings retyped: Home Assistant finds nothing to change, so
     # nothing reloads the entry, and the session the probe borrowed has to be
     # handed back by the flow or the entry sits there disconnected.
@@ -444,7 +468,9 @@ async def test_reconfigure_submitted_unchanged_still_gets_its_session_back(hass,
     await unload_entry(hass, entry)
 
 
-async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(hass, fake_server):
+async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(
+    hass, fake_server
+):
     # Nothing a login could prove has changed, so taking the module's single
     # session away to test it would cost an outage and prove nothing.
     entry = await setup_entry(hass, fake_server, num_zones=8)
@@ -457,7 +483,9 @@ async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(has
     assert VistaConsoleConfigFlow._connection_changed(entry, submitted) is False
 
     result = await entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], submitted)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], submitted
+    )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data["num_zones"] == 4
@@ -468,7 +496,9 @@ async def test_reconfigure_that_changes_no_connection_setting_does_not_probe(has
     await unload_entry(hass, entry)
 
 
-async def test_reconfigure_that_moves_the_address_or_the_password_does_probe(hass, fake_server):
+async def test_reconfigure_that_moves_the_address_or_the_password_does_probe(
+    hass, fake_server
+):
     # The other side of the same rule: anything a login could prove is worth
     # the outage, so the probe runs.
     entry = await setup_entry(hass, fake_server)
@@ -484,20 +514,24 @@ async def test_reconfigure_that_moves_the_address_or_the_password_does_probe(has
 async def test_reconfigure_of_an_unloaded_entry_still_probes(hass, fake_server):
     # Nothing holds the session, so there is nobody to borrow it from and the
     # probe runs exactly as it always did.
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS))
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS)
+    )
     entry.add_to_hass(hass)
     assert entry.state is config_entries.ConfigEntryState.NOT_LOADED
 
     result = await entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1", password="wrong")
+        result["flow_id"],
+        _reconfigure_input(fake_server, host="127.0.0.1", password="wrong"),
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
     assert entry.data["host"] == OLD_ADDRESS
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1", password=PASSWORD)
+        result["flow_id"],
+        _reconfigure_input(fake_server, host="127.0.0.1", password=PASSWORD),
     )
     assert result["type"] is FlowResultType.ABORT
     assert entry.data["host"] == "127.0.0.1"
@@ -506,7 +540,9 @@ async def test_reconfigure_of_an_unloaded_entry_still_probes(hass, fake_server):
 
 
 async def test_reauth_with_a_still_wrong_password_then_the_right_one(hass, fake_server):
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server, password="stale"))
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, password="stale")
+    )
     entry.add_to_hass(hass)
     result = await entry.start_reauth_flow(hass)
     assert result["type"] is FlowResultType.FORM

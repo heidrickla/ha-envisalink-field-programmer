@@ -63,7 +63,9 @@ def _decode_icon_flags(icon_led_hex: str) -> dict[str, bool]:
     return {name: bool(value & (1 << bit)) for name, bit in ICON_LED_BITS.items()}
 
 
-def _arm_state_from_flags(armed_away: bool, armed_stay: bool, zero_entry_delay: bool) -> str:
+def _arm_state_from_flags(
+    armed_away: bool, armed_stay: bool, zero_entry_delay: bool
+) -> str:
     if armed_stay and zero_entry_delay:
         return "armed_night"
     if armed_away:
@@ -76,8 +78,10 @@ def _arm_state_from_flags(armed_away: bool, armed_stay: bool, zero_entry_delay: 
 def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     try:
         partition_number = int(event.fields["partition"])
-    except (KeyError, ValueError):
-        _LOGGER.warning("Keypad update missing/invalid partition field: %r", event.fields)
+    except KeyError, ValueError:
+        _LOGGER.warning(
+            "Keypad update missing/invalid partition field: %r", event.fields
+        )
         return
 
     flags = _decode_icon_flags(str(event.fields.get("icon_led_hex", "")))
@@ -94,7 +98,9 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     partition.low_battery = flags["low_battery"]
     partition.trouble = flags["system_trouble"]
     alpha_lower = alpha.lower()
-    partition.exit_delay = any(marker in alpha_lower for marker in _EXIT_DELAY_ALPHA_MARKERS)
+    partition.exit_delay = any(
+        marker in alpha_lower for marker in _EXIT_DELAY_ALPHA_MARKERS
+    )
 
     was_bypass_active = partition.bypass_active
     partition.bypass_active = flags["bypass"]
@@ -107,13 +113,15 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     armed_stay = flags["armed_stay"]
     zero_entry_delay = flags["armed_zero_entry_delay"]
     partition.armed = armed_away or armed_stay
-    partition.arm_state = _arm_state_from_flags(armed_away, armed_stay, zero_entry_delay)
+    partition.arm_state = _arm_state_from_flags(
+        armed_away, armed_stay, zero_entry_delay
+    )
 
 
 def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
     try:
         cid_event = int(event.fields["cid_event"])
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         return
 
     if cid_event == INSTALLERS_MODE_CID_EVENT:

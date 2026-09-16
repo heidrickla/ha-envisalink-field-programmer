@@ -109,7 +109,9 @@ def parse_frame(frame: str) -> tuple[str, str]:
     """Split a de-sentineled chunk like ``%00,1,...`` into (code, data)."""
     frame = strip_leading_garbage(frame)
     if len(frame) < 4 or frame[3] != ",":
-        raise TPIProtocolError(f"malformed frame (expected %xx,... or ^xx,...): {frame!r}")
+        raise TPIProtocolError(
+            f"malformed frame (expected %xx,... or ^xx,...): {frame!r}"
+        )
     return frame[:3], frame[4:]
 
 
@@ -167,7 +169,9 @@ class EnvisalinkClient:
         login_timeout: float = 10,
         ack_timeout: float = COMMAND_ACK_TIMEOUT,
         open_connection: (
-            Callable[[str, int], Awaitable[tuple[asyncio.StreamReader, asyncio.StreamWriter]]]
+            Callable[
+                [str, int], Awaitable[tuple[asyncio.StreamReader, asyncio.StreamWriter]]
+            ]
             | None
         ) = None,
     ) -> None:
@@ -203,7 +207,9 @@ class EnvisalinkClient:
             if prompt is None:
                 raise TPIConnectionError("connection closed before login prompt")
             if prompt != LOGIN_PROMPT:
-                raise TPIConnectionError(f"expected {LOGIN_PROMPT!r} login prompt, got {prompt!r}")
+                raise TPIConnectionError(
+                    f"expected {LOGIN_PROMPT!r} login prompt, got {prompt!r}"
+                )
 
             # The password itself is never logged; its length and shape are
             # enough to tell a mangled value from a rejected one.
@@ -222,7 +228,9 @@ class EnvisalinkClient:
             result = await asyncio.wait_for(
                 self._read_login_line(reader), timeout=self._login_timeout
             )
-            _LOGGER.debug("TPI login to %s:%s: module answered %r", self._host, self._port, result)
+            _LOGGER.debug(
+                "TPI login to %s:%s: module answered %r", self._host, self._port, result
+            )
             if result is None:
                 raise TPIConnectionError("connection closed during login")
             if result == LOGIN_FAILURE:
@@ -336,7 +344,9 @@ class EnvisalinkClient:
             error = err
             _LOGGER.debug("TPI read loop ended with error", exc_info=err)
         finally:
-            self._abort_pending_ack("connection lost while awaiting command acknowledgement")
+            self._abort_pending_ack(
+                "connection lost while awaiting command acknowledgement"
+            )
             if self._disconnect_callback is not None:
                 self._disconnect_callback(error)
 
@@ -359,7 +369,9 @@ class EnvisalinkClient:
                 and not self._pending_ack.done()
                 and event.code == self._pending_ack_code
             ):
-                self._pending_ack.set_result(str(event.fields.get("response_code", event.raw_data)))
+                self._pending_ack.set_result(
+                    str(event.fields.get("response_code", event.raw_data))
+                )
             self._event_callback(event)
         return remainder
 
@@ -411,7 +423,10 @@ class EnvisalinkClient:
                     self._pending_ack_code = ""
                 if response == RESPONSE_ACCEPTED:
                     return
-                if response == RESPONSE_BUFFER_OVERRUN and attempt < COMMAND_RETRY_ATTEMPTS:
+                if (
+                    response == RESPONSE_BUFFER_OVERRUN
+                    and attempt < COMMAND_RETRY_ATTEMPTS
+                ):
                     # EVL still busy with the previous command (e.g. still
                     # clocking a keypress onto the keybus) -- back off and retry.
                     await asyncio.sleep(COMMAND_RETRY_DELAY * (2**attempt))

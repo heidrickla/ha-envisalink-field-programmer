@@ -34,7 +34,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-    default_code: str = entry.options.get(CONF_USER_CODE, entry.data.get(CONF_USER_CODE, ""))
+    default_code: str = entry.options.get(
+        CONF_USER_CODE, entry.data.get(CONF_USER_CODE, "")
+    )
     async_add_entities(
         VistaPartitionAlarmPanel(coordinator, number, default_code)
         for number in sorted(coordinator.data.partitions)
@@ -51,7 +53,10 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
     )
 
     def __init__(
-        self, coordinator: VistaConsoleCoordinator, partition_number: int, default_code: str
+        self,
+        coordinator: VistaConsoleCoordinator,
+        partition_number: int,
+        default_code: str,
     ) -> None:
         super().__init__(coordinator, f"partition_{partition_number}")
         self._partition_number = partition_number
@@ -117,16 +122,24 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
 
     @override
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_away(self._partition_number, self._require_code(code))
+        await self.coordinator.async_arm_away(
+            self._partition_number, self._require_code(code)
+        )
 
     @override
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_stay(self._partition_number, self._require_code(code))
+        await self.coordinator.async_arm_stay(
+            self._partition_number, self._require_code(code)
+        )
 
     @override
     async def async_alarm_arm_night(self, code: str | None = None) -> None:
-        await self.coordinator.async_arm_night(self._partition_number, self._require_code(code))
+        await self.coordinator.async_arm_night(
+            self._partition_number, self._require_code(code)
+        )
 
     @override
     async def async_alarm_disarm(self, code: str | None = None) -> None:
-        await self.coordinator.async_disarm(self._partition_number, self._require_code(code))
+        await self.coordinator.async_disarm(
+            self._partition_number, self._require_code(code)
+        )

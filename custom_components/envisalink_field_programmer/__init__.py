@@ -96,7 +96,9 @@ def _async_remove_out_of_range_entities(
             registry.async_remove(registry_entry.entity_id)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> bool:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
+) -> bool:
     """Set up Envisalink Field Programmer from a config entry."""
     _async_remove_out_of_range_entities(hass, entry)
     host: str = entry.data[CONF_HOST]
@@ -108,7 +110,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry)
         password=entry.data[CONF_PASSWORD],
         num_partitions=entry.data[CONF_NUM_PARTITIONS],
         num_zones=entry.data[CONF_NUM_ZONES],
-        keepalive_interval=entry.options.get(CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL),
+        keepalive_interval=entry.options.get(
+            CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
+        ),
         installer_code=entry.options.get(CONF_INSTALLER_CODE) or None,
         panel_model=entry.data.get(CONF_PANEL_MODEL, DEFAULT_PANEL_MODEL),
     )
@@ -138,7 +142,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
+) -> bool:
     """Unload a config entry. The actions stay registered; see async_setup."""
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -146,10 +152,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry
     return unload_ok
 
 
-async def async_remove_entry(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> None:
+async def async_remove_entry(
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
+) -> None:
     """Take this entry's repair issue with it when the entry is deleted."""
     ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_TPI_SESSION_BUSY}_{entry.entry_id}")
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: VistaConsoleConfigEntry) -> None:
+async def _async_update_listener(
+    hass: HomeAssistant, entry: VistaConsoleConfigEntry
+) -> None:
     await hass.config_entries.async_reload(entry.entry_id)

@@ -82,7 +82,10 @@ async def async_setup_entry(
         # whose codes differ offers its own list rather than the residential
         # one. The slug is the code, which is what keeps the names translatable
         # without a table per dialect.
-        zone_types = {f"type_{code:02d}": code for code in sorted(coordinator.dialect.zone_types())}
+        zone_types = {
+            f"type_{code:02d}": code
+            for code in sorted(coordinator.dialect.zone_types())
+        }
         partitions = _partition_options(
             min(ZONE_MENU_MAX_PARTITION, coordinator.panel_model.max_partitions)
         )
@@ -118,7 +121,9 @@ async def async_setup_entry(
         ]
 
     if GuidedOp.TIMING in supported:
-        timing_fields = {f"field_{key}": key for key in sorted(coordinator.dialect.timing_fields())}
+        timing_fields = {
+            f"field_{key}": key for key in sorted(coordinator.dialect.timing_fields())
+        }
         entities.append(
             ProgrammingSelect(
                 coordinator,
@@ -130,14 +135,18 @@ async def async_setup_entry(
         )
         # Only the commercial dialect scopes a timing edit to a partition, so
         # the picker is offered only where it changes what is sent.
-        if any(f.partition_specific for f in coordinator.dialect.timing_fields().values()):
+        if any(
+            f.partition_specific for f in coordinator.dialect.timing_fields().values()
+        ):
             entities.append(
                 ProgrammingSelect(
                     coordinator,
                     suffix="program_timing_partition",
                     translation_key="timing_partition",
                     options=_partition_options(
-                        min(TIMING_MAX_PARTITION, coordinator.panel_model.max_partitions)
+                        min(
+                            TIMING_MAX_PARTITION, coordinator.panel_model.max_partitions
+                        )
                     ),
                     attribute="timing_partition",
                 )
@@ -201,7 +210,9 @@ class ProgrammingSelect(ProgrammingEntity, SelectEntity):
     def current_option(self) -> str | None:
         # No option holds None, so an unset field falls out of this as None.
         current = getattr(self.form, self._attribute)
-        return next((option for option, value in self._values.items() if value == current), None)
+        return next(
+            (option for option, value in self._values.items() if value == current), None
+        )
 
     @override
     async def async_select_option(self, option: str) -> None:

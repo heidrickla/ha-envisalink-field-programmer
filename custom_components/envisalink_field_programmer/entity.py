@@ -20,7 +20,9 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: VistaConsoleCoordinator, unique_id_suffix: str) -> None:
+    def __init__(
+        self, coordinator: VistaConsoleCoordinator, unique_id_suffix: str
+    ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{unique_id_suffix}"
 
@@ -63,7 +65,9 @@ class ProgrammingEntity(VistaConsoleEntity):
         return self.coordinator.programming
 
 
-def programming_entity_display_name(hass: HomeAssistant, entry_id: str, suffix: str) -> str:
+def programming_entity_display_name(
+    hass: HomeAssistant, entry_id: str, suffix: str
+) -> str:
     """The name a programming entity shows the user, for refusal messages.
 
     Read from the entity registry at the moment of the refusal, so the message

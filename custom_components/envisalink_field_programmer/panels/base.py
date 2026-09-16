@@ -208,7 +208,9 @@ class PanelDialect(Protocol):
         Empty if this dialect doesn't support guided timing (GuidedOp.TIMING
         not in :attr:`supported_guided_ops`)."""
 
-    def build_timing_keystrokes(self, field_key: str, value: int, partition: int) -> str:
+    def build_timing_keystrokes(
+        self, field_key: str, value: int, partition: int
+    ) -> str:
         """Translate a timing-field edit into in-Program-Mode keystrokes.
 
         ``partition`` is used only for ``partition_specific`` fields; dialects

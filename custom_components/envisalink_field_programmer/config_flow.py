@@ -62,7 +62,9 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
         vol.Required(CONF_PASSWORD): _PASSWORD,
-        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(model_choices()),
+        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
+            model_choices()
+        ),
         vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
         vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=8)
@@ -83,7 +85,9 @@ STEP_RECONFIGURE_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
         vol.Optional(CONF_PASSWORD): _PASSWORD,
-        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(model_choices()),
+        vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
+            model_choices()
+        ),
         vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=8)
         ),
@@ -121,7 +125,7 @@ async def _async_try(host: str, port: int, password: str) -> dict[str, str]:
         await _test_connection(host, port, password)
     except TPIAuthError:
         return {"base": "invalid_auth"}
-    except (TPIError, OSError):
+    except TPIError, OSError:
         return {"base": "cannot_connect"}
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Unexpected error validating the Envisalink connection")
@@ -157,7 +161,9 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_mac: str | None = None
 
     @override
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             self._async_abort_entries_match(
@@ -166,10 +172,14 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = _capacity_errors(user_input)
             if not errors:
                 errors = await _async_try(
-                    user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_PASSWORD]
+                    user_input[CONF_HOST],
+                    user_input[CONF_PORT],
+                    user_input[CONF_PASSWORD],
                 )
             if not errors:
-                await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
+                await self.async_set_unique_id(
+                    f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
+                )
                 self._abort_if_unique_id_configured()
                 data = dict(user_input)
                 if self._discovered_mac is not None:
@@ -188,7 +198,9 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     @override
-    async def async_step_dhcp(self, discovery_info: DhcpServiceInfo) -> ConfigFlowResult:
+    async def async_step_dhcp(
+        self, discovery_info: DhcpServiceInfo
+    ) -> ConfigFlowResult:
         """An Envisacor-made device took a DHCP lease.
 
         The MAC prefix 00:1C:2A belongs to Envisacor Technologies, who make
@@ -227,7 +239,9 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         self.context["title_placeholders"] = {"host": host}
         return await self.async_step_user()
 
-    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
         """The Envisalink rejected the stored password; ask for a new one."""
         return await self.async_step_reauth_confirm()
 
@@ -275,7 +289,9 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="already_configured")
             probed = not errors and self._connection_changed(entry, user_input)
             if probed:
-                errors = await self._async_try_borrowing_the_session(entry, host, port, password)
+                errors = await self._async_try_borrowing_the_session(
+                    entry, host, port, password
+                )
             if not errors:
                 updated = self.hass.config_entries.async_update_entry(
                     entry,
@@ -369,7 +385,9 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         if not entry.update_listeners:
             self.hass.config_entries.async_schedule_reload(entry.entry_id)
 
-    def _address_owned_by_another_entry(self, entry: ConfigEntry, host: str, port: int) -> bool:
+    def _address_owned_by_another_entry(
+        self, entry: ConfigEntry, host: str, port: int
+    ) -> bool:
         """Whether some other entry already talks to this host and port."""
         return any(
             other.entry_id != entry.entry_id
@@ -393,10 +411,14 @@ class VistaConsoleOptionsFlow(OptionsFlow):
     clear it.
     """
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         options = self.config_entry.options
         data = self.config_entry.data
-        stored_user_code: str = options.get(CONF_USER_CODE, data.get(CONF_USER_CODE, ""))
+        stored_user_code: str = options.get(
+            CONF_USER_CODE, data.get(CONF_USER_CODE, "")
+        )
         stored_installer_code: str = options.get(CONF_INSTALLER_CODE, "")
 
         if user_input is not None:
@@ -428,7 +450,9 @@ class VistaConsoleOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_REMOVE_INSTALLER_CODE, default=False): bool,
                 vol.Required(
                     CONF_KEEPALIVE_INTERVAL,
-                    default=options.get(CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL),
+                    default=options.get(
+                        CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
+                    ),
                 ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
             }
         )

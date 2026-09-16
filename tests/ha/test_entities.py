@@ -20,14 +20,18 @@ from .conftest import setup_entry, unload_entry
 
 def _entity_id(hass, entry, domain: str, suffix: str) -> str:
     registry = er.async_get(hass)
-    entity_id = registry.async_get_entity_id(domain, DOMAIN, f"{entry.entry_id}_{suffix}")
+    entity_id = registry.async_get_entity_id(
+        domain, DOMAIN, f"{entry.entry_id}_{suffix}"
+    )
     assert entity_id is not None, f"no entity registered for {suffix!r}"
     return entity_id
 
 
 def _sent_keys(fake_server) -> str:
     """Every keystroke character the panel has been sent so far."""
-    return "".join(data.split(",", 1)[1] for code, data in fake_server.received if code == "03")
+    return "".join(
+        data.split(",", 1)[1] for code, data in fake_server.received if code == "03"
+    )
 
 
 async def _enable(hass, entry, *entity_ids: str) -> None:
@@ -47,7 +51,9 @@ async def _enable(hass, entry, *entity_ids: str) -> None:
         ("alarm_arm_night", "123433"),
     ],
 )
-async def test_arming_types_the_code_and_the_mode_digits(hass, fake_server, service, expected):
+async def test_arming_types_the_code_and_the_mode_digits(
+    hass, fake_server, service, expected
+):
     entry = await setup_entry(hass, fake_server, num_zones=2, user_code="1234")
     await hass.services.async_call(
         "alarm_control_panel",
@@ -101,23 +107,31 @@ async def test_the_bypass_switch_types_the_bypass_sequence_once(hass, fake_serve
     await _enable(hass, entry, switch_id)
 
     assert hass.states.get(switch_id).state == "off"
-    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == "*101#"
     assert hass.states.get(switch_id).state == "on"
     assert hass.states.get(switch_id).attributes["zone_number"] == 1
 
     # Already bypassed: turning it on again sends nothing.
-    await hass.services.async_call("switch", "turn_on", {"entity_id": switch_id}, blocking=True)
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == "*101#"
 
-    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
+    )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == "*101#*101#"
     assert hass.states.get(switch_id).state == "off"
     # And off again is another no-op.
-    await hass.services.async_call("switch", "turn_off", {"entity_id": switch_id}, blocking=True)
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
+    )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == "*101#*101#"
     await unload_entry(hass, entry)
@@ -126,7 +140,10 @@ async def test_the_bypass_switch_types_the_bypass_sequence_once(hass, fake_serve
 async def test_the_toggle_zone_bypass_action_types_the_same_sequence(hass, fake_server):
     entry = await setup_entry(hass, fake_server, num_zones=2)
     await hass.services.async_call(
-        DOMAIN, "toggle_zone_bypass", {"entry_id": entry.entry_id, "zone": 2}, blocking=True
+        DOMAIN,
+        "toggle_zone_bypass",
+        {"entry_id": entry.entry_id, "zone": 2},
+        blocking=True,
     )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == "*102#"
@@ -185,7 +202,9 @@ async def test_the_keepalive_and_zone_dump_keep_running_and_survive_refusals(
         "custom_components.envisalink_field_programmer.coordinator.ZONE_TIMER_DUMP_INTERVAL",
         0.02,
     )
-    entry = await setup_entry(hass, fake_server, num_zones=2, options={"keepalive_interval": 0.02})
+    entry = await setup_entry(
+        hass, fake_server, num_zones=2, options={"keepalive_interval": 0.02}
+    )
     for _ in range(50):
         await asyncio.sleep(0.02)
         if calls["keepalive"] >= 2 and calls["dump"] >= 3:
