@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
+from typing import override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -239,6 +240,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         """Drop the issue once the Envisalink answers again."""
         ir.async_delete_issue(self.hass, DOMAIN, self.issue_id)
 
+    @override
     async def async_shutdown(self) -> None:
         self._shutting_down = True
         if self._remove_stop_listener is not None:
@@ -254,6 +256,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             await _cancel_and_wait(task)
         await self.client.disconnect()
 
+    @override
     async def _async_update_data(self) -> VistaState:
         # Push-driven: nothing to actively fetch. Listeners are refreshed
         # via async_set_updated_data() from _handle_event() as events arrive.

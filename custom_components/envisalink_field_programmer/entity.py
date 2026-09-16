@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -23,6 +25,7 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{unique_id_suffix}"
 
     @property
+    @override
     def device_info(self) -> DeviceInfo:
         entry = self.coordinator.entry
         info = DeviceInfo(
@@ -40,6 +43,7 @@ class VistaConsoleEntity(CoordinatorEntity[VistaConsoleCoordinator]):
         return info
 
     @property
+    @override
     def available(self) -> bool:
         return bool(super().available and self.coordinator.data.system.connected)
 

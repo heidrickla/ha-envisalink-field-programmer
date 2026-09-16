@@ -15,7 +15,7 @@ cannot authorize a second write nobody meant.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import HomeAssistant
@@ -91,20 +91,24 @@ class VistaZoneBypassSwitch(VistaConsoleEntity, SwitchEntity):
         self._attr_translation_placeholders = {"number": str(zone_number)}
 
     @property
+    @override
     def is_on(self) -> bool:
         return self.coordinator.data.zone(self._zone_number).bypassed
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "zone_number": self._zone_number,
             "config_entry_id": self.coordinator.entry.entry_id,
         }
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         if not self.is_on:
             await self.coordinator.async_toggle_zone_bypass(self._zone_number)
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         if self.is_on:
             await self.coordinator.async_toggle_zone_bypass(self._zone_number)
@@ -128,13 +132,16 @@ class ProgrammingSwitch(ProgrammingEntity, SwitchEntity):
         self._attribute = attribute
 
     @property
+    @override
     def is_on(self) -> bool:
         return bool(getattr(self.form, self._attribute))
 
+    @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         setattr(self.form, self._attribute, True)
         self.async_write_ha_state()
 
+    @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         setattr(self.form, self._attribute, False)
         self.async_write_ha_state()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 import voluptuous as vol
 from homeassistant.config_entries import (
@@ -156,6 +156,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered: dict[str, Any] = {}
         self._discovered_mac: str | None = None
 
+    @override
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -186,6 +187,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    @override
     async def async_step_dhcp(self, discovery_info: DhcpServiceInfo) -> ConfigFlowResult:
         """An Envisacor-made device took a DHCP lease.
 
@@ -378,6 +380,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
+    @override
     def async_get_options_flow(config_entry: ConfigEntry) -> VistaConsoleOptionsFlow:
         return VistaConsoleOptionsFlow()
 

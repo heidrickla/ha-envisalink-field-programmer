@@ -174,7 +174,7 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      98.82% on 2026-09-15, 21 of 1779 statements missed: defensive branches
+      98.85% on 2026-09-16, 21 of 1821 statements missed: defensive branches
       in the panel dialects, one unreachable-looking guard each in the
       client, the sensor and the zone timer decoder, coordinator paths a
       reconnect has to lose a race to reach, and the programming button
@@ -355,7 +355,10 @@ rules:
     status: done
     comment: |
       mypy --strict runs in the Tests workflow with Home Assistant installed
-      and no relaxations in pyproject beyond the test package. Green locally
+      and no relaxations in pyproject beyond the test package. The config is
+      Home Assistant core's own generated [mypy] block for 2026.8.3 plus
+      strict, so warn_unreachable and core's enable_error_code list are on and
+      every method overriding a base method carries @override. Green locally
       on the harness venv (Python 3.14.7, Home Assistant 2026.8.3) with the
       device page in: "Success: no issues found in 23 source files",
-      2026-09-05. The Tests workflow re-runs it on the push.
+      2026-09-16. The Tests workflow re-runs it on the push.

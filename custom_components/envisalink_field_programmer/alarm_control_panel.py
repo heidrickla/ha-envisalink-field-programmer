@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.alarm_control_panel import AlarmControlPanelEntity
 
@@ -75,6 +75,7 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         return self.coordinator.data.partition(self._partition_number)
 
     @property
+    @override
     def alarm_state(self) -> AlarmControlPanelState | None:
         # Note: there is no "pending" (entry delay) state here -- this
         # protocol's alpha-text parsing for entry delay isn't reliable
@@ -90,6 +91,7 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         return AlarmControlPanelState.DISARMED
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         partition = self._partition
         return {
@@ -113,14 +115,18 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
             )
         return use_code
 
+    @override
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         await self.coordinator.async_arm_away(self._partition_number, self._require_code(code))
 
+    @override
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         await self.coordinator.async_arm_stay(self._partition_number, self._require_code(code))
 
+    @override
     async def async_alarm_arm_night(self, code: str | None = None) -> None:
         await self.coordinator.async_arm_night(self._partition_number, self._require_code(code))
 
+    @override
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         await self.coordinator.async_disarm(self._partition_number, self._require_code(code))

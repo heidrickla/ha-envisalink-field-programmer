@@ -15,7 +15,7 @@ here are the only place the two representations meet.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
@@ -197,11 +197,13 @@ class ProgrammingSelect(ProgrammingEntity, SelectEntity):
         self._attribute = attribute
 
     @property
+    @override
     def current_option(self) -> str | None:
         # No option holds None, so an unset field falls out of this as None.
         current = getattr(self.form, self._attribute)
         return next((option for option, value in self._values.items() if value == current), None)
 
+    @override
     async def async_select_option(self, option: str) -> None:
         setattr(self.form, self._attribute, self._values[option])
         self.async_write_ha_state()

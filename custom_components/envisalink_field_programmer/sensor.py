@@ -3,7 +3,7 @@ became of the last programming button press."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import EntityCategory
@@ -50,11 +50,13 @@ class VistaLastEventSensor(VistaConsoleEntity, SensorEntity):
         super().__init__(coordinator, "last_event")
 
     @property
+    @override
     def native_value(self) -> str | None:
         event = self.coordinator.last_event
         return event.name if event else None
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         event = self.coordinator.last_event
         if event is None:
@@ -78,6 +80,7 @@ class VistaLastUserSensor(VistaConsoleEntity, SensorEntity):
             self._attr_translation_placeholders = {"number": str(partition_number)}
 
     @property
+    @override
     def native_value(self) -> str | None:
         return self.coordinator.data.partition(self._partition_number).last_user
 
@@ -101,11 +104,13 @@ class VistaLastProgrammingResultSensor(VistaConsoleEntity, SensorEntity):
         super().__init__(coordinator, "last_programming_result")
 
     @property
+    @override
     def native_value(self) -> str | None:
         result = self.coordinator.last_programming_result
         return result.outcome.value if result else None
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         result = self.coordinator.last_programming_result
         if result is None:

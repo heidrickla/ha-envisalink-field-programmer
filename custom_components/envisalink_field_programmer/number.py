@@ -13,6 +13,8 @@ refuses comes back as a translated error on the button.
 
 from __future__ import annotations
 
+from typing import override
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -89,10 +91,12 @@ class ProgrammingNumber(ProgrammingEntity, NumberEntity):
         self._attribute = attribute
 
     @property
+    @override
     def native_value(self) -> float | None:
         current: int | None = getattr(self.form, self._attribute)
         return None if current is None else float(current)
 
+    @override
     async def async_set_native_value(self, value: float) -> None:
         setattr(self.form, self._attribute, int(value))
         self.async_write_ha_state()

@@ -22,24 +22,41 @@ asyncio_default_fixture_loop_scope = "function"
 addopts = "-p tests.winposix"
 
 # strict-typing is the Platinum rule with teeth: Home Assistant runs mypy in
-# strict mode over integrations that claim it. This mirrors the strict block
-# core applies. It is only meaningful with Home Assistant installed; without
-# it every HA class is Any and the check is weaker than it looks, which is why
-# CI runs it inside the harness venv.
+# strict mode over integrations that claim it. It is only meaningful with Home
+# Assistant installed; without it every HA class is Any and the check is weaker
+# than it looks, which is why CI runs it inside the harness venv.
 #
-# No python_version pin: Home Assistant only runs on the interpreter it was
-# built for, and its 2026.x source uses 3.14 syntax, so mypy must target the
-# interpreter it is installed under rather than the 3.12 floor.
+# Home Assistant core's generated mypy.ini [mypy] block (2026.8.3), plus
+# `strict`, which covers the flags core lists individually. Dropped from core's
+# block: plugins, native_parser and num_workers (core-tree settings), and
+# warn_incomplete_stub (core type-checks its own stubs).
 [tool.mypy]
+python_version = "3.14"
+platform = "linux"
 strict = true
-warn_return_any = true
-disallow_untyped_defs = true
-disallow_any_generics = true
-no_implicit_reexport = true
-ignore_missing_imports = true
-follow_imports = "silent"
+local_partial_types = true
+no_implicit_optional = true
+strict_bytes = true
+warn_unreachable = true
+extra_checks = false
+enable_error_code = [
+    "deprecated",
+    "explicit-override",
+    "ignore-without-code",
+    "redundant-self",
+    "truthy-iterable",
+]
+disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]
+follow_imports = "normal"
+show_error_codes = true
 
+# The tests are not the integration; CI checks custom_components/<domain> and
+# never reaches here. `strict = false` does not belong in this section: mypy
+# 1.18.2 accepts it without a warning and discards the whole section.
 [[tool.mypy.overrides]]
 module = "tests.*"
-strict = false
 disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+warn_return_any = false

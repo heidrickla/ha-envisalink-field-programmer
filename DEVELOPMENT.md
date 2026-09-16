@@ -135,12 +135,17 @@ python tools/validate_local.py
 Observed on 2026-09-16: `212 passed` for the full suite, `81 passed, 1
 skipped` for the pure suite alone (the skip is `tests/ha` on its
 `importorskip`), `Success: no issues found in 23 source files` from mypy, and
-`all offline checks passed` from the validator.
+`all offline checks passed` from the validator. Coverage over both suites in
+the CI order: 98.85%, 21 of 1821 statements missed.
 
 `mypy --strict` only means something with Home Assistant installed in the
 interpreter running it: without it every Home Assistant class is `Any`, so
 subclassing an entity and decorating with `@callback` are reported and the
 real checks are skipped. Run it from the venv that has the harness.
+`[tool.mypy]` is Home Assistant core's own generated `[mypy]` block for
+2026.8.3 plus `strict`, so `warn_unreachable` and core's `enable_error_code`
+list apply: a new method that overrides a base method needs
+`@typing.override`, under the existing `@property` or `@callback`.
 `.github/workflows/tests.yml` runs all four steps on every push with Home
 Assistant 2026.8 on Python 3.14, with `pytest-cov` reporting coverage for
 `tests/ha`.

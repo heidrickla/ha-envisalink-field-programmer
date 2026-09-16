@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, override
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -61,10 +61,12 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
         return self.coordinator.data.zone(self._zone_number)
 
     @property
+    @override
     def is_on(self) -> bool:
         return self._zone.open
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         zone = self._zone
         return {
@@ -94,6 +96,7 @@ class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
         super().__init__(coordinator, "system_trouble")
 
     @property
+    @override
     def is_on(self) -> bool:
         if self.coordinator.data.system.installers_mode:
             return True
@@ -103,6 +106,7 @@ class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
         )
 
     @property
+    @override
     def extra_state_attributes(self) -> dict[str, Any]:
         system = self.coordinator.data.system
         return {

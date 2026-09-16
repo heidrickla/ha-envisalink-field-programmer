@@ -19,6 +19,7 @@ or was never reached. The result sensor then says which of those happened.
 from __future__ import annotations
 
 import logging
+from typing import override
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
@@ -103,6 +104,7 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
             action=self.action_id, outcome=outcome, detail=detail
         )
 
+    @override
     async def async_press(self) -> None:
         form = self.form
         if not form.confirm:
@@ -143,6 +145,7 @@ class ProgramZoneButton(ProgrammingButton):
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "program_zone")
 
+    @override
     async def _async_program(self, form: ProgrammingForm) -> None:
         zone_number = self._require(form.zone_number, "program_zone_number")
         zone_type = self._require(form.zone_type, "program_zone_type")
@@ -169,6 +172,7 @@ class SetSystemTimingButton(ProgrammingButton):
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "set_system_timing")
 
+    @override
     async def _async_program(self, form: ProgrammingForm) -> None:
         field = self._require(form.timing_field, "program_timing_field")
         value = self._require(form.timing_value, "program_timing_value")
@@ -190,6 +194,7 @@ class ProgramFunctionKeyButton(ProgrammingButton):
     def __init__(self, coordinator: VistaConsoleCoordinator) -> None:
         super().__init__(coordinator, "program_function_key")
 
+    @override
     async def _async_program(self, form: ProgrammingForm) -> None:
         key = self._require(form.function_key, "program_function_key_letter")
         action = self._require(form.function_key_action, "program_function_key_action")
