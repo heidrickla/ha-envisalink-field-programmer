@@ -6,38 +6,38 @@ the long-standing, stable convention across the residential VISTA line and is
 reused directly from :mod:`field_programming`, which was built strictly from
 the VISTA-21iP/21iPSIA Programming Guide (K14488PRV3).
 
-Per-model honesty (see :class:`~.base.Verification`):
+Per-model verification, see :class:`~.base.Verification`:
 
-  * **VISTA-21iP** -- VERIFIED. This is the panel the whole field-programming
-    layer was written and (partially) hardware-tested against (K14488PRV3).
-  * **VISTA-20P / 15P** -- VERIFIED (2026-07-05). Cross-checked field-by-field
-    against the combined VISTA-15P/20P Programming Guide
-    (``v15pand20pprogrammingguide.pdf``): the ``<code>800`` entry, ``*56``/``*57``
-    menus, ``*99`` exit, the ``*34``/``*35``/``*36`` timing fields (defaults
-    60/30/30) and ``*84`` auto-stay (default 3), and the whole zone-type table
-    (00 Not used, 01/02 Entry-exit, 03 Perimeter, 04 Interior Follower, 06/07/08
-    24-Hr, 09 Fire, 10 Interior w/Delay, 12 Monitor, 14 CO, 16 Fire w/Verify, 23
-    No Alarm Resp, 24 Silent Burglary) are all *identical* to the 21iP. Capacity
-    confirmed from the guide: 20P = 48 zones + partitions; 15P = 32 zones
-    (1-6, 9-34, 49-56), single partition.
-  * **VISTA-10P** -- VERIFIED (2026-07-05) against ``vista10pprogramming.pdf``.
+  * VISTA-21iP, VERIFIED. The panel the field-programming layer is written
+    against, from K14488PRV3, and partially hardware-tested.
+  * VISTA-20P and 15P, VERIFIED 2026-07-05. Cross-checked field by field
+    against the combined VISTA-15P/20P Programming Guide,
+    ``v15pand20pprogrammingguide.pdf``. The ``<code>800`` entry,
+    ``*56``/``*57`` menus, ``*99`` exit, the ``*34``/``*35``/``*36`` timing
+    fields with defaults 60/30/30, ``*84`` auto-stay with default 3, and the
+    whole zone-type table (00 Not used, 01/02 Entry-exit, 03 Perimeter, 04
+    Interior Follower, 06/07/08 24-Hr, 09 Fire, 10 Interior w/Delay, 12
+    Monitor, 14 CO, 16 Fire w/Verify, 23 No Alarm Resp, 24 Silent Burglary)
+    are identical to the 21iP. Capacity from the guide: 20P 48 zones with
+    partitions, 15P 32 zones (1-6, 9-34, 49-56) single partition.
+  * VISTA-10P, VERIFIED 2026-07-05 against ``vista10pprogramming.pdf``.
     Program-mode entry, ``*56``/``*57``, ``*99``, the ``*34``/``*35``/``*36``
-    timing fields, and the full zone-type table (including 14 Carbon Monoxide)
-    are identical to the 21iP. Its zones are 1-6 (hardwired) and 9-24 (RF) with
-    no zones 7-8 -- the same shape as the 15P -- so the shared ``*56`` builder is
-    correct for every zone that physically exists. Single partition, 22 zones.
-    Only cosmetic difference: ``*84`` auto-stay factory default is 1, not 3
-    (a default value, not a field-number or keystroke change).
-  * **VISTA-128BP / 250BP** -- commercial panels, driven by the separate
-    :class:`CommercialVistaDialect` (``dialect_id="vista_commercial"``). Checked
-    against the K5894PRV6 guide (2026-07-05): these use a *different* programming
-    language -- program mode opens with ``<code>8000`` (not ``<code>800``), zones
-    are programmed through the conditional ``#93`` menu (not ``*56``), and
-    entry/exit timing lives in partition-specific fields ``*09``-``*12`` in
-    15-second units. Guided **timing** *is* driven (those are simple data-field
-    edits); guided **zone** programming is not (the ``#93`` flow is too
-    conditional to drive blind, without hardware). Kept PROVISIONAL -- the
-    timing builder is guide-derived, not hardware-confirmed.
+    timing fields and the full zone-type table including 14 Carbon Monoxide
+    are identical to the 21iP. Its zones are 1-6 hardwired and 9-24 RF with
+    no zones 7-8, the same shape as the 15P, so the shared ``*56`` builder is
+    correct for every zone that physically exists. Single partition, 22
+    zones. ``*84`` auto-stay factory default is 1 rather than 3, which is a
+    default value, not a field number or keystroke.
+  * VISTA-128BP and 250BP, commercial panels driven by the separate
+    :class:`CommercialVistaDialect`, ``dialect_id="vista_commercial"``.
+    Checked against the K5894PRV6 guide 2026-07-05. Their programming
+    language differs: program mode opens with ``<code>8000``, zones are
+    programmed through the conditional ``#93`` menu, and entry/exit timing
+    lives in partition-specific fields ``*09``-``*12`` in 15-second units.
+    Guided timing is driven, being plain data-field edits. Guided zone
+    programming is not: the ``#93`` flow is too conditional to drive blind.
+    PROVISIONAL, because the timing builder is guide-derived rather than
+    hardware-confirmed.
 """
 
 from __future__ import annotations
@@ -196,11 +196,11 @@ _COMMERCIAL_TIMING_FIELDS: dict[str, TimingFieldDef] = {
 class CommercialVistaDialect:
     """VISTA-128BP/250BP dialect: ``<code>8000`` entry, ``*09``-``*12`` timing.
 
-    Supports guided **timing** only. The ``#93`` zone-programming menu is
-    conditional and interactive (per-zone-type prompt branches, wireless serial
-    enrollment) and is deliberately not driven blind -- so ``GuidedOp.ZONE`` and
-    ``FUNCTION_KEY`` are absent and those services refuse commercial panels. The
-    zone-type table above is reference/inventory only.
+    Supports guided timing only. The ``#93`` zone-programming menu is
+    conditional and interactive, branching per zone type and enrolling
+    wireless serials, so it is not driven blind. ``GuidedOp.ZONE`` and
+    ``FUNCTION_KEY`` are absent and those actions refuse commercial panels.
+    The zone-type table above is reference only.
     """
 
     family = PanelFamily.VISTA

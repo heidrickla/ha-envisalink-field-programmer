@@ -1,46 +1,42 @@
 """DSC PowerSeries family dialect.
 
-DSC panels use a completely different programming language from Honeywell
-VISTA -- **section-based**, not ``*56`` field menus:
+DSC programming is section-based, not ``*56`` field menus:
 
-  * Installer programming opens with ``*8`` followed by the installer code
-    (factory default ``5555``).
-  * You then key a 3-digit **section** number and enter that section's data
+  * Installer programming opens with ``*8`` followed by the installer code,
+    factory default ``5555``.
+  * A 3-digit section number selects a section, whose data is then entered
     positionally.
-  * ``#`` backs out of a section; keying out to the top and pressing ``#``
-    again exits programming (represented here as ``##``).
+  * ``#`` backs out of a section. Keying out to the top and pressing ``#``
+    again exits programming, represented here as ``##``.
 
-Zone definitions live in sections 001..008 (each section holds eight zones,
-entered as fixed-width codes back-to-back), and partition timers live in
-section 005. Because a zone-definition section is **positional** -- you re-key
-all eight zones in order, with no read-back over TPI to preserve the ones you
-aren't changing -- this integration deliberately does **not** expose its
-VISTA-shaped per-zone guided programming for DSC. Doing so blind would risk
-silently overwriting the other seven zones in a block, which on a fire zone is
-exactly the class of mistake this project's guard exists to prevent.
+Zone definitions live in sections 001 to 008, each holding eight zones entered
+as fixed-width codes back to back. Partition timers live in section 005. A
+zone-definition section is positional: all eight zones are re-keyed in order,
+and TPI offers no read-back to preserve the ones not being changed. This
+dialect therefore exposes no VISTA-shaped per-zone guided programming. Sending
+a block blind overwrites the other seven zones, which on a fire zone is the
+mistake the guard exists to prevent.
 
-What this dialect *does* provide, and stands behind at the grammar level:
+What this dialect provides:
 
-  * correct Program-Mode entry/exit wrapping (so the safety guard can refuse
-    ``*8<code>`` by default, the DSC analogue of VISTA's ``<code>800``);
-  * a documented DSC zone-type reference table.
+  * Program-Mode entry and exit wrapping, so the safety guard refuses
+    ``*8<code>`` by default, the DSC analogue of VISTA's ``<code>800``;
+  * a DSC zone-type reference table.
 
 The section grammar and the zone-definition code table below were checked
-against real DSC installation manuals (2026-07-05): the PC1616/PC1832/PC1864
-v4.6 guide (source of the code table), the PC1555MX manual, and the PC5020/
-Power864 manual all use the same ``[*][8][code]`` entry, ``[001]``-``[004]``
-zone-definition sections and ``[005]`` partition timing. Per-model capacities
-are guide-confirmed where noted on each :class:`~.base.PanelModel`; a couple
-(PC5010/Power832, whose obtained PDF is a scanned image, and PC1555) still rest
-on general knowledge.
+against DSC installation manuals on 2026-07-05: the PC1616/PC1832/PC1864 v4.6
+guide, which is the source of the code table, the PC1555MX manual, and the
+PC5020/Power864 manual. All three use the same ``[*][8][code]`` entry,
+``[001]``-``[004]`` zone-definition sections and ``[005]`` partition timing.
+Per-model capacities are guide-confirmed where each
+:class:`~.base.PanelModel` says so. Two rest on general knowledge instead:
+PC5010/Power832, whose obtained PDF is a scanned image, and PC1555.
 
-All DSC models remain :class:`~.base.Verification.PROVISIONAL` regardless,
-because this integration does **not** offer guided programming for DSC (see
-``supports_guided_field_programming`` below) -- there is no guided keystroke
-path to "verify," and the current :mod:`client` transport speaks Honeywell TPI
-framing, so wiring DSC arm/disarm/zone state is a separate future effort. This
-dialect is the programming-language reference + safety guard half of that work;
-the code table is inventory/reference, not a keystroke source.
+Every DSC model is :class:`~.base.Verification.PROVISIONAL`. This dialect
+drives no guided programming, so there is no keystroke path to verify, and
+:mod:`client` speaks Honeywell TPI framing, so DSC arm, disarm and zone state
+need a transport of their own. The code table here is reference, not a
+keystroke source.
 """
 
 from __future__ import annotations

@@ -1,12 +1,10 @@
-"""Asyncio client for the real EnvisaLink TPI protocol.
+"""Asyncio client for the EnvisaLink TPI protocol.
 
-CORRECTNESS NOTE: an earlier version of this module implemented a
-hex-ASCII, checksum-framed protocol taken from the "EnvisaLink TPI
-Programmer's Document v1.08" PDF. That does not match what a real EVL-4 +
-VISTA-21iP actually speaks -- confirmed directly against live hardware
-(see DEVELOPMENT.md for how this was discovered). This rewrite implements
-the protocol that hardware actually uses, cross-checked against the
-actively maintained `pyenvisalink` library:
+The wire format below is what an EVL-4 and a VISTA-21iP speak, read off live
+hardware and cross-checked against the `pyenvisalink` library. The
+"EnvisaLink TPI Programmer's Document v1.08" PDF describes a different
+variant of TPI, hex-ASCII and checksum-framed with 3-digit numeric command
+codes, which this hardware does not answer.
 
   * Login is plain text: the EVL sends the literal line ``Login:``, the
     client replies with just the password, and the EVL replies ``OK``,
@@ -19,14 +17,13 @@ actively maintained `pyenvisalink` library:
     answered with a ``^CODE,<response>$`` acknowledgement, and a command
     sent while the previous one is still being processed is rejected with
     response code 01 ("Receive Buffer Overrun"). ``_send()`` therefore
-    serializes commands and waits for each ack (retrying on overrun),
-    mirroring `pyenvisalink`'s command queue -- without this, only the
-    first keystroke of a multi-key sequence (an arm/disarm code, a bypass)
-    ever reaches the panel.
+    serializes commands and waits for each ack, retrying on overrun.
+    Without that, only the first keystroke of a multi-key sequence reaches
+    the panel: an arm or disarm code, or a bypass.
 
 This module has no dependency on Home Assistant and can be unit tested with
-plain asyncio streams (e.g. a loopback socket or ``asyncio.StreamReader``
-fed by hand).
+plain asyncio streams, such as a loopback socket or an
+``asyncio.StreamReader`` fed by hand.
 """
 
 from __future__ import annotations

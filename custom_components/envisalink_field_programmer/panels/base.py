@@ -1,29 +1,26 @@
 """Panel-dialect abstraction shared by every supported alarm panel family.
 
-This integration was originally built against a single panel, the Honeywell
-VISTA-21iP, with its field-programming grammar (``*56`` zone menus,
-``<installer code>800`` to open Program Mode, ``*99`` to exit) baked directly
-into :mod:`field_programming` and :mod:`programming`. Supporting other panels
-means those hard-coded assumptions have to become *data*, selected per config
-entry.
+A panel family's field-programming grammar is data here rather than literals
+in :mod:`field_programming` and :mod:`programming`, so a config entry selects
+its own.
 
-A **dialect** captures everything that differs between panel families:
+A dialect captures everything that differs between panel families:
 
-  * how Program Mode is opened and closed (VISTA ``<code>800`` / ``*99`` vs.
-    DSC PowerSeries ``*8<code>`` / ``##``);
+  * how Program Mode is opened and closed: VISTA ``<code>800`` and ``*99``,
+    DSC PowerSeries ``*8<code>`` and ``##``;
   * what a zone-type code means and which codes are life-safety;
-  * how a validated zone/timing edit is turned into keystrokes;
-  * what a "this opens installer programming" sequence looks like on the wire
-    (so the safety guard in :mod:`programming` can refuse it by default).
+  * how a validated zone or timing edit is turned into keystrokes;
+  * what a sequence that opens installer programming looks like on the wire,
+    which is what the safety guard in :mod:`programming` refuses by default.
 
-A **model** is one concrete panel within a family, carrying its capacity
-(zones/partitions) and -- critically -- a :class:`Verification` level saying
-how much of its per-model data has actually been checked against that panel's
-own programming guide versus inferred from a related panel.
+A model is one concrete panel within a family, carrying its zone and
+partition capacity and a :class:`Verification` level. That level says how
+much of the model's data is checked against that panel's own programming
+guide rather than inferred from a related panel.
 
-Nothing in this module (or any dialect) talks to the panel. Dialects only
-describe *what a field means* and *what keystrokes express it*; sending still
-goes through :func:`programming.async_send_guarded_keystrokes`.
+Nothing in this module or any dialect talks to the panel. A dialect describes
+what a field means and what keystrokes express it. Sending goes through
+:func:`programming.async_send_guarded_keystrokes`.
 """
 
 from __future__ import annotations

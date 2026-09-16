@@ -4,20 +4,20 @@ Kept separate from the coordinator so the event -> state transitions can be
 unit tested with plain TPIEvent objects, no asyncio or Home Assistant
 required.
 
-Rewritten for the real Envisalink protocol (see client.py's module
-docstring for the correction history). The two events that matter here are:
+Two events carry everything folded here. See client.py's module docstring for
+the wire format.
 
-  * ``%00`` (keypad update): carries a 16-bit icon-LED bitfield per
-    partition -- this is the only source of partition status (ready,
-    armed, alarm, trouble, etc.) for a Honeywell panel over this protocol.
+  * ``%00`` (keypad update): a 16-bit icon-LED bitfield per partition, the
+    only source of partition status over this protocol for a Honeywell
+    panel: ready, armed, alarm, trouble.
   * ``%FF`` (zone timer dump): the authoritative source of zone open/closed
-    state, sent periodically by the coordinator via
+    state, requested periodically by the coordinator via
     ``EnvisalinkClient.dump_zone_timers()``.
 
-``%01``/``%02`` (zone/partition state change) are documented no-ops for
-Honeywell panels in the reference `pyenvisalink` implementation -- Honeywell
-only ever reports state through keypad updates and CID events, not those
-two message types -- so they're intentionally ignored here too.
+``%01`` and ``%02`` (zone and partition state change) are ignored. The
+`pyenvisalink` reference implementation documents them as no-ops for
+Honeywell panels, which report state through keypad updates and CID events
+only.
 """
 
 from __future__ import annotations

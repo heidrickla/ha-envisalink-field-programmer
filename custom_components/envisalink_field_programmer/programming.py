@@ -1,32 +1,28 @@
 """Guardrails around sending raw keystrokes to the panel.
 
-The Envisalink TPI command 071 ("Send Keystroke String") is the same
-mechanism used for everything from an ordinary zone bypass to opening full
-installer field programming. On a real Vista panel, Program Mode is opened
-by typing the installer code followed by 800 (e.g. "4112800" with the
-factory-default code) -- see the ADEMCO VISTA-21iP/VISTA-21iPSIA
-Programming Guide (K14488PRV3), "PROGRAMMING MODE COMMANDS" table. Once in
-Program Mode, essentially everything about the panel can be reconfigured,
-including fire-zone and UL-listing-relevant settings, and if the panel ends
-up somewhere unexpected there is no read-back channel over TPI to tell what
-state it's actually in (the protocol reports keypad LED bits, not display
-text).
+The TPI keypress command ``^03,<partition>,<char>$`` carries everything from
+an ordinary zone bypass to opening full installer field programming. On a
+Vista panel, Program Mode opens by typing the installer code followed by 800,
+e.g. "4112800" with the factory-default code; see the ADEMCO
+VISTA-21iP/VISTA-21iPSIA Programming Guide (K14488PRV3), "PROGRAMMING MODE
+COMMANDS" table. Inside Program Mode essentially everything about the panel
+can be reconfigured, including fire-zone and UL-listing-relevant settings.
+TPI reports keypad LED bits, not display text, so there is no read-back
+channel to tell what state the panel ended up in.
 
-An earlier version of this guard blocked any sequence containing "*8",
-based on a generic "installers mode" warning in the EnvisaLink TPI spec that
-turns out to describe DSC-style panels, not Vista -- there is no "*8" menu
-on a Vista panel at all. This module blocks the actual Vista trigger
-(``<installer code>800``) instead.
+A Vista panel has no "*8" menu. The EnvisaLink TPI spec's generic
+"installers mode" warning describes the DSC sequence; the trigger this guard
+matches is ``<installer code>800``.
 
 This module is the single choke point every keystroke-sending code path
 goes through, so that safety logic lives in exactly one place:
 
-  * Everyday, user-level sequences (e.g. quick zone bypass, "*1..#") are
-    allowed by default -- they never open Program Mode.
+  * Everyday, user-level sequences such as a quick zone bypass, "*1..#", are
+    allowed by default. They never open Program Mode.
   * Any sequence that would open Program Mode is refused unless the caller
-    explicitly opts in via ``confirm_installer_risk`` -- and there is
-    deliberately no raw-keystroke field on the device page at all, so the
-    only way to send one is the action, with that flag set.
+    opts in via ``confirm_installer_risk``. The device page carries no
+    raw-keystroke field, so the action with that flag set is the only way to
+    send one.
 """
 
 from __future__ import annotations

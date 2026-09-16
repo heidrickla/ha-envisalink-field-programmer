@@ -34,8 +34,8 @@ CONF_REMOVE_USER_CODE: Final = "remove_user_code"
 CONF_REMOVE_INSTALLER_CODE: Final = "remove_installer_code"
 
 DEFAULT_PORT: Final = 4025
-# The panel this integration was originally built and hardware-tested against;
-# the default so existing installs and single-panel users are unaffected.
+# The panel this integration is hardware-tested against, and the default so a
+# single-panel user never picks a model.
 DEFAULT_PANEL_MODEL: Final = "vista_21ip"
 DEFAULT_NUM_PARTITIONS: Final = 1
 DEFAULT_NUM_ZONES: Final = 8
@@ -76,14 +76,9 @@ ISSUE_TPI_SESSION_BUSY: Final = "tpi_session_busy"
 # ---------------------------------------------------------------------------
 # TPI wire protocol -- Honeywell/Ademco Envisalink (EVL-3/EVL-4)
 # ---------------------------------------------------------------------------
-# CORRECTNESS NOTE: an earlier version of this file was built from the
-# "EnvisaLink TPI Programmer's Document v1.08" PDF, which describes a
-# hex-ASCII, checksum-framed protocol with 3-digit numeric command codes.
-# That does not match what a real EVL-4 + VISTA-21iP actually speaks --
-# confirmed directly against live hardware (see DEVELOPMENT.md). The real
-# protocol, verified against both the live device and the actively
-# maintained `pyenvisalink` library (bundled with the `envisalink_new` HACS
-# integration, which is confirmed working against this exact hardware), is:
+# Verified against a live EVL-4 and VISTA-21iP, and against the
+# `pyenvisalink` library the `envisalink_new` HACS integration bundles, which
+# works against this same hardware:
 #
 #   1. Login is plain text, not a framed command: the EVL sends the literal
 #      string "Login:", the client replies with just the password (no
@@ -93,9 +88,13 @@ ISSUE_TPI_SESSION_BUSY: Final = "tpi_session_busy"
 #      checksum at all.
 #   3. Keystrokes are sent one character at a time via "^03,<partition>,
 #      <char>$", not bundled into multi-character frames.
-#   4. Arming/disarming is done by sending the user code followed by a mode
-#      digit as keystrokes (e.g. code + "2" for away), not a dedicated
-#      command code -- matching how a physical keypad works.
+#   4. Arming and disarming send the user code followed by a mode digit as
+#      keystrokes, e.g. code + "2" for away, not a dedicated command code.
+#      That is how a physical keypad works.
+#
+# The "EnvisaLink TPI Programmer's Document v1.08" PDF describes a different
+# variant: hex-ASCII, checksum-framed, 3-digit numeric command codes. This
+# hardware does not answer it.
 LOGIN_PROMPT: Final = "Login:"
 LOGIN_SUCCESS: Final = "OK"
 LOGIN_FAILURE: Final = "FAILED"
@@ -171,9 +170,9 @@ ICON_LED_BITS: Final[dict[str, int]] = {
 # Zone/partition/system events that mean "this partition entered installer's
 # programming mode". While in this mode most commands, including disarm,
 # are locked out, and getting stuck may require a physical power cycle.
-# This protocol has no dedicated event for it (unlike the incorrect PDF's
-# "680" code); it shows up as CID event 627 ("Program Mode Entry") via
-# EVT_REALTIME_CID_EVENT, which is how the coordinator detects it.
+# This protocol has no dedicated event for it. It shows up as CID event 627
+# ("Program Mode Entry") via EVT_REALTIME_CID_EVENT, which is how the
+# coordinator detects it.
 INSTALLERS_MODE_CID_EVENT: Final = 627
 INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
 
@@ -193,18 +192,17 @@ ARM_DISARM_CID_EVENTS: Final = {401, 403, 407, 408, 409, 441, 442}
 # Source: ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3 10/12
 # Rev B ("PROGRAMMING MODE COMMANDS" table and per-field sections).
 #
-# IMPORTANT correctness note: an earlier version of this integration's
-# keystroke guard blocked any sequence containing "*8", based on a generic
-# warning in the EnvisaLink TPI spec about "installer mode" that reads as
-# DSC-flavored boilerplate. On a real Vista panel there is no "*8" menu at
-# all. The actual sequence that opens Program Mode (equivalent to physically
-# standing at the keypad and being able to edit every data field/zone/output
-# on the panel) is:
+# Program Mode opens with
 #
 #       <installer code> 8 0 0
 #
-# e.g. "4112800" with the factory-default installer code. That is the
-# sequence this integration actually needs to guard, not "*8".
+# e.g. "4112800" with the factory-default installer code. That is what the
+# keystroke guard matches on. It carries the same access as standing at the
+# keypad: every data field, zone and output on the panel is editable.
+#
+# A Vista panel has no "*8" menu. The EnvisaLink TPI spec's generic
+# "installer mode" warning describes the DSC sequence, which this family does
+# not answer.
 PROGRAM_MODE_SUFFIX: Final = "800"
 # Exit Program Mode normally (re-enterable via installer code or the
 # power-up method). Deliberately never uses *98 (the "lockout" exit), which
