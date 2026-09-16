@@ -296,9 +296,9 @@ Panel support lives in `custom_components/envisalink_field_programmer/panels/`:
 To add a model within an existing family, append a `PanelModel` to that
 family's registry with an honest `verification` level and `notes`. To promote
 a model from Provisional/Grammar-verified to Verified, check its field numbers
-and zone-type codes against that panel's own programming guide (same method as
-the original 21iP work — see the previous section), correct anything the family
-default gets wrong, and only then bump its `verification`.
+and zone-type codes against that panel's own programming guide, by the method
+the previous section describes, correct anything the family default gets
+wrong, and only then bump its `verification`.
 
 Two safety invariants the tests enforce (`tests/ha/test_panels.py`), keep them:
 
