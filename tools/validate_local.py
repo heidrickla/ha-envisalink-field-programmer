@@ -626,6 +626,14 @@ def main() -> int:
         f"manifest does not declare imported components {sorted(used_components - declared_components)}",
     )
 
+    # Three files carry the version. Home Assistant reports the manifest, HACS
+    # reads the release against it, and pyproject is what a packaging tool
+    # reads; const.VERSION is the copy a Python reader can import.
+    const_version = constants(const_src, "VERSION").get("VERSION")
+    check(
+        const_version == manifest.get("version"),
+        f"const.VERSION {const_version!r} != manifest version {manifest.get('version')!r}",
+    )
     project_version = pyproject_version()
     check(
         project_version == manifest.get("version"),
