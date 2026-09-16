@@ -86,6 +86,13 @@ integration ships its icon and logo in
 repository, so on anything older it would load with no icon anywhere in the
 interface.
 
+`hacs.json` sets no `country`. That key filters the store listing to the
+countries it names and hides the repository from every other viewer. This
+integration speaks Envisalink TPI over TCP 4025 on the local network, with no
+cloud and no regional service, and the EyezOn module and the Honeywell VISTA
+and DSC PowerSeries panels behind it sell outside the United States. Naming a
+country would hide the listing from real owners and gate nothing.
+
 Manual: copy `custom_components/envisalink_field_programmer/` into your
 Home Assistant `config/custom_components/` directory and restart.
 
