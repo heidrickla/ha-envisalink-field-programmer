@@ -13,12 +13,14 @@ a push so the push is not the first verification.
 from __future__ import annotations
 
 import ast
+import ipaddress
 import json
 import os
 import re
 import struct
 import sys
 from typing import Any
+from urllib.parse import urlsplit
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DOMAIN = "envisalink_field_programmer"
@@ -71,6 +73,25 @@ VALID_IOT_CLASS = {
     "local_push",
     "calculated",
 }
+
+# Manifest URLs every user follows, so every one of them has to resolve off
+# this network. A forge URL on the LAN answers here and nowhere else, and a
+# bare hostname resolves against whatever search domain the reader happens to
+# have, so both are failures rather than notes.
+MANIFEST_URL_KEYS = ("documentation", "issue_tracker")
+NON_ROUTABLE_NETS = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+    )
+)
+NON_ROUTABLE_SUFFIXES = (".local", ".lan", ".internal")
 
 # Pinned from developers.home-assistant.io/docs/core/integration-quality-scale/checklist
 # (checked 2026-09-02: 54 rules, none new or deprecated). The list is pinned
@@ -154,6 +175,25 @@ def read_json(*parts: str) -> Any:
 def check(condition: bool, message: str) -> None:
     if not condition:
         failures.append(message)
+
+
+def url_host(url: str) -> str:
+    """Hostname of a URL, lowercased, without port or brackets."""
+    return (urlsplit(url).hostname or "").strip(".")
+
+
+def non_routable(host: str) -> bool:
+    """Whether a hostname only resolves inside one network."""
+    if not host or host == "localhost":
+        return True
+    if host.endswith(NON_ROUTABLE_SUFFIXES):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        # A name with no dot is resolved against the reader's search domain.
+        return "." not in host
+    return any(address in net for net in NON_ROUTABLE_NETS)
 
 
 def constants(source: str, prefix: str) -> dict[str, str]:
@@ -280,6 +320,17 @@ def main() -> int:
         keys[:2] == ["domain", "name"] and keys[2:] == sorted(keys[2:]),
         "manifest keys must be domain, name, then alphabetical (hassfest MANIFEST)",
     )
+    for key in MANIFEST_URL_KEYS:
+        url = manifest.get(key)
+        if not isinstance(url, str):
+            check(key != "documentation", f"manifest.json {key} must be a URL string")
+            continue
+        host = url_host(url)
+        check(
+            not non_routable(host),
+            f"manifest.json {key} host {host!r} resolves on one network only; "
+            "every user of a published integration follows this URL",
+        )
     check(
         "quality_scale" not in manifest,
         "quality_scale in manifest.json: the badge is core-only, a custom "
@@ -325,6 +376,9 @@ def main() -> int:
     # 2026.3 and later serves all four straight out of this directory, so these
     # are the sizes that have to be right here rather than in a pull request
     # against another repository.
+    # The logo is pinned to one size inside that range, 512x256 and 1024x512,
+    # which is what the sibling integrations ship. A range accepts a pair at a
+    # different aspect, which renders at a different size beside them.
     brand = os.path.join(COMP, "brand")
     images: dict[str, bytes] = {}
     for name in ("icon.png", "icon@2x.png", "logo.png", "logo@2x.png"):
@@ -343,11 +397,10 @@ def main() -> int:
                 f"brand/{name} is {width}x{height}, must be {side}x{side}",
             )
         else:
-            low, high = (256, 512) if "@2x" in name else (128, 256)
-            check(width > height, f"brand/{name} is {width}x{height}, must be landscape")
+            want = (1024, 512) if "@2x" in name else (512, 256)
             check(
-                low <= min(width, height) <= high,
-                f"brand/{name} shortest side is {min(width, height)}, must be {low}-{high}",
+                (width, height) == want,
+                f"brand/{name} is {width}x{height}, must be {want[0]}x{want[1]}",
             )
     icon_bytes = {v for k, v in images.items() if k.startswith("icon")}
     for name, data in images.items():
