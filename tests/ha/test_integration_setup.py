@@ -541,4 +541,16 @@ async def test_diagnostics_redact_the_panel_address_and_zone_names(hass, fake_se
     assert "00:1c:2a:aa:bb:cc" not in text
     assert "Jane Doe" not in text
     assert "BEDROOM" not in text
+
+    # Every code that is not %00, not %03 and not a ^xx ack has its whole
+    # payload copied to last_event.fields["raw"] by client.py. %20 is the
+    # module's own debug frame and carries free text.
+    await fake_server.push("20", "Zzsecretzone01")
+    await asyncio.sleep(0.1)
+    await hass.async_block_till_done()
+
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["last_event"]["code"] == "%20"
+    assert diagnostics["last_event"]["fields"]["raw"] == "**REDACTED**"
+    assert "Zzsecretzone01" not in str(diagnostics)
     await unload_entry(hass, entry)

@@ -20,7 +20,7 @@ import dataclasses
 from datetime import UTC, datetime
 from typing import Any
 
-from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.core import HomeAssistant
 
 from .const import (
@@ -46,11 +46,27 @@ TO_REDACT = {
     CONF_ZONE_NAMES,
 }
 
-# The %00 keypad update carries the panel's own alpha display, which repeats
-# the installer's zone descriptors: "FAULT 01 JANE DOE BEDROOM". That is the same
-# room-and-people text CONF_ZONE_NAMES is redacted for. %00 is the most
-# frequent TPI event, so last_event is a keypad update most of the time.
-EVENT_FIELDS_TO_REDACT = {"alpha"}
+# last_event.fields is published by allowlist: these are the keys the state
+# machine consumes. Every other key is redacted, its name left in place. An
+# allowlist rather than a deny list because client.py copies the whole payload
+# of any code that is not %00, not %03 and not a ^xx ack into "raw" (%01, %02,
+# %20 and %FF today), so a new frame type would otherwise reopen the hole.
+# The %00 keypad update's alpha field is the panel's own display, which
+# repeats the installer's zone descriptors: "FAULT 01 JANE DOE BEDROOM". That is
+# the same room-and-people text CONF_ZONE_NAMES is redacted for. %00 is the
+# most frequent TPI event, so last_event is a keypad update most of the time.
+EVENT_FIELDS_PUBLISHED = frozenset(
+    {
+        "partition",
+        "icon_led_hex",
+        "zone_or_beep_field",
+        "beep_hex",
+        "qualifier",
+        "cid_event",
+        "zone_or_user",
+        "response_code",
+    }
+)
 
 
 async def async_get_config_entry_diagnostics(
@@ -84,9 +100,10 @@ async def async_get_config_entry_diagnostics(
             {
                 "code": coordinator.last_event.code,
                 "name": coordinator.last_event.name,
-                "fields": async_redact_data(
-                    dict(coordinator.last_event.fields), EVENT_FIELDS_TO_REDACT
-                ),
+                "fields": {
+                    key: (value if key in EVENT_FIELDS_PUBLISHED else REDACTED)
+                    for key, value in coordinator.last_event.fields.items()
+                },
             }
             if coordinator.last_event is not None
             else None
