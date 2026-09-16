@@ -7,7 +7,7 @@ numbers follow [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Dates are the day the work landed on `main`, which is not the day a release
 was cut.
 
-## [Unreleased]
+## [0.4.2] - 2026-09-16
 
 ### Fixed
 
