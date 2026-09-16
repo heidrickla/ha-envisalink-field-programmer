@@ -55,13 +55,15 @@ TRANSLATED_EXCEPTIONS = frozenset(
     }
 )
 
-# hassfest requires these for a custom integration.
+# hassfest requires these for a custom integration, and hacs/action's
+# INTEGRATION_MANIFEST_JSON_SCHEMA requires all but iot_class.
 REQUIRED_MANIFEST = [
     "domain",
     "name",
     "documentation",
     "codeowners",
     "iot_class",
+    "issue_tracker",
     "version",
 ]
 VALID_IOT_CLASS = {
@@ -78,6 +80,41 @@ VALID_IOT_CLASS = {
 # hostname resolves against whatever search domain the reader happens to
 # have, so both are failures rather than notes.
 MANIFEST_URL_KEYS = ("documentation", "issue_tracker")
+
+# hacs/action validates hacs.json against HACS_MANIFEST_JSON_SCHEMA in
+# hacs/integration's utils/validate.py, which is extra=vol.PREVENT_EXTRA: an
+# unknown key fails the reviewer's run. These are that schema's keys and the
+# types it accepts. name is the one required key.
+HACS_MANIFEST_KEYS: dict[str, tuple[type, ...]] = {
+    "content_in_root": (bool,),
+    "country": (str, list),
+    "filename": (str,),
+    "hacs": (str,),
+    "hide_default_branch": (bool,),
+    "homeassistant": (str,),
+    "name": (str,),
+    "persistent_directory": (str,),
+    "render_readme": (bool,),
+    "zip_release": (bool,),
+}
+# hacs/integration's const.LOCALE, the only values its country validator
+# accepts. Outside this list the reviewer's run fails; a wrong value inside it
+# hides the store listing from every user whose HACS country is set.
+HACS_LOCALE = frozenset(
+    (
+        "ALL AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE "
+        "BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI KH CM CA CV KY CF TD CL "
+        "CN CX CC CO KM CG CD CK CR HR CU CW CY CZ CI DK DJ DM DO EC EG SV GQ "
+        "ER EE ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT "
+        "GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO "
+        "KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MK MG MW MY MV ML "
+        "MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI "
+        "NE NG NU NF MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RO RU RW "
+        "RE BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA "
+        "GS SS ES LK SD SR SJ SZ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM "
+        "TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW"
+    ).split()
+)
 
 # Pinned from developers.home-assistant.io/docs/core/integration-quality-scale/checklist
 # (checked 2026-09-02: 54 rules, none new or deprecated). The list is pinned
@@ -350,7 +387,15 @@ PUBLISHED_NAMES = {
 SCAN_EXEMPT = ("tools/_netblocks.py",)
 
 IP_LITERAL_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
-URL_RE = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s\"'`<>)\]},]+")
+# A bare IPv6 literal. The pattern over-matches - a MAC address and the "abc:"
+# of a YAML key both reach it - and ipaddress.ip_address() decides.
+IPV6_LITERAL_RE = re.compile(r"(?<![0-9A-Za-z:.])[0-9A-Fa-f:]{3,45}(?![0-9A-Za-z:.])")
+# The optional bracketed group carries the colons of an IPv6 host. The trailing
+# class excludes ] so that a URL does not run on past a closing bracket, which
+# on its own truncates a bracketed host at the opening bracket.
+URL_RE = re.compile(
+    r"\b[a-zA-Z][a-zA-Z0-9+.\-]*://(?:\[[0-9A-Fa-f:.]+\])?[^\s\"'`<>)\]},]*"
+)
 # A host written in prose with no scheme. The suffix must end the name:
 # \b would match the "home" of home-assistant.io.
 BARE_HOST_RE = re.compile(
@@ -472,7 +517,7 @@ def published_files() -> list[str]:
                 d
                 for d in dirs
                 if d not in {"__pycache__", "venv", "htmlcov", "node_modules"}
-                and not (d.startswith(".") and d not in {".gitea", ".github"})
+                and not (d.startswith(".") and d != ".github")
             ]
             for f in files:
                 paths.append(
@@ -502,6 +547,11 @@ def tree_hits(text: str, name_re: Any = None) -> list[tuple[int, str]]:
         for literal in IP_LITERAL_RE.findall(line):
             if literal not in ALLOWED_HOSTS and blocked_address(literal, TREE_NETS):
                 hits.append((number, literal))
+        for literal in IPV6_LITERAL_RE.findall(line):
+            if ":" not in literal or literal.lower() in ALLOWED_HOSTS:
+                continue
+            if blocked_address(literal, TREE_NETS):
+                hits.append((number, literal.lower()))
         for url in URL_RE.findall(line):
             try:
                 host = _urlsplit(url).hostname or ""
@@ -643,6 +693,28 @@ def main() -> int:
     # ---------------------------------------------------------- hacs.json
     hacs = read_json(ROOT, "hacs.json")
     check("name" in hacs, "hacs.json must contain name")
+    for key, value in hacs.items():
+        types = HACS_MANIFEST_KEYS.get(key)
+        if types is None:
+            check(
+                False,
+                f"hacs.json key {key!r} is not in HACS's manifest schema, which "
+                "is PREVENT_EXTRA, so the reviewer's hacs/action run fails on it",
+            )
+            continue
+        check(
+            isinstance(value, types),
+            f"hacs.json {key!r} is {type(value).__name__}, must be "
+            + " or ".join(t.__name__ for t in types),
+        )
+    country = hacs.get("country")
+    countries = [country] if isinstance(country, str) else country
+    if isinstance(countries, list):
+        for value in countries:
+            check(
+                isinstance(value, str) and value.upper() in HACS_LOCALE,
+                f"hacs.json country {value!r} is not in HACS's LOCALE list",
+            )
     # Compare the parts as numbers: as strings "2026.10.0" sorts below "2026.3.0".
     check(
         version_tuple(hacs.get("homeassistant", "0")) >= (2026, 3, 0),
