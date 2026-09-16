@@ -304,7 +304,7 @@
       "message": "The Envisalink did not accept the keystroke sequence: {error}"
     },
     "no_installer_code": {
-      "message": "Field programming needs an installer code. Set one in this integration's options (Settings > Devices & services > Envisalink Field Programmer > Configure) first."
+      "message": "Field programming needs an installer code. Set one in this integration's options (Settings, Devices & services, Envisalink Field Programmer, Configure) first."
     },
     "guided_op_unsupported": {
       "message": "Guided {operation} programming is not available for {model}. {note}"
