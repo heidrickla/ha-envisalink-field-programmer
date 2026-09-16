@@ -78,7 +78,6 @@ def test_unrelated_800_substring_is_not_flagged_without_a_preceding_code_run():
 
 
 def test_old_dsc_style_star_8_sequence_is_not_flagged():
-    # Regression guard: the old (incorrect) heuristic blocked any "*8"
-    # substring. Vista has no "*8" menu at all, so this must NOT be treated
-    # as installer-mode entry by itself.
+    # Vista has no "*8" menu, so a "*8" substring is not installer-mode entry
+    # by itself and the guard must not block it.
     validate_keystrokes("*81234")  # must not raise

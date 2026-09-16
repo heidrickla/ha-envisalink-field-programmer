@@ -161,7 +161,7 @@ def test_dsc_program_mode_wrapper():
 def test_dsc_opens_program_mode_detects_star_8_code():
     assert DSC_DIALECT.opens_program_mode("*85555001", "5555") is True
     assert DSC_DIALECT.opens_program_mode("*89999", None) is True  # generic
-    # VISTA's <code>800 is NOT how DSC opens programming.
+    # VISTA's <code>800 is not how DSC opens programming.
     assert DSC_DIALECT.opens_program_mode("4112800*56", None) is False
 
 
