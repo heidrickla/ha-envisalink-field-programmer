@@ -295,7 +295,8 @@ programming switch on the device, or `confirm: true` in the action; see
 Opening Vista's installer Program Mode gives access to every data field on
 the panel, including fire-zone and UL-listing-relevant settings, and once
 inside, most functions (including disarm) are unavailable until you exit.
-Badly, that can mean a physical power cycle. Two important specifics:
+At worst that means a physical power cycle to get out. Two important
+specifics:
 
 - Program Mode opens via `<installer code>800`, for example `4112800` with
   the factory-default code. A Vista panel has no `*8` menu; that sequence is
@@ -356,7 +357,10 @@ and bypassed zones, trouble flags, last user, plus what the programming form
 currently holds and what became of the last button press. Grab one before you
 experiment with field programming. The file is safe to attach to a public
 issue: the password, the default user code, the installer code, the
-Envisalink's address, its MAC and your zone names are all redacted.
+Envisalink's address, its MAC and your zone names are all redacted. The last
+event carries only the fields the state machine reads; every other field of
+it, including the keypad's display text and any unparsed frame payload, is
+redacted by name.
 
 What it cannot capture: the panel's actual installer field programming
 (zone types, entry/exit delays, alpha descriptors, output/relay assignments,

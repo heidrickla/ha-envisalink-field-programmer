@@ -118,7 +118,7 @@ def build_event(code: str, data: str) -> TPIEvent:
 
     Only does generic wire-level tokenizing here (splitting comma-separated
     fields, slicing fixed-width CID sub-fields); deciding what those values
-    *mean* for panel/zone state lives in state_machine.py.
+    mean for panel/zone state lives in state_machine.py.
     """
     name = COMMAND_NAMES.get(code, "unknown")
     fields: dict[str, str | int] = {}
@@ -442,10 +442,10 @@ class EnvisalinkClient:
     async def send_keystrokes(self, partition: int, keys: str) -> None:
         """Send an arbitrary keystroke string, one character per frame.
 
-        WARNING: This is the mechanism the panel uses for everything from
-        zone bypass and arming to full installer field programming. There
-        is no error-checking of panel state on the wire -- see
-        ``programming.py`` for the safety guardrails built on top of this.
+        This is the mechanism the panel uses for everything from zone bypass
+        and arming to full installer field programming. There is no
+        error-checking of panel state on the wire; see ``programming.py`` for
+        the safety guardrails built on top of this.
         """
         for key in keys:
             await self.send_keypress(partition, key)

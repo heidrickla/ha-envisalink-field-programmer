@@ -177,7 +177,7 @@ ZONES_PER_SECTION = 8  # DSC zone-definition sections hold 8 zones each
 def build_dsc_zone_definitions(section: int, zone_type_codes: list[int]) -> str:
     """Build a DSC zone-definition section ([001]-[008]) keystroke string.
 
-    DSC zone definitions are *positional*: section [001] holds zones 1-8,
+    DSC zone definitions are positional: section [001] holds zones 1-8,
     [002] holds 9-16, and so on, each zone a 2-digit type code keyed
     back-to-back. You must supply all 8 codes for the block (there is no
     per-zone edit; the whole block is rewritten), which is exactly why this is a

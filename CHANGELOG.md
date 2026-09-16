@@ -16,11 +16,16 @@ was cut.
   alarm codes redacted, so a diagnostics file attached to a public issue
   carried the panel's address on the user's LAN and whatever text the user
   had typed as zone names.
-- Diagnostics redact the `alpha` field of the last event. The %00 keypad
-  update carries the panel's own display text, which repeats the installer's
-  zone descriptors ("FAULT 01 JANE DOE BEDROOM"), and %00 is the most frequent
-  TPI event, so the file named rooms and people even with the zone-name
-  option redacted.
+- Diagnostics publish the last event's fields by allowlist: `partition`,
+  `icon_led_hex`, `zone_or_beep_field`, `beep_hex`, `qualifier`, `cid_event`,
+  `zone_or_user` and `response_code`, the keys the state machine consumes.
+  Every other key is redacted with its name left in place. The %00 keypad
+  update's `alpha` field carries the panel's own display text, which repeats
+  the installer's zone descriptors ("FAULT 01 JANE DOE BEDROOM"), and %00 is the
+  most frequent TPI event, so the file named rooms and people even with the
+  zone-name option redacted. Any code that is not %00, not %03 and not a ^xx
+  ack (%01, %02, %20 and %FF) has its whole payload copied to `raw`, which
+  was dumped verbatim; %20 is the module's debug frame and carries free text.
 
 ### Changed
 
@@ -58,6 +63,13 @@ was cut.
 - Module docstrings, the README, TROUBLESHOOTING.md and DEVELOPMENT.md state
   the protocol the hardware speaks without the narrative of how an earlier
   reading of it was corrected.
+- No bold outside table cells in README.md, CHANGELOG.md, TROUBLESHOOTING.md,
+  DEVELOPMENT.md and SECURITY.md. Counted 2026-09-16 over those five files,
+  excluding fenced code and counting a line starting with a pipe as a table
+  row: 122 spans outside table rows before this round, 0 after. 32 remain
+  inside table cells, against 17 before, because three lists became tables.
+  Commit 8edf5e3's message states 17 remaining and 139 removed; 17 was the
+  count inside table cells before the change, and 139 is 122 plus 17.
 
 ## [0.4.1] - 2026-09-05
 

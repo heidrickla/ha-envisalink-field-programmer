@@ -58,7 +58,7 @@ class Verification(StrEnum):
     """How much of a model's per-model programming data has been confirmed.
 
     This is a first-class, user-visible attribute on purpose. This project's
-    entire safety posture is built on *not* sending unverified keystrokes to
+    entire safety posture is built on not sending unverified keystrokes to
     real fire/security hardware, so a model must be honest about how much of
     its data is actually trustworthy. The guided-programming services surface
     this level and refuse to run against anything below VERIFIED unless the
@@ -67,10 +67,11 @@ class Verification(StrEnum):
 
     VERIFIED = "verified"
     """Built directly from this exact panel's own programming guide, and/or
-    confirmed against the real hardware. Currently only the VISTA-21iP."""
+    confirmed against the real hardware. Which models hold this level is in
+    the registry, with a note on each."""
 
     GRAMMAR_VERIFIED = "grammar_verified"
-    """The Program-Mode entry/exit and zone-programming *mechanism* is the
+    """The Program-Mode entry/exit and zone-programming mechanism is the
     documented, stable convention for this family and is trusted, but this
     specific model's field numbers / zone-type codes have not been checked
     one-by-one against its own guide -- they are inherited from a closely

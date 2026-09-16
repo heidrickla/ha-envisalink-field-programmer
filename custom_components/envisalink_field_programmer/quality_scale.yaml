@@ -54,8 +54,8 @@ rules:
       already_configured aborts, reauth in both outcomes, the options flow,
       all four DHCP outcomes and reconfigure in five. Run against a fake TPI
       server, not a mocked connection. The rule wants the whole file, so the
-      measurement is the check: config_flow.py 171 statements, 0 missed,
-      100%, measured 2026-09-15 on Home Assistant 2026.8.3.
+      measurement is the check: config_flow.py 174 statements, 0 missed,
+      100%, measured 2026-09-16 on Home Assistant 2026.8.3.
   config-flow:
     status: done
     comment: |

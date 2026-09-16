@@ -60,8 +60,8 @@ _VALID_KEYSTROKE_CHARS = set("0123456789*#")
 # user/arm-disarm code. Any run of 4+ consecutive digits is a code; mask it
 # before the string reaches a log, an action's error, or the programming
 # result sensor, which carries a refusal verbatim. The `*`/`#`/`800`/`*56`
-# operators (<4 digits)
-# are kept so the message still explains *why* a sequence was refused.
+# operators (<4 digits) are kept so the message still explains why a sequence
+# was refused.
 _CODE_RUN = re.compile(r"\d{4,}")
 
 
@@ -193,7 +193,7 @@ def async_register_services(hass: HomeAssistant) -> None:
             call.data[ATTR_KEYS],
             allow_installer_mode=call.data[ATTR_CONFIRM_INSTALLER_RISK],
             installer_code=coordinator.installer_code,
-            # Use the entry's actual dialect so the guard checks *this* panel's
+            # Use the entry's actual dialect so the guard checks this panel's
             # installer-mode trigger (DSC ``*8<code>`` vs. VISTA ``<code>800``).
             # Without this the guard would default to VISTA and let a DSC
             # installer-mode sequence through unconfirmed.

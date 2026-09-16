@@ -206,7 +206,7 @@ class CommercialVistaDialect:
     family = PanelFamily.VISTA
     supported_guided_ops = frozenset({GuidedOp.TIMING})
     guided_field_programming_note = (
-        "Commercial VISTA (128BP/250BP): guided *timing* (*09-*12) is supported; "
+        "Commercial VISTA (128BP/250BP): guided timing (*09-*12) is supported; "
         "zone programming uses the conditional #93 menu and is not driven here. "
         "The timing builder is guide-derived (K5894PRV6), not hardware-confirmed."
     )
@@ -315,7 +315,7 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         dialect_id="vista_commercial",
         notes=(
             "Commercial panel (K5894PRV6): <code>8000 entry, #93 menu zone "
-            "programming, *09-*12 timing in 15-second units. Guided *timing* is "
+            "programming, *09-*12 timing in 15-second units. Guided timing is "
             "supported (guide-derived, not hardware-confirmed -- stays "
             "PROVISIONAL); guided zone programming (#93) is not driven blind. "
             "Arm/disarm/bypass/model selection work."
@@ -334,7 +334,7 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         dialect_id="vista_commercial",
         notes=(
             "Large commercial panel; same K5894PRV6 programming language as the "
-            "128BP. Guided *timing* (*09-*12) supported (guide-derived, "
+            "128BP. Guided timing (*09-*12) supported (guide-derived, "
             "PROVISIONAL); #93 zone programming not driven. "
             "Arm/disarm/bypass/model selection work."
         ),

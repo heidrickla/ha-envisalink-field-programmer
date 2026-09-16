@@ -1,6 +1,6 @@
 """Windows stand-ins for the POSIX facilities the Home Assistant test harness needs.
 
-Three separate blocks stop the HA-layer suite on a Windows workstation, in this
+Four separate blocks stop the HA-layer suite on a Windows workstation, in this
 order:
 
 | Blocker | Where | Fix here |
