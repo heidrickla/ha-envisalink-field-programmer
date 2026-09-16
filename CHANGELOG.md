@@ -52,6 +52,9 @@ was cut.
   which mypy does not support per-module and which made it discard the whole
   section. `explicit-override` comes with core's list, so the 37 methods that
   override a Home Assistant base method carry `@typing.override`.
+- `.github/workflows/dependabot-automerge.yml` is removed. Minor and patch
+  bumps merged to `main` with no human reading them; the weekly grouped
+  Dependabot pull requests stay.
 - Module docstrings, the README, TROUBLESHOOTING.md and DEVELOPMENT.md state
   the protocol the hardware speaks without the narrative of how an earlier
   reading of it was corrected.
