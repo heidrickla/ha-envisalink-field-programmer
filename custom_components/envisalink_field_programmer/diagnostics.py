@@ -46,6 +46,12 @@ TO_REDACT = {
     CONF_ZONE_NAMES,
 }
 
+# The %00 keypad update carries the panel's own alpha display, which repeats
+# the installer's zone descriptors: "FAULT 01 JANE DOE BEDROOM". That is the same
+# room-and-people text CONF_ZONE_NAMES is redacted for. %00 is the most
+# frequent TPI event, so last_event is a keypad update most of the time.
+EVENT_FIELDS_TO_REDACT = {"alpha"}
+
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: VistaConsoleConfigEntry
@@ -78,7 +84,9 @@ async def async_get_config_entry_diagnostics(
             {
                 "code": coordinator.last_event.code,
                 "name": coordinator.last_event.name,
-                "fields": coordinator.last_event.fields,
+                "fields": async_redact_data(
+                    dict(coordinator.last_event.fields), EVENT_FIELDS_TO_REDACT
+                ),
             }
             if coordinator.last_event is not None
             else None

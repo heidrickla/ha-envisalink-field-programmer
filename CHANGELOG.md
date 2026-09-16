@@ -16,6 +16,11 @@ was cut.
   alarm codes redacted, so a diagnostics file attached to a public issue
   carried the panel's address on the user's LAN and whatever text the user
   had typed as zone names.
+- Diagnostics redact the `alpha` field of the last event. The %00 keypad
+  update carries the panel's own display text, which repeats the installer's
+  zone descriptors ("FAULT 01 JANE DOE BEDROOM"), and %00 is the most frequent
+  TPI event, so the file named rooms and people even with the zone-name
+  option redacted.
 
 ### Changed
 

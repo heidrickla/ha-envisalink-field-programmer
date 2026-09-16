@@ -523,12 +523,22 @@ async def test_diagnostics_redact_the_panel_address_and_zone_names(hass, fake_se
         mac="00:1c:2a:aa:bb:cc",
         options={"zone_names": {"1": "Jane Doe's bedroom window"}},
     )
+    # The keypad's alpha display repeats the installer's zone descriptors, so
+    # last_event carries the same room-and-people text as the zone names.
+    await fake_server.push("00", "1,8,0,00,FAULT 01 JANE DOE BEDROOM")
+    await asyncio.sleep(0.1)
+    await hass.async_block_till_done()
+
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
     assert diagnostics["config_entry"]["data"]["host"] == "**REDACTED**"
     assert diagnostics["config_entry"]["data"]["mac"] == "**REDACTED**"
     assert diagnostics["config_entry"]["options"]["zone_names"] == "**REDACTED**"
+    assert diagnostics["last_event"]["name"] == "keypad_update"
+    assert diagnostics["last_event"]["fields"]["alpha"] == "**REDACTED**"
+    assert diagnostics["last_event"]["fields"]["partition"] == "1"
     text = str(diagnostics)
     assert "127.0.0.1" not in text
     assert "00:1c:2a:aa:bb:cc" not in text
     assert "Jane Doe" not in text
+    assert "BEDROOM" not in text
     await unload_entry(hass, entry)
