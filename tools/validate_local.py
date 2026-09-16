@@ -296,7 +296,8 @@ ALLOWED_HOSTS = frozenset(
 # Text that ships to whoever clones or installs the repository. The file list
 # comes from git rather than a walk: git already knows what is ignored, which
 # is how private operational notes under an ignored directory stay out, and
-# --others adds a file staged for this commit but not yet added.
+# --others adds a file written but not yet staged, so a new file is scanned
+# before it is committed.
 PUBLISHED_SUFFIXES = {
     ".cfg",
     ".ini",
@@ -405,9 +406,8 @@ def unreachable_host(url: str) -> str | None:
 def malformed_url(url: Any) -> bool:
     """A manifest URL that is not an absolute http(s) URL with a host.
 
-    Kept because envisalink's superseded helper refused a hostless string and
-    unreachable_host cannot: its answer is a host or None, and "not-a-url" has
-    no host to report.
+    unreachable_host answers with a host or None, so a string with no host at
+    all, such as "not-a-url", has nothing to report. This check catches it.
     """
     if not isinstance(url, str) or not url:
         return True
@@ -501,12 +501,18 @@ def scan_published_tree() -> None:
                     "the tree scan skips this file, so nothing else may live in it"
                 )
                 break
-    # A repository that knows its own development host names - read from
-    # outside the tree, because naming them in a published file is the
-    # disclosure this rule exists to prevent - has them matched as well.
+    # Development host names are matched as well when a caller supplies them.
+    # Nothing in this tree defines internal_names: naming those hosts in a
+    # published file is the disclosure this rule exists to prevent, so the
+    # names come from outside, by setting validate_local.internal_names to a
+    # callable returning them before calling this function. The run always
+    # says which of the two halves it had, so a pass that matched no names
+    # does not read like a pass that matched them.
     name_re = None
     finder = globals().get("internal_names")
-    if callable(finder):
+    if not callable(finder):
+        notes.append("addresses only in the tree scan; no internal_names callable supplied")
+    else:
         names = finder()
         if names:
             name_re = re.compile(
