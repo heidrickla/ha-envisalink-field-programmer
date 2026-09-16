@@ -47,4 +47,4 @@ body:
     attributes:
       label: Diagnostics
       options:
-        - label: I have attached the integration's diagnostics download (Settings → Devices & services → Envisalink Field Programmer → ⋮ → Download diagnostics). Codes are redacted automatically.
+        - label: I have attached the integration's diagnostics download (Settings, Devices & services, Envisalink Field Programmer, the three-dot menu, Download diagnostics). Codes are redacted automatically.

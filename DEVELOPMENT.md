@@ -334,7 +334,7 @@ dialect doesn't list:
 - Residential VISTA supports all three (`*56` zones, `*34`-style timing,
   `*57` function keys).
 - Commercial VISTA (`CommercialVistaDialect`, `dialect_id="vista_commercial"`
-  on the 128BP/250BP) supports TIMING only — `<code>8000` entry and the
+  on the 128BP/250BP) supports TIMING only: `<code>8000` entry and the
   partition-specific `*09`-`*12` fields. Its `#93` zone menu is deeply
   conditional and is deliberately not driven without hardware.
 - DSC supports none yet: the section keystroke builders
