@@ -43,12 +43,13 @@ Two ways to run the pure suite alone:
 
 ```bash
 venv/Scripts/python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
-python -m pytest tests -q       # any interpreter WITHOUT the harness
+python -m pytest tests -q       # any interpreter without the harness
 ```
 
-The first turns the harness plugin off, the second never loads it and lets
-`tests/ha/conftest.py` skip that directory on its `importorskip`. Both give
-`81 passed, 1 skipped`.
+The first turns the harness plugin off and drops `tests/ha` from collection
+entirely; measured 2026-09-16, it gives `81 passed`. The second never loads
+the plugin and lets `tests/ha/conftest.py` skip that directory on its
+`importorskip`; it gives `81 passed, 1 skipped`, the skip being `tests/ha`.
 
 The GitHub `Tests` workflow runs the same suite on Linux with the coverage
 gate and `mypy --strict`. `mypy` needs no shim on Windows: it reads Home
@@ -147,7 +148,7 @@ wrong:
 | Check | Why it is written that way |
 |---|---|
 | `hacs.json` floor compared as parsed integers | As strings `"2026.10.0"` sorts below `"2026.3.0"`, so a text comparison rejects a raised floor. |
-| `documentation` and `issue_tracker` hosts rejected when non-routable | A forge URL on the author's LAN answers during development and nowhere else. A private or link-local address, `localhost`, a `.local`, `.lan` or `.internal` suffix, or a name with no dot fails the run rather than printing a note. |
+| `documentation` and `issue_tracker` hosts rejected when non-routable | A non-routable host answers on one network only, so the URL works where it was written and nowhere a user follows it. A private or link-local address, `localhost`, a `.local`, `.lan` or `.internal` suffix, or a name with no dot fails the run rather than printing a note. |
 
 Logos are pinned to 512x256 and 1024x512 rather than to the
 home-assistant/brands shortest-side range, which accepts a pair at a
@@ -187,18 +188,11 @@ integration puts its settings, so nothing has to be added to a dashboard.
 
 The form lives in three places:
 
-- `field_programming.py` holds `ProgrammingForm`, the values, and
-  `ProgrammingResult`, the outcome of the last press. Both hang off the
-  coordinator, so every entity of an entry reads and writes the same object.
-- `number.py`, `select.py` and `switch.py` are the fields. Setting one writes
-  to the form and calls `async_write_ha_state()`. None of them touches the
-  panel.
-- `button.py` is the only thing that sends. It checks the confirm switch and
-  the required values, calls the matching `async_program_*` coroutine in
-  `field_programming_services.py` -- the same one the action calls -- records
-  the result, clears the confirmations, and calls
-  `coordinator.async_update_listeners()` so the switches and the result sensor
-  redraw.
+| File | What it holds |
+|---|---|
+| `field_programming.py` | `ProgrammingForm`, the values, and `ProgrammingResult`, the outcome of the last press. Both hang off the coordinator, so every entity of an entry reads and writes the same object. |
+| `number.py`, `select.py`, `switch.py` | The fields. Setting one writes to the form and calls `async_write_ha_state()`. None of them touches the panel. |
+| `button.py` | The only thing that sends. It checks the confirm switch and the required values, calls the matching `async_program_*` coroutine in `field_programming_services.py`, the same one the action calls, records the result, clears the confirmations, and calls `coordinator.async_update_listeners()` so the switches and the result sensor redraw. |
 
 Adding a field means: the attribute on `ProgrammingForm`, the entity in its
 platform, the name (and any option names) in `strings.json`, an icon in
@@ -293,13 +287,11 @@ not carry them: `WebFetch` strips CSS.
 
 Panel support lives in `custom_components/envisalink_field_programmer/panels/`:
 
-- `base.py` — the `PanelDialect` protocol, the `PanelModel` dataclass, and the
-  `Verification` enum (`VERIFIED` / `GRAMMAR_VERIFIED` / `PROVISIONAL`).
-- `vista.py` / `dsc.py` — one dialect per family plus that family's model
-  registry. A dialect is data + a few small methods (program-mode wrapper,
-  zone-type table, and `opens_program_mode()` for the safety guard).
-- `__init__.py` — the combined registry and `get_model()` / `get_dialect()`
-  lookups (canonical id, aliases, and punctuation-insensitive matching).
+| File | What it holds |
+|---|---|
+| `base.py` | The `PanelDialect` protocol, the `PanelModel` dataclass, and the `Verification` enum (`VERIFIED` / `GRAMMAR_VERIFIED` / `PROVISIONAL`). |
+| `vista.py`, `dsc.py` | One dialect per family plus that family's model registry. A dialect is data plus a few small methods: program-mode wrapper, zone-type table, and `opens_program_mode()` for the safety guard. |
+| `__init__.py` | The combined registry and the `get_model()` / `get_dialect()` lookups: canonical id, aliases, and punctuation-insensitive matching. |
 
 To add a model within an existing family, append a `PanelModel` to that
 family's registry with an honest `verification` level and `notes`. To promote

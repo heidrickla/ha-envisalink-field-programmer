@@ -8,9 +8,8 @@ on:
 permissions:
   contents: read
 
-# Gitea's act_runner also picks up .github/workflows, so the job is gated to
-# GitHub: the forge runner is shared and installing Home Assistant on it is
-# not an ordinary-push cost.
+# Other CI systems also pick up .github/workflows, so the job is gated to
+# GitHub by github.server_url.
 
 jobs:
   python-tests:

@@ -75,8 +75,8 @@ VALID_IOT_CLASS = {
 }
 
 # Manifest URLs every user follows, so every one of them has to resolve off
-# this network. A forge URL on the LAN answers here and nowhere else, and a
-# bare hostname resolves against whatever search domain the reader happens to
+# this network. A non-routable host answers on one network only, and a bare
+# hostname resolves against whatever search domain the reader happens to
 # have, so both are failures rather than notes.
 MANIFEST_URL_KEYS = ("documentation", "issue_tracker")
 NON_ROUTABLE_NETS = tuple(

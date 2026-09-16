@@ -7,8 +7,7 @@
 
 A standalone Home Assistant custom integration for a Honeywell/Ademco VISTA
 alarm panel, bridged locally over an EyezOn Envisalink (EVL-3/EVL-4)
-module. No cloud, no Total Connect: your panel's keybus, your LAN, and Home
-Assistant.
+module. No cloud, no Total Connect.
 
 Envisalink Field Programmer talks the Envisalink TPI (Third Party
 Interface) protocol directly over TCP (port 4025) with its own asyncio client.
@@ -26,8 +25,8 @@ a structured, plain-language layer over Vista's `*56`/`*57` keypad
 programming language (zone types, entry/exit timing, function keys), with
 strong confirmation gates given the fire/UL-safety stakes of getting installer
 programming wrong. Nothing else exposes this through Home Assistant today.
-Arm/disarm/status/zone entities come along for the ride, but the programming
-layer is the point.
+Arm, disarm, status and zone entities are included; guided field programming
+is the reason this exists.
 
 Typical uses:
 
