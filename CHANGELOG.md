@@ -26,6 +26,18 @@ was cut.
   zone-name option redacted. Any code that is not %00, not %03 and not a ^xx
   ack (%01, %02, %20 and %FF) has its whole payload copied to `raw`, which
   was dumped verbatim; %20 is the module's debug frame and carries free text.
+- The documentation says what a DSC panel reaches. Three places said arm,
+  disarm and bypass work on DSC while `panels/dsc.py` records that `client.py`
+  speaks Honeywell TPI framing, so DSC arm, disarm and zone state need a
+  transport of their own. A DSC selection reaches the panel with nothing.
+- `tools/validate_local.py` matches development host names again. The name
+  half of the published-tree scan called `globals().get("internal_names")`,
+  nothing in the tree defined it, so no name could ever match. `internal_names`
+  reads `HA_DEV_HOST_NAMES`, and the run's note states how many names it was
+  given, so a scan given none does not read like a scan that found none.
+- `.github/workflows/ci.yml` runs hassfest and the HACS action on a `v*` tag as
+  well as on `main`. The newest release tag is the tree a store install and a
+  HACS review read, and it was the one ref no check of this repository ran on.
 
 ### Changed
 
@@ -70,6 +82,19 @@ was cut.
   inside table cells, against 17 before, because three lists became tables.
   Commit 8edf5e3's message states 17 remaining and 139 removed; 17 was the
   count inside table cells before the change, and 139 is 122 plus 17.
+- `[tool.ruff]` targets py314, the interpreter the workflow installs and the
+  version the mypy block pins, and `line-length` is 88. 33 files are reformatted
+  to it. `requires-python` stays at 3.12, the floor this source parses on.
+- `const.VERSION` carries the version, and `tools/validate_local.py` pins it
+  against `manifest.json` and `pyproject.toml`.
+- `tools/validate_local.py` scans `.html` as published text.
+- `hacs.json` sets no `country` and the README says why: the integration is
+  local-only and the module and panels behind it sell outside the United
+  States, so naming a country would hide the store listing and gate nothing.
+- The tree holds no character above U+007F. Four right arrows and a vertical
+  ellipsis in the bug report template and one em dash in DEVELOPMENT.md were
+  the last six.
+- `home-assistant/actions/hassfest` is pinned to 58bff37c.
 
 ## [0.4.1] - 2026-09-05
 
