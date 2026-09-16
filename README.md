@@ -737,26 +737,26 @@ commercial `#93` zone builder, and a DSC transport layer.
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for the full dev environment setup,
-including some non-obvious Windows/asyncio test-harness gotchas. Quick start:
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the environment setup, the Windows
+and asyncio test-harness traps, and where the protocol and programming-guide
+data came from. Quick start:
 
 ```bash
 python -m venv .venv
 source .venv/Scripts/activate  # or .venv/bin/activate on Linux/Mac
 pip install pytest-homeassistant-custom-component pytest-cov ruff mypy
-python -m pytest tests -q          # pure suite plus tests/ha when the harness is installed
+python -m pytest tests -q                       # add PYTHONPATH=tools/winshim on Windows
 ruff check . && ruff format --check .
 python -m mypy custom_components/envisalink_field_programmer
 python tools/validate_local.py
 ```
 
 `.github/workflows/tests.yml` runs the same steps on every push with Home
-Assistant installed (that run is the one that counts for `mypy --strict` and
-the `tests/ha` suite); `.github/workflows/ci.yml` runs the official
-`hassfest` and HACS validation actions.
-`custom_components/envisalink_field_programmer/quality_scale.yaml`
-records where the integration stands against Home Assistant's Integration
-Quality Scale, rule by rule, with a reason on every rule not yet met.
+Assistant installed; `.github/workflows/ci.yml` runs the `hassfest` and HACS
+validation actions.
+`custom_components/envisalink_field_programmer/quality_scale.yaml` records
+this integration against all 54 Integration Quality Scale rules: 49 done and
+5 exempt, each exemption with a written reason.
 
 ## License
 
