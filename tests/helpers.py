@@ -1,7 +1,7 @@
 """Shared test helpers: a minimal fake Envisalink TPI server.
 
-Implements the real protocol (see client.py's module docstring for the
-correction history): a plain-text ``Login:``/``OK``/``FAILED`` handshake,
+Implements the protocol the hardware speaks (see client.py's module
+docstring): a plain-text ``Login:``/``OK``/``FAILED`` handshake,
 then ``%CODE,DATA$`` (server -> client) / ``^CODE,DATA$`` (client -> server)
 framing with no checksum.
 """

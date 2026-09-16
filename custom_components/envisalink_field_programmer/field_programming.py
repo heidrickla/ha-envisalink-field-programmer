@@ -239,7 +239,7 @@ class ZoneProgram:
 def build_zone_program_keystrokes(program: ZoneProgram) -> str:
     """Translate a ZoneProgram into the *56 menu-mode keystroke sequence.
 
-    Does NOT include entering/exiting Program Mode -- see
+    Does not include entering or exiting Program Mode; see
     build_program_mode_wrapper(). Every entry in *56 mode must be followed
     by "*" to accept it, per the guide's own instructions for this menu.
     """

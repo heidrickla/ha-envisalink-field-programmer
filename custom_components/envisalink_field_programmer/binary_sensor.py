@@ -79,11 +79,9 @@ class VistaZoneSensor(VistaConsoleEntity, BinarySensorEntity):
 class VistaTroubleSensor(VistaConsoleEntity, BinarySensorEntity):
     """Aggregate trouble condition across all partitions (AC/battery/system trouble).
 
-    The real protocol only reports these as per-partition icon-LED flags
-    (see state_machine.py), not as distinct system-wide trouble types the
-    way the earlier, incorrect protocol implementation assumed -- so this
-    aggregates across every configured partition instead of tracking
-    separate AC/battery/bell/FTC/tamper conditions.
+    TPI reports these as per-partition icon-LED flags only (see
+    state_machine.py), so this aggregates across every configured partition
+    rather than tracking separate AC/battery/bell/FTC/tamper conditions.
     """
 
     # Diagnostic, not a primary control: it reports the panel's own health

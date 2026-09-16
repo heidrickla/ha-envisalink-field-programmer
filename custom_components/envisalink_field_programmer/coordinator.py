@@ -93,9 +93,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # Only needed for the field-programming layer (opening Program Mode);
         # arm/disarm/status/bypass never use it. See programming.py.
         self.installer_code = installer_code
-        # Which panel model/dialect this entry drives. Defaults to the
-        # VISTA-21iP (see panels/) so pre-existing entries with no stored
-        # model behave exactly as before.
+        # Which panel model/dialect this entry drives. An entry with no stored
+        # model resolves to the VISTA-21iP (see panels/).
         self.panel_model = get_model(panel_model)
         self.dialect = get_dialect(panel_model)
         self.data = VistaState.create(num_partitions, num_zones)

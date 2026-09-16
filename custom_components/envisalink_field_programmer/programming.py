@@ -106,8 +106,7 @@ def validate_keystrokes(
 
     ``dialect`` selects the panel family whose Program-Mode trigger to guard
     against (VISTA's ``<code>800`` vs. DSC's ``*8<code>``). It defaults to the
-    VISTA dialect, preserving the original single-panel behaviour for callers
-    that don't pass one.
+    VISTA dialect when no dialect is passed.
     """
     if not keys:
         raise KeystrokeGuardError(

@@ -162,14 +162,14 @@ DSC_DIALECT = DscPowerSeriesDialect()
 
 
 # --- DSC section-programming keystroke builders ---------------------------
-# Pure, deterministic functions that generate the *inner* section keystrokes
-# (not the *8<code>...## wrapper -- that's DscPowerSeriesDialect.program_mode_
-# wrapper). Built from the verified DSC PowerSeries grammar (sections [001]-[004]
-# zone definitions, [005] partition timing). They are UNIT-TESTED building blocks
-# and are deliberately NOT wired to any service: the client transport speaks
-# Honeywell TPI, so there is no path to actually send these to a DSC panel yet.
-# When DSC transport is added, these become the keystroke source for guided DSC
-# programming (which must still be verified against real hardware first).
+# Pure, deterministic functions that generate the inner section keystrokes.
+# The *8<code>...## wrapper around them is DscPowerSeriesDialect.program_mode_
+# wrapper. Built from the verified DSC PowerSeries grammar (sections [001]-[004]
+# zone definitions, [005] partition timing). They are unit-tested building blocks
+# and are wired to no service: the client transport speaks Honeywell TPI, so
+# there is no path to send these to a DSC panel. When DSC transport is added,
+# these become the keystroke source for guided DSC programming, which must be
+# verified against real hardware first.
 
 ZONES_PER_SECTION = 8  # DSC zone-definition sections hold 8 zones each
 
@@ -243,8 +243,9 @@ def _dsc(
 
 
 # Capacities: those marked "(guide-confirmed 2026-07-05)" were read from that
-# panel's own installation manual; the rest are commonly-documented maximums
-# still awaiting a per-panel check. The whole DSC family stays PROVISIONAL
+# panel's own installation manual; the rest are commonly-documented maximums,
+# unchecked against a per-panel manual as of 2026-09-15, and that panel's
+# installation guide settles it. The whole DSC family stays PROVISIONAL
 # because guided programming is disabled for it regardless (see the dialect).
 DSC_MODELS: tuple[PanelModel, ...] = (
     _dsc(

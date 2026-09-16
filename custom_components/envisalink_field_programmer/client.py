@@ -13,7 +13,7 @@ codes, which this hardware does not answer.
     ``^CODE,DATA$`` (client -> EVL), terminated by ``$``. There is no
     checksum.
   * Keystrokes go one character at a time via ``^03,<partition>,<char>$``.
-  * The EVL processes exactly ONE command at a time: every command is
+  * The EVL processes exactly one command at a time: every command is
     answered with a ``^CODE,<response>$`` acknowledgement, and a command
     sent while the previous one is still being processed is rejected with
     response code 01 ("Receive Buffer Overrun"). ``_send()`` therefore

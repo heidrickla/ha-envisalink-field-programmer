@@ -58,8 +58,8 @@ async def async_get_config_entry_diagnostics(
         "captured_at": datetime.now(UTC).isoformat(),
         "note": (
             "This is a live-state snapshot only (armed/open/bypass/trouble "
-            "flags as last reported by the panel over Envisalink). It is NOT "
-            "a backup of installer field programming -- the TPI protocol "
+            "flags as last reported by the panel over Envisalink). It is not "
+            "a backup of installer field programming: the TPI protocol "
             "cannot read that back. See diagnostics.py docstring."
         ),
         "config_entry": {
