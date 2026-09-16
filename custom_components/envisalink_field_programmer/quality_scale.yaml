@@ -174,7 +174,7 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      98.85% on 2026-09-16, 21 of 1821 statements missed: defensive branches
+      98.85% on 2026-09-16, 21 of 1822 statements missed: defensive branches
       in the panel dialects, one unreachable-looking guard each in the
       client, the sensor and the zone timer decoder, coordinator paths a
       reconnect has to lose a race to reach, and the programming button

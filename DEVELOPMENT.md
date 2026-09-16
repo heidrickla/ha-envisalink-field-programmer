@@ -136,7 +136,7 @@ Observed on 2026-09-16: `212 passed` for the full suite, `81 passed, 1
 skipped` for the pure suite alone (the skip is `tests/ha` on its
 `importorskip`), `Success: no issues found in 23 source files` from mypy, and
 `all offline checks passed` from the validator. Coverage over both suites in
-the CI order: 98.85%, 21 of 1821 statements missed.
+the CI order: 98.85%, 21 of 1822 statements missed.
 
 `mypy --strict` only means something with Home Assistant installed in the
 interpreter running it: without it every Home Assistant class is `Any`, so
@@ -170,30 +170,38 @@ home-assistant/brands shortest-side range, which accepts a pair at a
 different aspect from the sibling integrations. Run the validator before a
 push.
 
-## hassfest / HACS validation: why they're not run locally
+## hassfest and HACS validation locally
 
 `hassfest` (Home Assistant's manifest/structure validator) lives in
 `home-assistant/core`'s `script/hassfest/`, not in the `homeassistant` PyPI
-package. Getting it running locally was attempted via a sparse git clone:
+package. A local run needs core checked out at the tag matching the installed
+`homeassistant` version: hassfest tracks core's tip, and a skewed pair fails
+inside hassfest's own `model.py`.
 
 ```bash
-git clone --filter=blob:none --sparse --depth 1 https://github.com/home-assistant/core.git ha-core-sparse
+git clone --filter=blob:none --sparse --depth 1 --branch 2026.8.3 https://github.com/home-assistant/core.git ha-core-sparse
 cd ha-core-sparse
-git sparse-checkout set --skip-checks script homeassistant/const.py homeassistant/__init__.py homeassistant/loader.py
-python -m script.hassfest --integration-path /path/to/ha-envisalink-field-programmer/custom_components/envisalink_field_programmer
+git sparse-checkout set --skip-checks script homeassistant
+python -m script.hassfest --action validate --integration-path /path/to/custom_components/envisalink_field_programmer
 ```
 
-That fetches hassfest's source without a full checkout of about 1 GB, and
-then fails with a `NameError` inside hassfest's own `model.py`: hassfest at
-the tip of `main` is version-skewed against the `homeassistant` package the
-harness pins, 2026.8.3. A local run needs core checked out at a tag matching
-the installed `homeassistant` version, or the venv's `homeassistant` moved
-closer to current `main`.
+`--filter=blob:none --sparse` fetches hassfest's source without a full
+checkout of about 1 GB. `--branch` takes the tag, so the shallow clone lands
+on it directly. The `homeassistant` package comes in whole: `script/hassfest`
+imports `homeassistant.const`, which imports `homeassistant.generated`, so a
+narrower checkout raises `ModuleNotFoundError` before any validator runs.
 
-The CI workflow's `validate-*` jobs run the version-matched
-`home-assistant/actions/hassfest` and `hacs/action` on every push. The
-manifest, `services.yaml` and `strings.json` checks in
-`tools/validate_local.py` approximate hassfest's rules offline.
+Core 2026.8.3 sets `required-version = ">=0.16.0"` in its own `[tool.ruff]`,
+and hassfest's `serializer.py` resolves `ruff` with `shutil.which` and runs it
+with the core checkout as the working directory. The pinned 0.15.21 exits 2
+there and hassfest raises `CalledProcessError`, so a 0.16.0 or newer ruff has
+to come first on `PATH` for the local run.
+
+`.github/workflows/ci.yml`'s `validate-*` jobs run the version-matched
+`home-assistant/actions/hassfest` and `hacs/action` on a push to `main`, on a
+`v*` tag and on a pull request. The manifest, `services.yaml`, `strings.json`
+and `hacs.json` checks in `tools/validate_local.py` approximate hassfest's and
+`hacs/action`'s rules offline.
 
 ## The programming form (no frontend build)
 
@@ -295,8 +303,7 @@ cross-checked when the field model is in doubt.
 
 The EyezOn/Envisalink brand colours used by the images in `brand/` were read
 out of `https://www.eyezon.com/assets/css/main.min.css`, grepping the
-`--*-accent-*` custom properties for their hex values. A rendered page does
-not carry them: `WebFetch` strips CSS.
+`--*-accent-*` custom properties for their hex values.
 
 ## Adding or promoting a panel model
 
@@ -321,12 +328,12 @@ Two safety invariants the tests enforce (`tests/ha/test_panels.py`), keep them:
   services refuse anything less without an explicit `confirm_unverified_model`.
 - The keystroke guard is family-aware: each dialect's `opens_program_mode()`
   must match that family's real installer-mode trigger (VISTA `<code>800`, DSC
-  `*8<code>`) and *not* the other family's, so the guard can't be bypassed by
+  `*8<code>`) and not the other family's, so the guard can't be bypassed by
   selecting the wrong dialect. Prefer an over-cautious false positive to a miss.
 
 ## Guided-programming capabilities per dialect
 
-Guided programming is expressed per *operation*, not as one on/off switch. A
+Guided programming is expressed per operation, not as one on/off switch. A
 dialect declares `supported_guided_ops: frozenset[GuidedOp]` (subset of
 `ZONE`, `TIMING`, `FUNCTION_KEY`), and each service refuses an operation the
 dialect doesn't list:
