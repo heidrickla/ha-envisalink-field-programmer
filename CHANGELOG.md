@@ -80,14 +80,26 @@ was cut.
   excluding fenced code and counting a line starting with a pipe as a table
   row: 122 spans outside table rows before this round, 0 after. 32 remain
   inside table cells, against 17 before, because three lists became tables.
-  Commit 8edf5e3's message states 17 remaining and 139 removed; 17 was the
-  count inside table cells before the change, and 139 is 122 plus 17.
 - `[tool.ruff]` targets py314, the interpreter the workflow installs and the
   version the mypy block pins, and `line-length` is 88. 33 files are reformatted
-  to it. `requires-python` stays at 3.12, the floor this source parses on.
+  to it. `requires-python` is `>=3.14.2`: the source uses PEP 758 unparenthesised
+  `except` tuples, and Home Assistant 2026.3.0, the oldest release `hacs.json`
+  admits, itself declares `requires-python >=3.14.2`.
 - `const.VERSION` carries the version, and `tools/validate_local.py` pins it
   against `manifest.json` and `pyproject.toml`.
 - `tools/validate_local.py` scans `.html` as published text.
+- `tools/validate_local.py` validates `hacs.json` against HACS's own
+  `HACS_MANIFEST_JSON_SCHEMA` key list, which is `PREVENT_EXTRA`, and checks a
+  `country` value against HACS's `LOCALE` list. An unknown key, a wrong type
+  and a bad country code each failed the reviewer's `hacs/action` run while
+  passing offline.
+- `tools/validate_local.py` matches IPv6 in the published-tree scan. The two
+  IPv6 blocks in `tools/_netblocks.py` were refused in the manifest URLs only:
+  the literal matcher took dotted quads, and the URL pattern truncated a
+  bracketed host at its opening bracket. A ULA and a link-local address, bare
+  and in a URL, now fail the scan.
+- The `no_installer_code` message names the options menu path with commas,
+  the form the README, TROUBLESHOOTING.md and the issue template use.
 - `hacs.json` sets no `country` and the README says why: the integration is
   local-only and the module and panels behind it sell outside the United
   States, so naming a country would hide the store listing and gate nothing.
