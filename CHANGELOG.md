@@ -30,9 +30,13 @@ was cut.
 - `tools/validate_local.py` fails a `documentation` or `issue_tracker` URL
   whose host resolves on one network only, and pins the logo sizes instead of
   accepting the brands repository's shortest-side range.
-- `tools/winshim/` lets the `tests/ha` suite run on Windows, which the
-  POSIX-only `fcntl` and `resource` imports in Home Assistant's own startup
-  path otherwise block at pytest plugin load.
+- `tools/validate_local.py` also reads every text file the repository
+  publishes and fails on a development host named anywhere in it. The manifest
+  rule and the tree rule share one address table in `tools/_netblocks.py`:
+  private, CGNAT, link-local, reserved, ULA and internal-suffix hosts fail
+  both; loopback, the unspecified address and `localhost` fail the manifest
+  rule only, since they name no machine here and are ordinary in a socket
+  test.
 - Module docstrings, the README, TROUBLESHOOTING.md and DEVELOPMENT.md state
   the protocol the hardware speaks without the narrative of how an earlier
   reading of it was corrected.
