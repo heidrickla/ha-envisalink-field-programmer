@@ -12,8 +12,8 @@ not the entire installer field set (output/relay programming, alpha
 descriptors, and configurable zone types 90/91 are intentionally out of
 scope for now; see the README).
 
-Nothing in this module talks to the panel. It only describes *what a field
-means* and, given validated values, *what keystrokes express that meaning*.
+Nothing in this module talks to the panel. It only describes what a field
+means and, given validated values, what keystrokes express that meaning.
 Actually sending anything still goes through programming.py's guard.
 """
 

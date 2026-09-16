@@ -4,7 +4,7 @@ Which zone to program, and what value a timing field should take. Setting one
 writes to the entry's programming form and nothing else; the panel hears
 nothing until a button in button.py is pressed with the confirm switch on.
 
-The bounds here are the widest a value can be. What a *particular* timing field
+The bounds here are the widest a value can be. What a particular timing field
 accepts is narrower and dialect-specific (residential seconds with extended-time
 codes, commercial units of 15 seconds), so the real range check stays in the
 dialect's keystroke builder, where the chosen field is known, and a value it

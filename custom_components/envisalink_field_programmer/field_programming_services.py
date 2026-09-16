@@ -4,7 +4,7 @@ Every operation here always opens Program Mode (installer code + 800), so
 unlike the general-purpose ``send_keystrokes`` action, there is no "safe by
 default" path -- a confirmation is required for every write. Setting a zone to
 (or off of) a fire/CO zone type additionally requires a life-safety
-confirmation, since the TPI protocol cannot read back a zone's *current* type
+confirmation, since the TPI protocol cannot read back a zone's current type
 before overwriting it (see field_programming.py).
 
 The three ``async_program_*`` coroutines below are the operations themselves,

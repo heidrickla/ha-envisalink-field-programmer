@@ -256,7 +256,7 @@ def test_guard_blocks_vista_program_mode_only_under_vista_dialect():
 # --- verification-acknowledgment gate -------------------------------------
 # Currently every registered model is either fully VERIFIED or has guided
 # programming disabled, so no live model trips this gate -- but it must stay
-# correct for any future model added as GRAMMAR_VERIFIED/PROVISIONAL *with*
+# correct for any future model added as GRAMMAR_VERIFIED/PROVISIONAL with
 # guided programming enabled. Tested directly against the helper.
 
 

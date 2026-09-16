@@ -191,7 +191,7 @@ async def test_guided_programming_refused_for_dsc(hass, fake_server):
 
 
 async def test_zone_programming_refused_for_commercial_vista(hass, fake_server):
-    # The commercial VISTA-128BP supports guided *timing* but not zone
+    # The commercial VISTA-128BP supports guided timing but not zone
     # programming (its #93 zone menu is not driven), so program_zone is refused.
     entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
     with pytest.raises(ServiceValidationError, match="not available"):
