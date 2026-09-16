@@ -56,10 +56,8 @@ rules:
       already_configured aborts, reauth in both outcomes, the options flow,
       all four DHCP outcomes and reconfigure in five. Run against a fake TPI
       server, not a mocked connection. The rule wants the whole file, so the
-      measurement is the check: 137 statements, 0 missed, 100%, on the green
-      Tests run for f7ac510 (2026-09-05). It was 99% until that commit, one
-      statement short: a named no-op event callback in the throwaway probe
-      client whose body nothing ever ran.
+      measurement is the check: config_flow.py 171 statements, 0 missed,
+      100%, measured 2026-09-15 on Home Assistant 2026.8.3.
   config-flow:
     status: done
     comment: |
@@ -178,15 +176,15 @@ rules:
     comment: |
       The Tests workflow measures both suites into one report, the pure one
       appending into the Home Assistant one, and fails under 95%. Measured
-      98.8% on 2026-09-05 with the device page in (21 of 1768 statements
-      missed): defensive branches in the panel dialects, one
-      unreachable-looking guard each in the client, the sensor and the zone
-      timer decoder, the debug log for a zone timer dump that fails right
-      after a reconnect, and the programming button base's NotImplementedError,
-      which every subclass overrides. tests/ha/test_programming_entities.py
-      covers every new entity and both button refusals against the fake TPI
-      server, and asserts the keystrokes a press sends are the same strings
-      the matching action sends.
+      98.82% on 2026-09-15, 21 of 1779 statements missed: defensive branches
+      in the panel dialects, one unreachable-looking guard each in the
+      client, the sensor and the zone timer decoder, coordinator paths a
+      reconnect has to lose a race to reach, and the programming button
+      base's NotImplementedError, which every subclass overrides.
+      tests/ha/test_programming_entities.py covers every device-page entity
+      and both button refusals against the fake TPI server, and asserts the
+      keystrokes a press sends are the same strings the matching action
+      sends.
 
   # Gold
   devices:
@@ -198,10 +196,11 @@ rules:
   diagnostics:
     status: done
     comment: |
-      A live state snapshot with the password and both codes redacted, plus
-      the programming form and the last programming result, which is what a
-      report of "I programmed a zone and nothing happened" needs;
-      tests/ha/test_integration_setup.py checks the redaction.
+      A live state snapshot with the password, both codes, the Envisalink's
+      address, its MAC and the user's zone names redacted, plus the
+      programming form and the last programming result, which is what a
+      report of "I programmed a zone and nothing happened" needs.
+      tests/ha/test_integration_setup.py checks both redaction sets.
   discovery:
     status: done
     comment: |
