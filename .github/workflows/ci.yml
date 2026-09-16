@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -11,6 +12,15 @@ permissions:
 
 # Lint, both test suites, mypy and the offline validator run in tests.yml.
 # This workflow is the official validators.
+#
+# The tag trigger is the tree a store user installs. hacs/action takes its ref
+# from the push event, so a run on main checks main; the hacs/default review
+# runs the same action with REPOSITORY and CATEGORY set, which ignores the ref
+# and resolves the newest release tag instead. Without a tag trigger the tag
+# the reviewer reads is the one ref this repository never ran a check on.
+# branches plus tags rather than a bare push: pull_request already covers a
+# branch that becomes a pull request, so a bare push runs both jobs twice on
+# every such branch.
 
 jobs:
   validate-hassfest:
