@@ -1,21 +1,17 @@
 """Diagnostics support.
 
-Also doubles as the closest thing to a "backup" this integration can offer:
-downloading diagnostics captures a timestamped snapshot of every
-partition/zone/system flag known to Home Assistant at that moment (armed
-state, open/bypassed zones, trouble flags, last user, etc.) as plain JSON,
-which is worth keeping around before you experiment with anything in
-programming.py.
+A download is a timestamped JSON snapshot of every partition, zone and system
+flag Home Assistant holds at that moment: armed state, open and bypassed
+zones, trouble flags, last user. That is the closest thing to a backup this
+integration can offer, and it is worth taking one before using programming.py.
 
-Important limitation: this is NOT a backup of the panel's installer field
-programming (zone types, entry/exit delays, alpha descriptors, output
-assignments, etc.). The EnvisaLink TPI protocol has no command that reads
-those values back -- section 3 of the TPI doc only exposes live status
-events and keypad-LED state, never the underlying *56/*58/*79/*80/*82-style
-configuration data. The only ways to capture that are the installer
-programming menu itself (walk each field at the keypad and record it) or a
-Honeywell-side tool (Compass Downloader / Total Connect installer access),
-neither of which this integration can reach.
+It is not a backup of the panel's installer field programming: zone types,
+entry and exit delays, alpha descriptors, output assignments. TPI section 3
+exposes live status events and keypad-LED state only, never the underlying
+*56/*58/*79/*80/*82 configuration data, so no command reads those values back.
+They can be captured by walking each field at the keypad, or with a
+Honeywell-side tool such as Compass Downloader or Total Connect installer
+access. This integration reaches neither.
 """
 
 from __future__ import annotations
@@ -27,10 +23,28 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_INSTALLER_CODE, CONF_PASSWORD, CONF_USER_CODE
+from .const import (
+    CONF_HOST,
+    CONF_INSTALLER_CODE,
+    CONF_MAC,
+    CONF_PASSWORD,
+    CONF_USER_CODE,
+    CONF_ZONE_NAMES,
+)
 from .coordinator import VistaConsoleConfigEntry
 
-TO_REDACT = {CONF_PASSWORD, CONF_USER_CODE, CONF_INSTALLER_CODE}
+# A diagnostics file is downloaded to be pasted into a public issue. Besides
+# the three secrets, the config entry holds the panel's address on the user's
+# LAN, the module's MAC, and whatever text the user typed as zone names, which
+# names rooms and people. None of them is needed to read a report.
+TO_REDACT = {
+    CONF_PASSWORD,
+    CONF_USER_CODE,
+    CONF_INSTALLER_CODE,
+    CONF_HOST,
+    CONF_MAC,
+    CONF_ZONE_NAMES,
+}
 
 
 async def async_get_config_entry_diagnostics(

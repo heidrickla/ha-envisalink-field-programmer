@@ -506,10 +506,29 @@ async def test_diagnostics_redact_every_code(hass, fake_server):
     assert diagnostics["config_entry"]["data"]["user_code"] == "**REDACTED**"
     assert diagnostics["config_entry"]["options"]["installer_code"] == "**REDACTED**"
     assert diagnostics["config_entry"]["options"]["user_code"] == "**REDACTED**"
-    assert diagnostics["config_entry"]["data"]["host"] == "127.0.0.1"
     assert set(diagnostics["zones"]) == {"1", "2", "3", "4"}
     assert diagnostics["last_event"]["name"] == "dump_zone_timers_ack"
     text = str(diagnostics)
     assert "4112" not in text
     assert "1234" not in text
+    await unload_entry(hass, entry)
+
+
+async def test_diagnostics_redact_the_panel_address_and_zone_names(hass, fake_server):
+    """The file is downloaded to be pasted into a public issue."""
+    entry = await setup_entry(
+        hass,
+        fake_server,
+        num_zones=2,
+        mac="00:1c:2a:aa:bb:cc",
+        options={"zone_names": {"1": "Jane Doe's bedroom window"}},
+    )
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["config_entry"]["data"]["host"] == "**REDACTED**"
+    assert diagnostics["config_entry"]["data"]["mac"] == "**REDACTED**"
+    assert diagnostics["config_entry"]["options"]["zone_names"] == "**REDACTED**"
+    text = str(diagnostics)
+    assert "127.0.0.1" not in text
+    assert "00:1c:2a:aa:bb:cc" not in text
+    assert "Jane Doe" not in text
     await unload_entry(hass, entry)
