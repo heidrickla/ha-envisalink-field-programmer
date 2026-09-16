@@ -302,6 +302,24 @@ ALLOWED_HOSTS = frozenset(
     | REPO_ALLOWED_HOSTS
 )
 
+# Development host names are matched too, and they cannot be listed here:
+# naming them in a published file is the disclosure this rule exists to
+# prevent. The environment carries them in from outside the tree.
+DEV_HOST_ENV = "HA_DEV_HOST_NAMES"
+
+
+def internal_names() -> list[str]:
+    """Development host names, comma separated, from the environment.
+
+    Each name matches with any trailing word characters, so a bare name also
+    catches its -ci and -02 variants. No example name is written here: an
+    example is itself a string in a published file, and a maintainer whose
+    host carries that name would see the scan fail on this line.
+    """
+    raw = os.environ.get(DEV_HOST_ENV, "")
+    return [n.strip().lower() for n in raw.split(",") if n.strip()]
+
+
 # Text that ships to whoever clones or installs the repository. The file list
 # comes from git rather than a walk: git already knows what is ignored, which
 # is how private operational notes under an ignored directory stay out, and
@@ -309,6 +327,7 @@ ALLOWED_HOSTS = frozenset(
 # before it is committed.
 PUBLISHED_SUFFIXES = {
     ".cfg",
+    ".html",
     ".ini",
     ".json",
     ".md",
@@ -517,29 +536,17 @@ def scan_published_tree() -> None:
                     "the tree scan skips this file, so nothing else may live in it"
                 )
                 break
-    # Development host names are matched as well when a caller supplies them.
-    # Nothing in this tree defines internal_names: naming those hosts in a
-    # published file is the disclosure this rule exists to prevent, so the
-    # names come from outside, by setting validate_local.internal_names to a
-    # callable returning them before calling this function. The run always
-    # says which of the two halves it had, so a pass that matched no names
-    # does not read like a pass that matched them.
+    # The run always says how many names it had, so a scan that was given none
+    # does not read like a scan that found none.
+    names = internal_names()
     name_re = None
-    finder = globals().get("internal_names")
-    if not callable(finder):
-        notes.append(
-            "addresses only in the tree scan; no internal_names callable supplied"
+    if names:
+        name_re = re.compile(
+            r"\b(?:" + "|".join(re.escape(n) for n in names) + r")\w*",
+            re.IGNORECASE,
         )
-    else:
-        names = finder()
-        if names:
-            name_re = re.compile(
-                r"\b(?:" + "|".join(re.escape(n) for n in names) + r")\w*",
-                re.IGNORECASE,
-            )
-            notes.append(f"{len(names)} development host names given to the tree scan")
-        else:
-            notes.append("no development host names given to the tree scan")
+    plural = "name" if len(names) == 1 else "names"
+    notes.append(f"{len(names)} development host {plural} from {DEV_HOST_ENV}")
     seen = 0
     for path in published_files():
         full = os.path.join(ROOT, *path.split("/"))
