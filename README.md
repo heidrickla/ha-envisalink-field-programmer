@@ -25,8 +25,7 @@ a structured, plain-language layer over Vista's `*56`/`*57` keypad
 programming language (zone types, entry/exit timing, function keys), with
 strong confirmation gates given the fire/UL-safety stakes of getting installer
 programming wrong. Nothing else exposes this through Home Assistant today.
-Arm, disarm, status and zone entities are included; guided field programming
-is the reason this exists.
+Arm, disarm, status and zone entities are included.
 
 Typical uses:
 
@@ -738,7 +737,7 @@ the normal confirmations.
 | **VISTA-20P / 15P** | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide (2026-07-05): program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. |
 | **VISTA-10P** | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired + 9-24 RF (no zones 7-8), single partition. |
 | VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** is supported (its own dialect); guided **zone** programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
-| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke *builders* (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport speaks Honeywell TPI framing, so a DSC panel needs a DSC transport (and hardware verification) before anything reaches it, guided programming and arm, disarm and zone state alike. |
+| DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke builders (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport speaks Honeywell TPI framing, so a DSC panel needs a DSC transport (and hardware verification) before anything reaches it, guided programming and arm, disarm and zone state alike. |
 
 The four Verified residential VISTA panels are fully field-programmable. The
 commercial VISTA panels add guided timing at Provisional, so verify at the
