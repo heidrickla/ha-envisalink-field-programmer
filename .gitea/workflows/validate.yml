@@ -1,0 +1,125 @@
+name: Validate
+
+# The jobs that install Home Assistant are workflow_dispatch only. An ordinary
+# push runs the lint job alone. .github/workflows/tests.yml runs the same two
+# suites on every push to GitHub.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint and structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ruff (pinned)
+        run: |
+          python3 -m pip install --quiet --upgrade pip
+          python3 -m pip install --quiet "ruff==0.15.21"
+          python3 -m ruff --version
+
+      - name: Ruff
+        run: |
+          python3 -m ruff check .
+          python3 -m ruff format --check .
+
+      # No ast.parse step: the default python3 here is 3.10 and cannot parse
+      # py314 syntax. Ruff parses every file at py314.
+      - name: JSON is valid
+        run: |
+          for f in custom_components/envisalink_field_programmer/*.json custom_components/envisalink_field_programmer/translations/*.json hacs.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1],encoding='utf-8'))" "$f" || exit 1
+          done
+          echo "all JSON valid"
+
+      - name: Manifest sanity
+        run: |
+          python3 - <<'PY'
+          import json
+          m = json.load(open("custom_components/envisalink_field_programmer/manifest.json", encoding="utf-8"))
+          missing = [k for k in ("domain","name","version","documentation","codeowners") if not m.get(k)]
+          assert not missing, f"manifest missing: {missing}"
+          assert m["domain"] == "envisalink_field_programmer", m["domain"]
+          assert "quality_scale" not in m, "the badge is core-only"
+          print("manifest ok:", m["domain"], m["version"])
+          PY
+
+      - name: Quality scale is complete and honest
+        run: |
+          python3 -m pip install --quiet "PyYAML==6.0.2"
+          python3 - <<'PY'
+          import json, yaml
+          base = "custom_components/envisalink_field_programmer/"
+          rules = yaml.safe_load(open(base + "quality_scale.yaml", encoding="utf-8"))["rules"]
+          todo = sorted(k for k, v in rules.items()
+                        if isinstance(v, dict) and v.get("status") == "todo")
+          for name, v in rules.items():
+              if isinstance(v, dict):
+                  assert v.get("status") in {"done","todo","exempt"}, name
+                  if v.get("status") != "done":
+                      assert str(v.get("comment","")).strip(), f"{name}: needs a reason"
+              else:
+                  assert v == "done", name
+          claimed = json.load(open(base + "manifest.json", encoding="utf-8")).get("quality_scale")
+          assert not (claimed and todo), f"manifest claims {claimed} with todo: {todo}"
+          print(f"{len(rules)} rules; still todo: {', '.join(todo) or 'none'}")
+          PY
+
+  home-assistant:
+    name: Home Assistant layer
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Home Assistant 2026.x needs 3.14. On an older interpreter pip resolves
+      # an old Home Assistant and the pinned harness cannot be found.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # A venv, so nothing is inherited from the setup-python toolcache.
+      # 0.13.357 pins Home Assistant 2026.8.3.
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --quiet --upgrade pip
+          .venv/bin/python -m pip install --quiet "mypy==1.18.2" \
+            "pytest-homeassistant-custom-component==0.13.357"
+
+      # Coverage gate on both suites together, as in .github/workflows/tests.yml.
+      - name: Pure tests
+        run: >-
+          .venv/bin/python -m pytest tests -q --ignore=tests/ha -p no:homeassistant
+          --cov=custom_components/envisalink_field_programmer --cov-report=
+
+      - name: Home Assistant layer tests
+        run: >-
+          .venv/bin/python -m pytest tests/ha -q
+          --cov=custom_components/envisalink_field_programmer --cov-append
+          --cov-report=term-missing --cov-fail-under=95
+
+      - name: mypy strict
+        run: .venv/bin/python -m mypy custom_components/envisalink_field_programmer
+
+      # Host names come from a secret so the tree does not carry them. Unset,
+      # the name rule reports 0 names and the address and suffix rules apply.
+      - name: Offline HACS and hassfest checks
+        env:
+          HA_DEV_HOST_NAMES: ${{ secrets.HA_DEV_HOST_NAMES }}
+        run: .venv/bin/python tools/validate_local.py
+
+  hacs:
+    name: hassfest + HACS
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+      - uses: hacs/action@main
+        with:
+          category: integration

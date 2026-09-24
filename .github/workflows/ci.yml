@@ -21,15 +21,20 @@ permissions:
 # branches plus tags rather than a bare push: pull_request already covers a
 # branch that becomes a pull request, so a bare push runs both jobs twice on
 # every such branch.
+#
+# Other CI systems also pick up .github/workflows, so each job is gated to
+# GitHub by github.server_url. The forge runs .gitea/workflows/validate.yml.
 
 jobs:
   validate-hassfest:
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: home-assistant/actions/hassfest@58bff37c8947f690ace498be413a9b78d6f30f93 # master
 
   validate-hacs:
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
