@@ -838,7 +838,11 @@ def main() -> int:
                     f"README does not document field {field!r} of action {name}",
                 )
     except ImportError:
-        notes.append("PyYAML not installed - services.yaml not parsed")
+        check(
+            False,
+            "PyYAML not installed - services.yaml was not parsed, so its "
+            "checks did not run; run under the repo .venv",
+        )
 
     # ---------------------------------------------------------- icons
     # Actions and the entities with no device class carry an icon; entities
@@ -894,7 +898,11 @@ def main() -> int:
             if todo:
                 notes.append(f"quality scale still todo: {', '.join(todo)}")
         except ImportError:
-            notes.append("PyYAML not installed - quality_scale.yaml not parsed")
+            check(
+                False,
+                "PyYAML not installed - quality_scale.yaml was not parsed, so its "
+                "checks did not run; run under the repo .venv",
+            )
 
     # ------------------------------------------------- exception translations
     # Every user-facing exception raised anywhere in EXCEPTION_SOURCES carries
