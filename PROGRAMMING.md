@@ -15,7 +15,16 @@ Read [Safety](README.md#safety-read-this) first. The integration cannot read the
 | Zone names shown on the keypad | Keypad, `*82` |
 | Relays and outputs, user codes, the communicator and phone settings | Keypad, or an installer's downloader software |
 
-Guided zone programming writes wired zones: zones 1 to 8 on the panel board, and zones 9 and up as aux-wired zones on a zone expander. It answers the panel's input-type question for zones 9 and up with "aux wired", so a wireless zone is changed at the keypad instead; the keypad check below shows which kind each zone is. With zone doubling on (hardwire type "zone doubling" on a zone 2 to 8), program zones 10 to 16 at the keypad too, because the panel skips the input-type question for them.
+A zone's number tells you what it is:
+
+| Zones | What they are |
+|---|---|
+| 1 to 8 | Wired to the panel board |
+| 10 to 16 | With zone doubling on, the second sensor on board zones 2 to 8; zones 9 to 16 are then unavailable for anything else |
+| 9 to 48 | Zone expanders (4219/4229, eight zones each: module 1 zones 9 to 16, module 2 zones 17 to 24, and so on), or wireless (5800-series) transmitters |
+| 49 to 64 | Wireless buttons (key fobs) |
+
+Guided zone programming writes wired zones: zones 1 to 8 on the panel board, and zones 9 and up as aux-wired zones on a zone expander. It answers the panel's input-type question for zones 9 and up with "aux wired", so a wireless zone is changed at the keypad instead; the keypad check below shows which kind each zone is. With zone doubling on (hardwire type "zone doubling" on a zone 2 to 8), program zones 10 to 16 at the keypad too, because the panel skips the input-type question for them. Wireless buttons, zones 49 to 64, are programmed at the keypad as well.
 
 ## Words you will see
 
