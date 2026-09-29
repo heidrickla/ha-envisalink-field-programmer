@@ -87,6 +87,6 @@ This protocol has no read-back, so the integration cannot confirm what the panel
 
 - Confirm an installer code is set in this integration's options, Configure, Installer code. Without it, field programming is disabled.
 - Check Last programming result on the device. `Accepted` means the Envisalink acknowledged every keystroke; anything else names the reason in its `detail` attribute. If you used the action rather than the buttons, the refusal is in the response to the call and in the log.
-- Verify at the physical keypad. Installer code + `#` + `56` opens the review-only zone programming menu, which walks the current values without changing anything. That is the only way to confirm a field-programming change took.
+- Verify at the physical keypad. Inside Program Mode, `*58` then the zone number shows the zone's current programming on one line, and `#` backs out without saving; `#` plus a field number, such as `#34`, shows a timing field without changing it. [PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad) has the keys step by step. That is the only way to confirm a field-programming change took.
 
 See [Safety](README.md#safety-read-this) for why the confirmation gates are where they are.

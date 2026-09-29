@@ -4,6 +4,17 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [Unreleased]
+
+### Added
+
+- `PROGRAMMING.md`, a first-time guide to programming a VISTA panel with this integration: the terms, what to prepare, which zone type fits which device, each change step by step on the device page, how to check it at the keypad, and how to get out of Program Mode or a `*98` lockout.
+
+### Fixed
+
+- The keypad checks in the README, TROUBLESHOOTING.md and the `program_zone` action's description follow the VISTA-21iP programming guide: `#` plus a field number shows a timing field without changing it, and `*58` then a zone number shows a zone's programming. They had named "installer code + # + 56", which the guide does not document, and `*34`, which starts an edit of the exit delay instead of showing it.
+- The README says `program_zone` writes wired zones: it answers the input-type prompt for zones 9 and up with aux wired, so wireless zones, and zones 10 to 16 with zone doubling on, are programmed at the keypad.
+
 ## [0.4.2] - 2026-09-16
 
 ### Fixed

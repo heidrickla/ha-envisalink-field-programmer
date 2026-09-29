@@ -49,9 +49,10 @@ program_zone:
     Guided zone programming (equivalent to *56 menu mode): set a zone's
     type, partition, reporting, and wiring settings. Always opens Program
     Mode, so an installer code must be configured in this integration's
-    options, and confirm must be true. This cannot read back a zone's
-    current programming first -- double check at the physical keypad
-    (installer code + # + 56) if you're unsure what's there now.
+    options, and confirm must be true. Writes wired zones; wireless zones
+    are programmed at the keypad. This cannot read back a zone's current
+    programming first -- check it at the physical keypad (in Program Mode,
+    *58 then the zone number shows it; # backs out without saving).
   fields:
     entry_id:
       name: Config entry

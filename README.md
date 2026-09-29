@@ -129,6 +129,8 @@ After five failed reconnects, about two and a half minutes, a repair issue appea
 
 ## Field programming
 
+New to programming a VISTA panel? [PROGRAMMING.md](PROGRAMMING.md) explains the terms, what to prepare, which zone type fits which device, each change step by step on the device page, how to check it at the keypad, and how to get out of trouble.
+
 Three guided operations, each translating validated, structured input into the exact keystroke sequence Vista expects (see `custom_components/envisalink_field_programmer/field_programming.py`, built from the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3):
 
 - `envisalink_field_programmer.program_zone`: zone type (offered as plain-language options like "Perimeter (instant)" or "Fire (smoke/heat detector)", not raw Vista field numbers), partition, reporting and wiring settings for one zone.
@@ -200,7 +202,7 @@ Bypass or un-bypass a single zone with the standard `*1zz#` keypad sequence. Nev
 
 ### `envisalink_field_programmer.program_zone`
 
-Guided zone programming (the `*56` menu): set one zone's type, partition, reporting and wiring. Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Available on the residential VISTA models; the commercial VISTA and DSC models refuse it (see [Panel model support](#panel-model-support)).
+Guided zone programming (the `*56` menu): set one zone's type, partition, reporting and wiring. Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Available on the residential VISTA models; the commercial VISTA and DSC models refuse it (see [Panel model support](#panel-model-support)). It writes wired zones: zones 1 to 8, and zones 9 and up as aux-wired, the answer it gives the panel's input-type prompt. Wireless (5800-series) zones, and zones 10 to 16 with zone doubling on, are programmed at the keypad.
 
 | Field | Required | Description |
 |---|---|---|
@@ -283,7 +285,7 @@ automation:
           message: The Envisalink has been unreachable for five minutes.
 ```
 
-A script that sets the exit delay to 60 seconds. It opens Program Mode, so run it only when nobody is relying on the panel for the next few seconds, and check the result at the keypad afterwards (`installer code` + `#` + `56` is the review-only menu; timing fields are read back with `*34` inside Program Mode):
+A script that sets the exit delay to 60 seconds. It opens Program Mode, so run it only when nobody is relying on the panel for the next few seconds, and check the result at the keypad afterwards: `#34` inside Program Mode shows the exit delay without changing it ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)):
 
 ```yaml
 script:
@@ -400,7 +402,7 @@ Five behaviours are built from the TPI protocol reference and the programming gu
 | **Exit-delay detection** | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
 | **The field-programming keystroke sequences** | The programming guide's documented prompt flow: `*56` zone prompt order, `*57` function key A/B/C/D-to-digit mapping, numbered data field entry. | Programming a non-critical zone and reading the result at the keypad. |
 
-The A/B/C/D key digit mapping (`field_programming.py::_FUNCTION_KEY_DIGIT`) is flagged in code as the first thing to check if `program_function_key` does not do what is expected. Test any field-programming change on a non-critical zone first and verify at the physical keypad, installer code + `#` + `56`, the review-only mode, before trusting it on a fire or security zone.
+The A/B/C/D key digit mapping (`field_programming.py::_FUNCTION_KEY_DIGIT`) is flagged in code as the first thing to check if `program_function_key` does not do what is expected. Test any field-programming change on a non-critical zone first and verify it at the physical keypad ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)) before trusting it on a fire or security zone.
 
 ## Panel model support
 
