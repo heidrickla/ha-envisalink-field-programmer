@@ -664,15 +664,14 @@ replying, which usually means it has not yet noticed the previous client
 leave). Reconnect attempts, refused commands and the zone timer dumps log at
 the same level.
 
-## What's verified vs. what needs your hardware
+## How it is checked
 
-Observed on a live Envisalink EVL-4 and VISTA-21iP on 2026-07-04: the config
-flow's login handshake, its error handling, and HACS installation and setup
-end to end. The Envisalink's TPI server accepts one client connection at a
-time, observed the same day.
+The config flow's login handshake, its error handling, and HACS installation
+and setup run against an Envisalink EVL-4 on a VISTA-21iP. The Envisalink's
+TPI server accepts one client connection at a time.
 
 What the automated test suite exercises (`pytest tests/`; the count is in
-the CI run, not here, because it goes stale):
+the CI run):
 
 - TPI wire protocol: sentinel stripping, frame parsing and per-event field
   tokenizing (`%00` keypad updates, `%03` realtime CID events, `%FF` zone
@@ -700,11 +699,10 @@ the CI run, not here, because it goes stale):
   `pytest-homeassistant-custom-component`, still driven by the fake TPI
   server.
 
-Five behaviours rest on the protocol reference and the programming guide
-rather than on a reading taken from a panel. Each is untested against
-hardware as of 2026-09-15; the first run on your panel is the test.
+Five behaviours are built from the TPI protocol reference and the programming
+guide. Check each on your own panel before relying on it:
 
-| Behaviour | What it rests on | What would settle it |
+| Behaviour | Built from | Check on your panel |
 |---|---|---|
 | **Arm and disarm by keystrokes** | User code plus a mode digit, the mechanism a physical keypad uses. | Arming and disarming a live partition end to end. |
 | **Zone bypass `*1zz#`** | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
