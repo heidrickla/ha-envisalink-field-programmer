@@ -86,6 +86,114 @@ async def test_program_zone_sends_expected_keystrokes(hass, fake_server):
     await _unload(hass, entry)
 
 
+def _sent(fake_server) -> str:
+    return "".join(
+        data.split(",", 1)[1] for code, data in fake_server.received if code == "03"
+    )
+
+
+async def _program_zone(hass, entry, zone: int, **extra) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "program_zone",
+        {
+            "entry_id": entry.entry_id,
+            "zone_number": zone,
+            "zone_type": 3,
+            "partition": 1,
+            "confirm": True,
+            **extra,
+        },
+        blocking=True,
+    )
+    await asyncio.sleep(0.05)
+
+
+async def test_zones_9_to_16_are_refused_until_zone_doubling_is_stated(
+    hass, fake_server
+):
+    entry = await _setup_entry(hass, fake_server)
+    for zone in (9, 12, 16):
+        with pytest.raises(ServiceValidationError) as raised:
+            await _program_zone(hass, entry, zone, zone_connection="wired_expander")
+        assert raised.value.translation_key == "zone_doubling_not_stated"
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_a_doubled_zone_is_programmed_without_wiring_prompts(hass, fake_server):
+    entry = await setup_entry(
+        hass,
+        fake_server,
+        panel_model="vista_21ip",
+        options={"installer_code": "4112", "zone_doubling": "on"},
+    )
+    await _program_zone(hass, entry, 12)
+    # Zone type, partition and report code, then PROGRAM ALPHA: the panel
+    # skips wiring, response time and input type for a doubled zone.
+    assert _sent(fake_server) == "4112800*560*12**03*1*1*0*00**99"
+
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 9, zone_connection="wired_expander")
+    assert raised.value.translation_key == "zone_unavailable_with_doubling"
+    await _unload(hass, entry)
+
+
+async def test_an_expansion_zone_is_sent_only_with_its_connection_stated(
+    hass, fake_server
+):
+    entry = await _setup_entry(hass, fake_server)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 20)
+    assert raised.value.translation_key == "zone_connection_unset"
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 20, zone_connection="wireless")
+    assert raised.value.translation_key == "zone_is_wireless"
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+
+    await _program_zone(hass, entry, 20, zone_connection="wired_expander")
+    assert _sent(fake_server) == "4112800*560*20**03*1*1*2*0*00**99"
+    await _unload(hass, entry)
+
+
+async def test_button_zones_are_refused(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 49)
+    assert raised.value.translation_key == "zone_is_button"
+    assert _sent(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_zone_doubling_wiring_needs_doubling_stated_on(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 5, hardwire_type="3")
+    assert raised.value.translation_key == "hardwire_zone_doubling_off"
+    assert _sent(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_a_vista_15p_zone_has_no_partition_prompt(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_15p")
+    await _program_zone(hass, entry, 3)
+    assert _sent(fake_server) == "4112800*560*03**03*1*0*1*0*00**99"
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_zone(hass, entry, 7)
+    assert raised.value.translation_key == "zone_not_on_panel"
+    assert "1-6, 9-34, 49-56" in str(raised.value)
+    await _unload(hass, entry)
+
+
+async def test_a_vista_10p_zone_1_gets_its_wiring_prompt(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server, panel_model="vista_10p")
+    await _program_zone(hass, entry, 1)
+    assert _sent(fake_server) == "4112800*560*01**03*1*0*1*0*00**99"
+    await _unload(hass, entry)
+
+
 async def test_program_zone_requires_confirm(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
     with pytest.raises(vol.Invalid):

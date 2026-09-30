@@ -595,11 +595,53 @@ async def test_options_blank_codes_keep_the_stored_ones(hass, fake_server):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     # The default user code came from the setup form; the installer code from
     # the earlier options. Both survive an options save that left them blank.
+    # Zone doubling nobody answered is saved as not stated, never as off.
     assert entry.options == {
         "user_code": "1234",
         "installer_code": "4112",
         "keepalive_interval": 45,
+        "zone_doubling": "not_stated",
     }
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_options_state_zone_doubling_on_a_model_that_has_it(hass, fake_server):
+    entry = await setup_entry(hass, fake_server, options={"installer_code": "4112"})
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    marker = next(m for m in result["data_schema"].schema if m == "zone_doubling")
+    assert marker.default() == "not_stated"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"keepalive_interval": 30, "zone_doubling": "on"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["zone_doubling"] == "on"
+    await hass.async_block_till_done()
+
+    # The stored answer is the form's default next time.
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    marker = next(m for m in result["data_schema"].schema if m == "zone_doubling")
+    assert marker.default() == "on"
+    await hass.config_entries.options.async_configure(
+        result["flow_id"], {"keepalive_interval": 30}
+    )
+    assert entry.options["zone_doubling"] == "on"
+    await hass.async_block_till_done()
+    await unload_entry(hass, entry)
+
+
+async def test_options_do_not_offer_zone_doubling_where_the_model_lacks_it(
+    hass, fake_server
+):
+    entry = await setup_entry(
+        hass, fake_server, panel_model="vista_15p", options={"installer_code": "4112"}
+    )
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert "zone_doubling" not in result["data_schema"].schema
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"keepalive_interval": 30}
+    )
+    assert "zone_doubling" not in entry.options
     await hass.async_block_till_done()
     await unload_entry(hass, entry)
 

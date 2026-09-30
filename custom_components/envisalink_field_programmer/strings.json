@@ -78,15 +78,26 @@
           "remove_user_code": "Remove the stored default user code",
           "installer_code": "Installer code",
           "remove_installer_code": "Remove the stored installer code",
-          "keepalive_interval": "Keepalive interval"
+          "keepalive_interval": "Keepalive interval",
+          "zone_doubling": "Zone doubling"
         },
         "data_description": {
           "user_code": "A panel user code Home Assistant types to arm and disarm when a call does not supply one. With one set, the alarm panel entity disarms without asking anyone for a code.",
           "remove_user_code": "Clears the stored default user code, so every arm and disarm needs a code again.",
           "installer_code": "Enables the field-programming actions. Every guided action types this code followed by 800 to open Program Mode. Leave it unset if you never program the panel from Home Assistant; arming, disarming and bypass never use it.",
           "remove_installer_code": "Clears the stored installer code and disables field programming.",
-          "keepalive_interval": "Seconds between keepalive polls that detect a silently dead connection (10 to 300). Zone state is refreshed every 30 seconds regardless."
+          "keepalive_interval": "Seconds between keepalive polls that detect a silently dead connection (10 to 300). Zone state is refreshed every 30 seconds regardless.",
+          "zone_doubling": "Whether any of board zones 2 to 8 is wired for zone doubling (hardwire type ZD). On: zones 10 to 16 are the doubled zones and zone 9 does not exist. Off: zones 9 to 16 are zone expander or wireless zones. The keypad check of zones 2 to 8 (installer code and 800, then *58) shows each one's hardwire type under HW; zone doubling is type 3, ZD. Guided zone programming refuses zones 9 to 16 until this is stated."
         }
+      }
+    }
+  },
+  "selector": {
+    "zone_doubling": {
+      "options": {
+        "not_stated": "Not stated",
+        "off": "Off",
+        "on": "On"
       }
     }
   },
@@ -178,6 +189,13 @@
           "ms_350": "350 ms",
           "ms_700": "700 ms",
           "sec_1_2": "1.2 seconds"
+        }
+      },
+      "zone_connection": {
+        "name": "Zone connection",
+        "state": {
+          "wired_expander": "Wired, on a zone expander",
+          "wireless": "Wireless transmitter"
         }
       },
       "timing_field": {
@@ -313,7 +331,7 @@
       "message": "{model} is not verified against its own programming guide ({verification}): {notes} Field numbers and zone type codes may be wrong for this exact panel, and this integration cannot read the panel back to catch a mistake. Turn on the {switch} switch on the device, or set confirm_unverified_model to true in the action, to proceed anyway, then check the result at the keypad."
     },
     "life_safety_zone_type": {
-      "message": "Zone type {zone_type} ({label}) is a life-safety type. Turn on the {switch} switch on the device, or set confirm_life_safety to true in the action, to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code, then # and 56) if you are not certain."
+      "message": "Zone type {zone_type} ({label}) is a life-safety type. Turn on the {switch} switch on the device, or set confirm_life_safety to true in the action, to confirm you intend it. This integration cannot read back what type the zone is now, so check at the keypad (installer code and 800, then *58, 0 and *, the zone number and *; # backs out without saving) if you are not certain."
     },
     "invalid_timing_field": {
       "message": "Timing field {field} is not valid for {model}. Valid fields: {valid}."
@@ -326,6 +344,30 @@
     },
     "programming_value_unset": {
       "message": "Set {field} before pressing {action}. Nothing was sent to the panel."
+    },
+    "zone_is_button": {
+      "message": "Zone {zone} is a wireless button zone. Button zones are enrolled and programmed at the keypad (*56)."
+    },
+    "zone_doubling_not_stated": {
+      "message": "Zone {zone} is one of zones 9 to 16, whose programming prompts depend on whether zone doubling is on. Set Zone doubling in this integration's options (Settings, Devices & services, Envisalink Field Programmer, Configure), then try again. Nothing was sent to the panel."
+    },
+    "zone_unavailable_with_doubling": {
+      "message": "Zone {zone} does not exist while zone doubling is on: doubling pairs zones 2 to 8 with zones 10 to 16, and zones 9 to 16 are then unavailable for anything else. If zone doubling is off on this panel, change it in this integration's options."
+    },
+    "zone_is_wireless": {
+      "message": "Zone {zone} is wireless. A wireless zone's transmitter serial number is enrolled at the keypad (*56), so its programming is changed there. Nothing was sent to the panel."
+    },
+    "zone_connection_unset": {
+      "message": "Zone {zone} can be wired on a zone expander or wireless, and the panel asks different questions for each. State how it is connected: the zone_connection field of the action, or the Zone connection select on the device. Nothing was sent to the panel."
+    },
+    "zone_not_on_panel": {
+      "message": "Zone {zone} does not exist on this panel model. Its zones are {zones}."
+    },
+    "hardwire_type_not_on_model": {
+      "message": "Hardwire type {hardwire_type} is not available on this panel model, which offers end-of-line, normally closed and normally open wiring only."
+    },
+    "hardwire_zone_doubling_off": {
+      "message": "Hardwire type zone doubling turns zones 9 to 16 into doubled zones, which changes how every one of them is programmed. Set Zone doubling to on in this integration's options first, then program the zone."
     }
   }
 }

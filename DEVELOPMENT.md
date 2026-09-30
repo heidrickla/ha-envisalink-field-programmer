@@ -148,7 +148,9 @@ r = PdfReader("vista21ip_programming_guide.pdf")
 text = "\n".join(page.extract_text() for page in r.pages)
 ```
 
-The PDF and the extracted text are Honeywell's copyrighted material and are not committed. `field_programming.py` paraphrases the field meanings in its own words rather than quoting the manual, and cites the document name and revision in its module docstring, so the source can be re-fetched and cross-checked when the field model is in doubt.
+The other residential models' `*56` prompts and zone numbering (`VISTA_ZONE_LAYOUTS` in `panels/vista.py`) come from the combined VISTA-15P/20P Programming Guide, `https://site.aesecurity.com/Manuals/v15pand20pprogrammingguide.pdf`, and the VISTA-10P Programming Guide, `http://site.aesecurity.com/Manuals/vista10pprogramming.pdf`, read the same way. The prompts differ by model: the 15P and 10P menus have no partition prompt, the 10P asks hardwire type on zone 1, zone doubling and double-balanced wiring are 20P and 21iP only, and the 10P's expansion zones take wireless input types only.
+
+The PDFs and the extracted text are Honeywell's copyrighted material and are not committed. `field_programming.py` paraphrases the field meanings in its own words rather than quoting the manual, and cites the document name and revision in its module docstring, so the source can be re-fetched and cross-checked when the field model is in doubt.
 
 The EyezOn/Envisalink brand colours used by the images in `brand/` were read out of `https://www.eyezon.com/assets/css/main.min.css`, grepping the `--*-accent-*` custom properties for their hex values.
 
@@ -159,10 +161,10 @@ Panel support lives in `custom_components/envisalink_field_programmer/panels/`:
 | File | What it holds |
 |---|---|
 | `base.py` | The `PanelDialect` protocol, the `PanelModel` dataclass, and the `Verification` enum (`VERIFIED` / `GRAMMAR_VERIFIED` / `PROVISIONAL`). |
-| `vista.py`, `dsc.py` | One dialect per family plus that family's model registry. A dialect is data plus a few small methods: program-mode wrapper, zone-type table, and `opens_program_mode()` for the safety guard. |
-| `__init__.py` | The combined registry and the `get_model()` / `get_dialect()` lookups: canonical id, aliases, and punctuation-insensitive matching. |
+| `vista.py`, `dsc.py` | One dialect per family plus that family's model registry. A dialect is data plus a few small methods: program-mode wrapper, zone-type table, and `opens_program_mode()` for the safety guard. `vista.py` also maps each residential model to its `*56` zone layout. |
+| `__init__.py` | The combined registry and the `get_model()` / `get_dialect()` / `get_zone_layout()` lookups: canonical id, aliases, and punctuation-insensitive matching. |
 
-To add a model within an existing family, append a `PanelModel` to that family's registry with an honest `verification` level and `notes`. To promote a model from Provisional/Grammar-verified to Verified, check its field numbers and zone-type codes against that panel's own programming guide, by the method the previous section describes, correct anything the family default gets wrong, and only then bump its `verification`.
+To add a model within an existing family, append a `PanelModel` to that family's registry with an honest `verification` level and `notes`. A residential VISTA model also needs a `VistaZoneLayout` read from its own guide: guided zone programming refuses a model without one. To promote a model from Provisional/Grammar-verified to Verified, check its field numbers and zone-type codes against that panel's own programming guide, by the method the previous section describes, correct anything the family default gets wrong, and only then bump its `verification`.
 
 Two safety invariants the tests enforce (`tests/ha/test_panels.py`), keep them:
 

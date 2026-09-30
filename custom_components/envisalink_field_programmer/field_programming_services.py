@@ -26,6 +26,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    CONF_ZONE_DOUBLING,
     DOMAIN,
     SERVICE_PROGRAM_FUNCTION_KEY,
     SERVICE_PROGRAM_ZONE,
@@ -40,11 +41,14 @@ from .field_programming import (
     FunctionKeyLetter,
     HardwireType,
     ResponseTime,
+    ZoneConnection,
+    ZoneDoubling,
     ZoneProgram,
+    ZoneRefused,
     build_function_key_keystrokes,
     build_zone_program_keystrokes,
 )
-from .panels import GuidedOp, Verification
+from .panels import GuidedOp, Verification, get_zone_layout
 from .programming import (
     KeystrokeGuardError,
     async_send_guarded_keystrokes,
@@ -63,6 +67,7 @@ ATTR_PARTITION = "partition"
 ATTR_REPORT_ENABLED = "report_enabled"
 ATTR_HARDWIRE_TYPE = "hardwire_type"
 ATTR_RESPONSE_TIME = "response_time"
+ATTR_ZONE_CONNECTION = "zone_connection"
 ATTR_FIELD = "field"
 ATTR_VALUE = "value"
 ATTR_KEY = "key"
@@ -83,6 +88,9 @@ PROGRAM_ZONE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_RESPONSE_TIME, default=ResponseTime.MS_350.value): vol.In(
             [t.value for t in ResponseTime]
         ),
+        # No default: for an expansion zone it is the caller's statement of
+        # how the zone is connected now, which nothing here can check.
+        vol.Optional(ATTR_ZONE_CONNECTION): vol.In([c.value for c in ZoneConnection]),
         vol.Required(ATTR_CONFIRM): vol.All(cv.boolean, vol.Equal(True)),
         vol.Optional(ATTR_CONFIRM_LIFE_SAFETY, default=False): cv.boolean,
         vol.Optional(ATTR_CONFIRM_UNVERIFIED_MODEL, default=False): cv.boolean,
@@ -210,6 +218,15 @@ async def _send_program_mode_sequence(
     )
 
 
+def zone_doubling_option(coordinator: VistaConsoleCoordinator) -> ZoneDoubling:
+    """The entry's stated zone doubling; anything unrecognised is unstated."""
+    stored = coordinator.entry.options.get(CONF_ZONE_DOUBLING)
+    try:
+        return ZoneDoubling(str(stored))
+    except ValueError:
+        return ZoneDoubling.NOT_STATED
+
+
 async def async_program_zone(
     coordinator: VistaConsoleCoordinator,
     *,
@@ -219,10 +236,23 @@ async def async_program_zone(
     report_enabled: bool = True,
     hardwire_type: HardwireType = HardwireType.END_OF_LINE,
     response_time: ResponseTime = ResponseTime.MS_350,
+    connection: ZoneConnection | None = None,
     confirm_life_safety: bool = False,
     confirm_unverified_model: bool = False,
 ) -> None:
     """Program one zone's *56 settings, guards and all."""
+    _require_guided_support(coordinator, GuidedOp.ZONE)
+    layout = get_zone_layout(coordinator.panel_model.model_id)
+    if layout is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="guided_op_unsupported",
+            translation_placeholders={
+                "operation": GuidedOp.ZONE.value,
+                "model": coordinator.panel_model.label,
+                "note": coordinator.dialect.guided_field_programming_note,
+            },
+        )
     if zone_type in LIFE_SAFETY_ZONE_TYPE_CODES and not confirm_life_safety:
         raise KeystrokeGuardError(
             translation_domain=DOMAIN,
@@ -244,11 +274,22 @@ async def async_program_zone(
         report_enabled=report_enabled,
         hardwire_type=hardwire_type,
         response_time=response_time,
+        connection=connection,
     )
+    try:
+        keystrokes = build_zone_program_keystrokes(
+            program, layout, zone_doubling_option(coordinator)
+        )
+    except ZoneRefused as err:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key=err.translation_key,
+            translation_placeholders=err.translation_placeholders,
+        ) from err
     await _send_program_mode_sequence(
         coordinator,
         program.partition,
-        build_zone_program_keystrokes(program),
+        keystrokes,
         op=GuidedOp.ZONE,
         confirm_unverified=confirm_unverified_model,
     )
@@ -331,6 +372,11 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             report_enabled=call.data[ATTR_REPORT_ENABLED],
             hardwire_type=HardwireType(call.data[ATTR_HARDWIRE_TYPE]),
             response_time=ResponseTime(call.data[ATTR_RESPONSE_TIME]),
+            connection=(
+                ZoneConnection(call.data[ATTR_ZONE_CONNECTION])
+                if ATTR_ZONE_CONNECTION in call.data
+                else None
+            ),
             confirm_life_safety=call.data[ATTR_CONFIRM_LIFE_SAFETY],
             confirm_unverified_model=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )

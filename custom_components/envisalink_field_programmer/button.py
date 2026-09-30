@@ -162,6 +162,7 @@ class ProgramZoneButton(ProgrammingButton):
             report_enabled=form.zone_report_enabled,
             hardwire_type=form.zone_hardwire_type,
             response_time=form.zone_response_time,
+            connection=form.zone_connection,
             confirm_life_safety=form.confirm_life_safety,
             confirm_unverified_model=form.confirm_unverified_model,
         )

@@ -5,11 +5,13 @@ Public entry points:
   * :data:`MODELS` -- every supported :class:`PanelModel`, ordered for display.
   * :func:`get_model` -- resolve a model id (or alias) to its :class:`PanelModel`.
   * :func:`get_dialect` -- the :class:`PanelDialect` for a model id.
+  * :func:`get_zone_layout` -- a residential VISTA model's ``*56`` zone layout.
   * :data:`DEFAULT_MODEL_ID` -- the VISTA-21iP, this integration's origin panel.
 """
 
 from __future__ import annotations
 
+from ..field_programming import VistaZoneLayout
 from .base import (
     GuidedOp,
     PanelDialect,
@@ -20,7 +22,12 @@ from .base import (
     ZoneTypeDef,
 )
 from .dsc import DSC_DIALECT, DSC_MODELS
-from .vista import COMMERCIAL_VISTA_DIALECT, VISTA_DIALECT, VISTA_MODELS
+from .vista import (
+    COMMERCIAL_VISTA_DIALECT,
+    VISTA_DIALECT,
+    VISTA_MODELS,
+    VISTA_ZONE_LAYOUTS,
+)
 
 MODELS: tuple[PanelModel, ...] = VISTA_MODELS + DSC_MODELS
 
@@ -76,6 +83,11 @@ def get_dialect(model_id: str | None) -> PanelDialect:
     return _DIALECTS[model.dialect_id or model.family.value]
 
 
+def get_zone_layout(model_id: str | None) -> VistaZoneLayout | None:
+    """The model's ``*56`` zone layout, or ``None`` where zones are not driven."""
+    return VISTA_ZONE_LAYOUTS.get(get_model(model_id).model_id)
+
+
 def model_choices() -> dict[str, str]:
     """``{model_id: label}`` for building the config-flow dropdown."""
     return {m.model_id: m.label for m in MODELS}
@@ -93,5 +105,6 @@ __all__ = [
     "ZoneTypeDef",
     "get_dialect",
     "get_model",
+    "get_zone_layout",
     "model_choices",
 ]

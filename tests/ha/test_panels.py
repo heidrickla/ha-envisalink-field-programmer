@@ -12,10 +12,12 @@ import pytest
 from custom_components.envisalink_field_programmer.panels import (
     DEFAULT_MODEL_ID,
     MODELS,
+    GuidedOp,
     PanelFamily,
     Verification,
     get_dialect,
     get_model,
+    get_zone_layout,
     model_choices,
 )
 from custom_components.envisalink_field_programmer.panels.dsc import DSC_DIALECT
@@ -307,3 +309,13 @@ async def test_verified_or_ack_blocks_unverified_without_ack_and_allows_with(has
     _require_verified_or_ack(
         _fake_coordinator(hass, provisional), confirm_unverified=True
     )
+
+
+def test_every_model_that_drives_zones_has_its_own_zone_layout():
+    # Guided zone programming sends the prompts a layout lists; a model that
+    # drives zones without one would be refused on every press.
+    for model in MODELS:
+        drives_zones = GuidedOp.ZONE in get_dialect(model.model_id).supported_guided_ops
+        assert (get_zone_layout(model.model_id) is not None) == drives_zones, (
+            model.model_id
+        )

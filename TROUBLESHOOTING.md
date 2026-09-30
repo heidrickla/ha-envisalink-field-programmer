@@ -75,6 +75,18 @@ The operation needs a value that is unset, and the message names which one. Set 
 
 A guard said no and the panel heard nothing. The `detail` attribute of the sensor carries the exact reason. The usual ones: no installer code in the options, a life-safety zone type without Confirm life-safety zone type, an unverified panel model without Confirm unverified panel model, or a timing value the chosen field cannot take.
 
+Program zone has more, each because the panel would ask a question the keystrokes do not answer:
+
+| Refusal | What to do |
+|---|---|
+| Zones 9 to 16 need Zone doubling stated | Set Zone doubling in the options (Configure) to On or Off. The keypad check of zones 2 to 8 shows each one's hardwire type under HW; zone doubling is type 3, ZD. |
+| The zone does not exist while zone doubling is on | Zone 9 with zone doubling On. If doubling is off on the panel, correct the option. |
+| State how the zone is connected | Set Zone connection to Wired, on a zone expander, for an expansion zone. It clears after every press. |
+| The zone is wireless, or a button zone | Program it at the keypad with `*56`: its transmitter's serial is enrolled there. |
+| The zone does not exist on this panel model | The message lists the model's zone numbers. Check the panel model chosen at setup. |
+| Zone doubling wiring needs Zone doubling on | Set Zone doubling to On in the options first, because doubling a board zone changes what zones 9 to 16 are. |
+| The hardwire type is not available on this model | The 15P and 10P offer end-of-line, normally closed and normally open only. |
+
 ### Last programming result says "Failed while sending"
 
 The sequence was sent and the module rejected it, or the session dropped part-way, so what reached the panel is unknown. Check the log and the `detail` attribute, then verify at the keypad before pressing anything again.

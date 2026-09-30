@@ -32,6 +32,9 @@
       "zone_response_time": {
         "default": "mdi:timer-sand"
       },
+      "zone_connection": {
+        "default": "mdi:transit-connection-variant"
+      },
       "timing_field": {
         "default": "mdi:timer-cog-outline"
       },

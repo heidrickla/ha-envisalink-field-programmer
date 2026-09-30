@@ -19,15 +19,17 @@ Per-model verification, see :class:`~.base.Verification`:
     Interior Follower, 06/07/08 24-Hr, 09 Fire, 10 Interior w/Delay, 12
     Monitor, 14 CO, 16 Fire w/Verify, 23 No Alarm Resp, 24 Silent Burglary)
     are identical to the 21iP. Capacity from the guide: 20P 48 zones with
-    partitions, 15P 32 zones (1-6, 9-34, 49-56) single partition.
+    partitions, 15P 32 zones (1-6, 9-34, 49-56) single partition. The 15P's
+    ``*56`` menu has no PARTITION prompt and no zone doubling or
+    double-balanced wiring; the guide marks all three VISTA-20P only.
   * VISTA-10P, VERIFIED 2026-07-05 against ``vista10pprogramming.pdf``.
     Program-mode entry, ``*56``/``*57``, ``*99``, the ``*34``/``*35``/``*36``
     timing fields and the full zone-type table including 14 Carbon Monoxide
     are identical to the 21iP. Its zones are 1-6 hardwired and 9-24 RF with
-    no zones 7-8, the same shape as the 15P, so the shared ``*56`` builder is
-    correct for every zone that physically exists. Single partition, 22
-    zones. ``*84`` auto-stay factory default is 1 rather than 3, which is a
-    default value, not a field number or keystroke.
+    no zones 7-8. Its ``*56`` menu differs: no PARTITION prompt, HARDWIRE
+    TYPE on zones 1-6 including zone 1, and input types RF, UR and BR only.
+    Single partition, 22 zones. ``*84`` auto-stay factory default is 1
+    rather than 3, which is a default value, not a field number or keystroke.
   * VISTA-128BP and 250BP, commercial panels driven by the separate
     :class:`CommercialVistaDialect`, ``dialect_id="vista_commercial"``.
     Checked against the K5894PRV6 guide 2026-07-05. Their programming
@@ -38,6 +40,9 @@ Per-model verification, see :class:`~.base.Verification`:
     programming is not: the ``#93`` flow is too conditional to drive blind.
     PROVISIONAL, because the timing builder is guide-derived rather than
     hardware-confirmed.
+
+Each residential model's ``*56`` prompts and zone numbering are in
+``VISTA_ZONE_LAYOUTS``, read against its own guide.
 """
 
 from __future__ import annotations
@@ -46,8 +51,12 @@ from ..field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
     SYSTEM_TIMING_DESCRIPTIONS,
     SYSTEM_TIMING_LABELS,
+    VISTA_10P_ZONES,
+    VISTA_15P_ZONES,
+    VISTA_20P_21IP_ZONES,
     ZONE_TYPES,
     SystemTimingField,
+    VistaZoneLayout,
     build_program_mode_wrapper,
     build_system_timing_keystrokes,
 )
@@ -378,3 +387,13 @@ VISTA_MODELS: tuple[PanelModel, ...] = (
         aliases=("vista250bp", "vista-250bp", "250bp", "vista250"),
     ),
 )
+
+# Each residential model's *56 prompts and zone numbering. Every model whose
+# dialect drives GuidedOp.ZONE has an entry; the guided operation refuses one
+# that does not.
+VISTA_ZONE_LAYOUTS: dict[str, VistaZoneLayout] = {
+    "vista_21ip": VISTA_20P_21IP_ZONES,
+    "vista_20p": VISTA_20P_21IP_ZONES,
+    "vista_15p": VISTA_15P_ZONES,
+    "vista_10p": VISTA_10P_ZONES,
+}

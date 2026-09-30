@@ -9,11 +9,15 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 ### Added
 
 - `PROGRAMMING.md`, a first-time guide to programming a VISTA panel with this integration: the terms, what to prepare, which zone type fits which device, each change step by step on the device page, how to check it at the keypad, and how to get out of Program Mode or a `*98` lockout.
+- A Zone doubling option (Not stated, Off, On) for the VISTA-21iP and 20P. With it On, `program_zone` programs zones 10 to 16 as doubled zones: zone type, partition and report code, then out, the prompts the panel shows for them.
+- A `zone_connection` field on `program_zone` and a Zone connection select on the device page: an expansion zone is programmed once it is stated to be wired on a zone expander. The select clears after every press.
 
 ### Fixed
 
+- `program_zone` sends the `*56` prompts each model's own guide lists. It had sent the VISTA-21iP's for every model and zone, so the keys after the report code could answer the wrong prompt. Doubled zones 10 to 16 were sent an input type the panel does not ask; the 15P and 10P, whose menus have no partition prompt, were sent a partition; the 10P's zone 1 was sent no hardwire type, which its menu asks; zones 9 and up were sent input type aux wired whatever they were. Zones whose prompts depend on what cannot be known are refused before anything is sent: zones 9 to 16 on a 21iP or 20P until Zone doubling is stated, zone 9 with it On, wireless and button zones, zone numbers the model does not have, and hardwire type zone doubling unless Zone doubling is On.
+- The device page's Zone hardwire type offers only the wiring types the model has: the 15P and 10P have no zone doubling or double-balanced wiring.
+- The life-safety refusal and the `confirm_unverified_model` descriptions named a keypad check the guide does not document and said every model other than the 21iP was unverified. They name the `*58` check and the commercial VISTA and DSC models.
 - The keypad checks in the README, TROUBLESHOOTING.md and the `program_zone` action's description follow the VISTA-21iP programming guide: `#` plus a field number shows a timing field without changing it, and `*58` then a zone number shows a zone's programming. They had named "installer code + # + 56", which the guide does not document, and `*34`, which starts an edit of the exit delay instead of showing it.
-- The README says `program_zone` writes wired zones: it answers the input-type prompt for zones 9 and up with aux wired, so wireless zones, and zones 10 to 16 with zone doubling on, are programmed at the keypad.
 
 ## [0.4.2] - 2026-09-16
 

@@ -213,6 +213,125 @@ RESPONSE_TIME_LABELS: dict[ResponseTime, str] = {
 }
 
 
+class ZoneDoubling(StrEnum):
+    """What the entry's options say about zone doubling on the panel.
+
+    Nothing over TPI shows it, and it decides which prompts zones 9-16 get,
+    so an unstated value refuses those zones rather than guessing.
+    """
+
+    NOT_STATED = "not_stated"
+    OFF = "off"
+    ON = "on"
+
+
+class ZoneConnection(StrEnum):
+    """How a zone in the expansion range is connected, stated per press."""
+
+    WIRED_EXPANDER = "wired_expander"
+    WIRELESS = "wireless"
+
+
+class ZoneKind(StrEnum):
+    """Which *56 prompts follow REPORT CODE for a zone."""
+
+    BOARD = "board"
+    """HARDWIRE TYPE where the model offers it, then RESPONSE TIME."""
+
+    DOUBLED = "doubled"
+    """None: the base zone's wiring and response time apply."""
+
+    AUX_WIRED = "aux_wired"
+    """INPUT TYPE, answered 2 (AW)."""
+
+
+# Zone doubling pairs board zone N (2-8) with zone N + 8, and module 1 of a
+# zone expander (zones 9-16) cannot be used while it is on.
+DOUBLED_ZONES = range(10, 17)
+DOUBLING_AFFECTED_ZONES = range(9, 17)
+
+
+@dataclass(frozen=True)
+class VistaZoneLayout:
+    """One residential model's zone numbering and *56 prompts, from its guide."""
+
+    zones: str
+    """The model's zone numbers as its guide lists them, for messages."""
+    board_zones: range
+    hardwire_prompt_zones: range
+    hardwire_types: frozenset[HardwireType]
+    expansion_zones: range
+    aux_wired: bool
+    """Expansion zones may be wired on a 4219/4229 expander (input type AW)."""
+    button_zones: range
+    partition_prompt: bool
+    zone_doubling: bool
+
+
+# K14488PRV3 (21iP) and the combined 15P/20P guide: zone 1 is always EOL, so
+# HARDWIRE TYPE starts at zone 2; zone doubling and double-balanced wiring are
+# 20P/21iP only, as is the PARTITION prompt.
+VISTA_20P_21IP_ZONES = VistaZoneLayout(
+    zones="1-8, 9-48, 49-64",
+    board_zones=range(1, 9),
+    hardwire_prompt_zones=range(2, 9),
+    hardwire_types=frozenset(HardwireType),
+    expansion_zones=range(9, 49),
+    aux_wired=True,
+    button_zones=range(49, 65),
+    partition_prompt=True,
+    zone_doubling=True,
+)
+VISTA_15P_ZONES = VistaZoneLayout(
+    zones="1-6, 9-34, 49-56",
+    board_zones=range(1, 7),
+    hardwire_prompt_zones=range(2, 7),
+    hardwire_types=frozenset(
+        {
+            HardwireType.END_OF_LINE,
+            HardwireType.NORMALLY_CLOSED,
+            HardwireType.NORMALLY_OPEN,
+        }
+    ),
+    expansion_zones=range(9, 35),
+    aux_wired=True,
+    button_zones=range(49, 57),
+    partition_prompt=False,
+    zone_doubling=False,
+)
+# The 10P guide: HARDWIRE TYPE for zones 1-6 including zone 1, and its
+# expansion zones take only RF and UR input types.
+VISTA_10P_ZONES = VistaZoneLayout(
+    zones="1-6, 9-24, 49-56",
+    board_zones=range(1, 7),
+    hardwire_prompt_zones=range(1, 7),
+    hardwire_types=VISTA_15P_ZONES.hardwire_types,
+    expansion_zones=range(9, 25),
+    aux_wired=False,
+    button_zones=range(49, 57),
+    partition_prompt=False,
+    zone_doubling=False,
+)
+
+
+class ZoneRefused(ValueError):
+    """A zone the guided *56 sequence must not be sent for.
+
+    Named like Home Assistant's translated exceptions so each raise carries a
+    literal key the repository's validator checks against strings.json.
+    """
+
+    def __init__(
+        self,
+        *,
+        translation_key: str,
+        translation_placeholders: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(translation_key)
+        self.translation_key = translation_key
+        self.translation_placeholders = translation_placeholders or {}
+
+
 @dataclass(frozen=True)
 class ZoneProgram:
     """A validated, complete set of *56-equivalent settings for one zone."""
@@ -223,6 +342,7 @@ class ZoneProgram:
     report_enabled: bool = True
     hardwire_type: HardwireType = HardwireType.END_OF_LINE
     response_time: ResponseTime = ResponseTime.MS_350
+    connection: ZoneConnection | None = None
 
     def __post_init__(self) -> None:
         if not 1 <= self.zone_number <= 64:
@@ -232,34 +352,95 @@ class ZoneProgram:
         if not 1 <= self.partition <= 3:
             raise ValueError(f"partition must be 1-3, got {self.partition}")
 
-    @property
-    def is_hardwired_prompt_zone(self) -> bool:
-        """Zones 1-8 get HARDWIRE TYPE / RESPONSE TIME prompts; 9+ don't."""
-        return self.zone_number <= 8
+
+def classify_zone(
+    layout: VistaZoneLayout, program: ZoneProgram, zone_doubling: ZoneDoubling
+) -> ZoneKind:
+    """Which prompts the panel will show for this zone, or ZoneRefused.
+
+    The protocol cannot read the menu back, so a zone whose prompts are not
+    known exactly is refused: one keystroke too many or too few answers the
+    wrong question for everything after it.
+    """
+    zone = program.zone_number
+    number = {"zone": str(zone)}
+    if zone in layout.button_zones:
+        raise ZoneRefused(
+            translation_key="zone_is_button", translation_placeholders=number
+        )
+    if layout.zone_doubling and zone in DOUBLING_AFFECTED_ZONES:
+        if zone_doubling is ZoneDoubling.NOT_STATED:
+            raise ZoneRefused(
+                translation_key="zone_doubling_not_stated",
+                translation_placeholders=number,
+            )
+        if zone_doubling is ZoneDoubling.ON:
+            if zone not in DOUBLED_ZONES:
+                raise ZoneRefused(
+                    translation_key="zone_unavailable_with_doubling",
+                    translation_placeholders=number,
+                )
+            return ZoneKind.DOUBLED
+    if zone in layout.board_zones:
+        if zone in layout.hardwire_prompt_zones:
+            _check_hardwire_type(layout, program.hardwire_type, zone_doubling)
+        return ZoneKind.BOARD
+    if zone in layout.expansion_zones:
+        if not layout.aux_wired or program.connection is ZoneConnection.WIRELESS:
+            raise ZoneRefused(
+                translation_key="zone_is_wireless", translation_placeholders=number
+            )
+        if program.connection is None:
+            raise ZoneRefused(
+                translation_key="zone_connection_unset",
+                translation_placeholders=number,
+            )
+        return ZoneKind.AUX_WIRED
+    raise ZoneRefused(
+        translation_key="zone_not_on_panel",
+        translation_placeholders={**number, "zones": layout.zones},
+    )
 
 
-def build_zone_program_keystrokes(program: ZoneProgram) -> str:
+def _check_hardwire_type(
+    layout: VistaZoneLayout, hardwire_type: HardwireType, zone_doubling: ZoneDoubling
+) -> None:
+    if hardwire_type not in layout.hardwire_types:
+        raise ZoneRefused(
+            translation_key="hardwire_type_not_on_model",
+            translation_placeholders={"hardwire_type": hardwire_type.value},
+        )
+    doubling_on = zone_doubling is ZoneDoubling.ON
+    if hardwire_type is HardwireType.ZONE_DOUBLING and not doubling_on:
+        # Doubling a board zone takes zones 9-16 away from an expander, so it
+        # is stated in the options first rather than changed from here.
+        raise ZoneRefused(translation_key="hardwire_zone_doubling_off")
+
+
+def build_zone_program_keystrokes(
+    program: ZoneProgram, layout: VistaZoneLayout, zone_doubling: ZoneDoubling
+) -> str:
     """Translate a ZoneProgram into the *56 menu-mode keystroke sequence.
 
-    Does not include entering or exiting Program Mode; see
-    build_program_mode_wrapper(). Every entry in *56 mode must be followed
-    by "*" to accept it, per the guide's own instructions for this menu.
+    Raises ZoneRefused for a zone whose prompts are not known exactly. Does
+    not include entering or exiting Program Mode; see
+    build_program_mode_wrapper(). Every entry in *56 mode is followed by "*".
     """
+    kind = classify_zone(layout, program, zone_doubling)
     keys = [ENTER_ZONE_PROGRAMMING]
     keys.append("0*")  # SET TO CONFIRM? -- no (not enrolling a wireless device)
     keys.append(f"{program.zone_number:02d}*")  # ENTER ZN NUM
     keys.append("*")  # accept SUMMARY SCREEN
     keys.append(f"{program.zone_type:02d}*")  # ZONE TYPE
-    keys.append(f"{program.partition}*")  # PARTITION
+    if layout.partition_prompt:
+        keys.append(f"{program.partition}*")  # PARTITION
     keys.append(("1" if program.report_enabled else "00") + "*")  # REPORT CODE
-    if 2 <= program.zone_number <= 8:
-        keys.append(f"{program.hardwire_type.value}*")  # HARDWIRE TYPE (zones 2-8 only)
-    if program.is_hardwired_prompt_zone:
-        keys.append(f"{program.response_time.value}*")  # RESPONSE TIME (zones 1-8)
-    else:
-        keys.append(
-            "2*"
-        )  # INPUT TYPE: AW (aux wired) -- see module docstring scope note
+    if kind is ZoneKind.BOARD:
+        if program.zone_number in layout.hardwire_prompt_zones:
+            keys.append(f"{program.hardwire_type.value}*")  # HARDWIRE TYPE
+        keys.append(f"{program.response_time.value}*")  # RESPONSE TIME
+    elif kind is ZoneKind.AUX_WIRED:
+        keys.append("2*")  # INPUT TYPE: AW
     keys.append("0*")  # PROGRAM ALPHA? -- no
     keys.append("00*")  # exit back to ENTER ZN NUM, then to Data Field mode
     return "".join(keys)
@@ -447,6 +628,8 @@ class ProgrammingForm:
     zone_report_enabled: bool = True
     zone_hardwire_type: HardwireType = HardwireType.END_OF_LINE
     zone_response_time: ResponseTime = ResponseTime.MS_350
+    # A statement about one zone, so it is spent with the confirmations.
+    zone_connection: ZoneConnection | None = None
     timing_field: str | None = None
     timing_value: int | None = None
     # The service defaults this to 1 and only the commercial dialect reads it.
@@ -459,10 +642,14 @@ class ProgrammingForm:
     confirm_unverified_model: bool = False
 
     def clear_confirmations(self) -> None:
-        """Spend every confirmation. Called after every write attempt."""
+        """Spend every confirmation and the zone connection.
+
+        Called after every write attempt.
+        """
         self.confirm = False
         self.confirm_life_safety = False
         self.confirm_unverified_model = False
+        self.zone_connection = None
 
 
 class ProgrammingOutcome(StrEnum):

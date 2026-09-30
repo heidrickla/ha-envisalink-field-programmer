@@ -32,6 +32,7 @@ CONF_NUM_PARTITIONS: Final = "num_partitions"
 CONF_NUM_ZONES: Final = "num_zones"
 CONF_ZONE_NAMES: Final = "zone_names"
 CONF_KEEPALIVE_INTERVAL: Final = "keepalive_interval"
+CONF_ZONE_DOUBLING: Final = "zone_doubling"
 # Options-form switches. The stored codes are never sent back to the browser,
 # so a blank code field keeps the stored one and these are how it is cleared.
 CONF_REMOVE_USER_CODE: Final = "remove_user_code"

@@ -112,6 +112,7 @@ async def test_every_field_of_the_guided_actions_is_an_entity(hass, fake_server)
         ("select", "program_zone_partition"),
         ("select", "program_zone_hardwire_type"),
         ("select", "program_zone_response_time"),
+        ("select", "program_zone_connection"),
         ("select", "program_timing_field"),
         ("select", "program_function_key_letter"),
         ("select", "program_function_key_action"),
@@ -257,6 +258,49 @@ async def test_the_zone_button_sends_what_the_action_sends(hass, fake_server):
     assert result.state == "success"
     assert result.attributes["action"] == "program_zone"
     assert result.attributes["detail"] == "Command Accepted"
+    await unload_entry(hass, entry)
+
+
+async def test_an_expander_zone_press_spends_the_zone_connection(hass, fake_server):
+    entry = await _setup(hass, fake_server)
+    await _fill_zone_form(hass, entry, zone=20)
+    connection = _entity_id(hass, entry, "select", "program_zone_connection")
+    button = _entity_id(hass, entry, "button", "program_zone")
+    confirm = _entity_id(hass, entry, "switch", "program_confirm")
+
+    await _switch(hass, confirm, True)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _press(hass, button)
+    assert raised.value.translation_key == "zone_connection_unset"
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+
+    await _select(hass, connection, "wired_expander")
+    await _switch(hass, confirm, True)
+    await _press(hass, button)
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == "4112800*560*20**03*1*1*2*0*00**99"
+    # The statement was about zone 20 and is spent with the confirmation.
+    assert hass.states.get(connection).state == "unknown"
+    await unload_entry(hass, entry)
+
+
+async def test_the_zone_form_offers_what_the_model_has(hass, fake_server):
+    entry = await _setup(hass, fake_server, panel_model="vista_15p")
+    wiring = hass.states.get(
+        _entity_id(hass, entry, "select", "program_zone_hardwire_type")
+    )
+    assert wiring.attributes["options"] == [
+        "end_of_line",
+        "normally_closed",
+        "normally_open",
+    ]
+    assert _find(hass, entry, "select", "program_zone_connection") is not None
+    await unload_entry(hass, entry)
+
+    # The 10P's expansion zones are wireless only, so there is nothing to ask.
+    entry = await _setup(hass, fake_server, panel_model="vista_10p")
+    assert _find(hass, entry, "select", "program_zone_connection") is None
     await unload_entry(hass, entry)
 
 

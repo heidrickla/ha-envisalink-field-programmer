@@ -38,12 +38,14 @@ EXCEPTION_SOURCES = (
     "__init__.py",
     "coordinator.py",
     "programming.py",
+    "field_programming.py",
     "field_programming_services.py",
     *(f"{p}.py" for p in PLATFORMS),
 )
 # Exception classes whose message reaches the user, so each raise of one has
 # to name a translation key. KeystrokeGuardError is this integration's own
-# ServiceValidationError subclass.
+# ServiceValidationError subclass; ZoneRefused is the Home Assistant-free zone
+# refusal the zone action re-raises with the same key.
 TRANSLATED_EXCEPTIONS = frozenset(
     {
         "ConfigEntryAuthFailed",
@@ -52,8 +54,10 @@ TRANSLATED_EXCEPTIONS = frozenset(
         "KeystrokeGuardError",
         "ServiceValidationError",
         "UpdateFailed",
+        "ZoneRefused",
     }
 )
+FORWARDED = "<forwarded>"
 
 # hassfest requires these for a custom integration, and hacs/action's
 # INTEGRATION_MANIFEST_JSON_SCHEMA requires all but iot_class.
@@ -264,11 +268,37 @@ def entity_translation_keys(source: str) -> set[str]:
 def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
     """Every raise of a user-facing exception: class, translation key, line.
 
-    The key is None when the raise passes none, and "<not a literal>" when it
-    passes something the cross-check against strings.json cannot resolve.
+    The key is None when the raise passes none, "<not a literal>" when it
+    passes something the cross-check against strings.json cannot resolve, and
+    FORWARDED when it passes on ``<name>.translation_key`` inside ``except
+    <translated exception> as <name>``: those keys are checked where the
+    caught exception is raised.
     """
+    tree = ast.parse(source)
+    forwarded: set[int] = set()
+    for handler in ast.walk(tree):
+        if not isinstance(handler, ast.ExceptHandler) or handler.name is None:
+            continue
+        caught = handler.type
+        caught_name = (
+            caught.id if isinstance(caught, ast.Name) else getattr(caught, "attr", "")
+        )
+        if caught_name not in TRANSLATED_EXCEPTIONS:
+            continue
+        for inner in ast.walk(handler):
+            if isinstance(inner, ast.Raise) and isinstance(inner.exc, ast.Call):
+                for keyword in inner.exc.keywords:
+                    value = keyword.value
+                    if (
+                        keyword.arg == "translation_key"
+                        and isinstance(value, ast.Attribute)
+                        and value.attr == "translation_key"
+                        and isinstance(value.value, ast.Name)
+                        and value.value.id == handler.name
+                    ):
+                        forwarded.add(id(inner))
     found: list[tuple[str, str | None, int]] = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Raise) or not isinstance(node.exc, ast.Call):
             continue
         func = node.exc.func
@@ -279,7 +309,9 @@ def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
         for keyword in node.exc.keywords:
             if keyword.arg != "translation_key":
                 continue
-            if isinstance(keyword.value, ast.Constant) and isinstance(
+            if id(node) in forwarded:
+                key = FORWARDED
+            elif isinstance(keyword.value, ast.Constant) and isinstance(
                 keyword.value.value, str
             ):
                 key = keyword.value.value
@@ -916,7 +948,7 @@ def main() -> int:
                 key is not None,
                 f"{f}:{line}: {name} raised without a translation key",
             )
-            if key is not None:
+            if key is not None and key != FORWARDED:
                 raised.add(key)
     declared_exc = set(strings.get("exceptions", {}))
     check(

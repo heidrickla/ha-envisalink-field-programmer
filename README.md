@@ -67,6 +67,7 @@ Settings, Devices & services, Envisalink Field Programmer, Configure.
 | Installer code | Enables field programming. Every guided action types this code followed by `800` to open Program Mode. Blank keeps the stored code. |
 | Remove the stored installer code | Clears it and disables field programming. |
 | Keepalive interval | Seconds between keepalive polls that detect a silently dead connection, 10 to 300, default 30. Zone state is refreshed every 30 seconds regardless. |
+| Zone doubling | VISTA-21iP and 20P only. Not stated, Off or On: whether any of board zones 2 to 8 is wired for zone doubling (hardwire type ZD). On makes zones 10 to 16 the doubled zones and removes zone 9; Off leaves zones 9 to 16 to a zone expander or wireless. The keypad check of zones 2 to 8 (`*58`) shows each one's hardwire type under HW; zone doubling is type 3, ZD. Guided zone programming refuses zones 9 to 16 while it is Not stated. |
 
 The stored codes are never shown in the form, only whether one is set. Saving the options reloads the entry.
 
@@ -202,7 +203,17 @@ Bypass or un-bypass a single zone with the standard `*1zz#` keypad sequence. Nev
 
 ### `envisalink_field_programmer.program_zone`
 
-Guided zone programming (the `*56` menu): set one zone's type, partition, reporting and wiring. Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Available on the residential VISTA models; the commercial VISTA and DSC models refuse it (see [Panel model support](#panel-model-support)). It writes wired zones: zones 1 to 8, and zones 9 and up as aux-wired, the answer it gives the panel's input-type prompt. Wireless (5800-series) zones, and zones 10 to 16 with zone doubling on, are programmed at the keypad.
+Guided zone programming (the `*56` menu): set one zone's type, partition, reporting and wiring. Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Available on the residential VISTA models; the commercial VISTA and DSC models refuse it (see [Panel model support](#panel-model-support)).
+
+The panel asks different questions for different zones, and the keystrokes follow the model's own guide:
+
+| Zones | Sent after zone type, partition and report code |
+|---|---|
+| Board zones (1 to 8; 1 to 6 on the 15P and 10P) | Hardwire type where the model asks it (zones 2 to 8; 2 to 6 on the 15P; 1 to 6 on the 10P), then response time |
+| 10 to 16 with [Zone doubling](#options) On (21iP, 20P) | Nothing more: the base zone's wiring and response time apply |
+| Expansion zones stated `wired_expander` | Input type aux wired |
+
+Refused before anything is sent: zone 9 with zone doubling On; zones 9 to 16 on a 21iP or 20P while Zone doubling is Not stated; an expansion zone without `zone_connection`, or stated `wireless` (a 5800 transmitter's serial is enrolled at the keypad); every expansion zone on the 10P, whose expansion zones are wireless only; button zones (49 and up); a zone number the model does not have; hardwire type zone doubling while Zone doubling is not On. The 15P and 10P menus have no partition prompt, so none is sent there.
 
 | Field | Required | Description |
 |---|---|---|
@@ -211,8 +222,9 @@ Guided zone programming (the `*56` menu): set one zone's type, partition, report
 | `zone_type` | yes | Vista zone type code: `0` Not used, `1` Entry/Exit (primary), `2` Entry/Exit (secondary), `3` Perimeter (instant), `4` Interior (follower), `6` Panic (silent), `7` Panic (audible), `8` Auxiliary 24-hour, `9` Fire (smoke/heat), `10` Interior with delay, `12` Monitor (trouble only), `14` Carbon monoxide, `16` Fire with verification, `23` No alarm response, `24` Silent burglary. |
 | `partition` | yes | Partition the zone belongs to, 1 to 3 (the `*56` menu takes one digit, 1 to 3). |
 | `report_enabled` | no, default `true` | Whether faults and alarms on this zone are reported to the monitoring station. |
-| `hardwire_type` | no, default `"0"` | Wiring for zones 2 to 8, ignored for zone 1 (always end-of-line) and zones 9 and up: `"0"` end-of-line resistor, `"1"` normally closed, `"2"` normally open, `"3"` zone doubling, `"4"` double-balanced. |
-| `response_time` | no, default `"1"` | Loop response for zones 1 to 8: `"0"` 10 ms, `"1"` 350 ms, `"2"` 700 ms, `"3"` 1.2 s. |
+| `hardwire_type` | no, default `"0"` | Wiring for the board zones that ask it: `"0"` end-of-line resistor, `"1"` normally closed, `"2"` normally open, `"3"` zone doubling (21iP and 20P, with Zone doubling On), `"4"` double-balanced (21iP and 20P). Ignored for other zones. |
+| `response_time` | no, default `"1"` | Loop response for board zones: `"0"` 10 ms, `"1"` 350 ms, `"2"` 700 ms, `"3"` 1.2 s. |
+| `zone_connection` | for expansion zones | How the zone is connected now: `wired_expander` (a 4219/4229 zone expander) or `wireless`. Required for zones 9 and up that are not doubled zones. |
 | `confirm` | yes | Must be `true`. This always opens Program Mode. |
 | `confirm_life_safety` | no, default `false` | Must be `true` when `zone_type` is 9, 14 or 16. Getting a smoke or CO detector's zone wrong silences it. |
 | `confirm_unverified_model` | no, default `false` | Must be `true` for any panel model not verified against its own programming guide. Verify the result at the keypad. |
@@ -325,8 +337,9 @@ Setting any of these changes nothing on the panel. They are a form. The panel he
 | Zone type | **Zone type** (select) | Plain-language names, not Vista codes. |
 | Partition | **Zone partition** (select) | 1 to 3, as the `*56` menu takes. |
 | Reporting | **Zone reports to monitoring station** (switch) | On by default. |
-| Wiring style | **Zone hardwire type** (select) | Zones 2 to 8 only; ignored elsewhere. |
-| Response time | **Zone response time** (select) | Zones 1 to 8 only. |
+| Wiring style | **Zone hardwire type** (select) | Board zones that ask it; offers only the model's wiring types. |
+| Response time | **Zone response time** (select) | Board zones only. |
+| Expansion zone connection | **Zone connection** (select) | Wired on a zone expander, or wireless. Needed for zones 9 and up that are not doubled zones; cleared after every press. Not shown on the 10P. |
 | Timing field | **Timing field** (select) | Only the fields this panel's dialect has. |
 | Timing value | **Timing value** (number) | Range checked against the chosen field on press. |
 | Timing partition | **Timing partition** (select) | Commercial panels only, where timing is per partition. |
@@ -389,7 +402,7 @@ What the automated test suite exercises (`pytest tests/`; the count is in the CI
 - Login handshake, keepalive, disconnect and reconnect, and one-keystroke-per-frame transmission, against an asyncio TCP server standing in for the Envisalink and speaking the same protocol (`tests/helpers.py::FakeEnvisalinkServer`), not a mocked transport.
 - State machine: icon-LED flag decoding into partition state (ready, armed mode, alarm, trouble, AC/battery), zone open/closed detection from the periodic zone timer dump, and CID-event-based installer-mode and last-armed/disarmed-user tracking.
 - Keystroke safety guard: every branch (valid characters, Program Mode detection with and without a known installer code, confirmation override).
-- Field-programming keystroke translation: every builder function (zone programming across the zone-1 / zone-2-8 / zone-9+ prompt variations, system timing including the extended-delay codes, function keys) checked against exact expected keystroke strings, both as pure unit tests and end to end against the fake TPI server.
+- Field-programming keystroke translation: every builder function (zone programming for each residential model's zone layout under each Zone doubling setting, system timing including the extended-delay codes, function keys) checked against exact expected keystroke strings, both as pure unit tests and end to end against the fake TPI server.
 - Config flow with recovery from every error, reauth, options, entity creation, setup failure handling, disconnect and reconnect, action refusals, diagnostics redaction, and all three field-programming actions' confirm / confirm_life_safety / installer-code gates: against the real Home Assistant config-entry machinery via `pytest-homeassistant-custom-component`, still driven by the fake TPI server.
 
 Five behaviours are built from the TPI protocol reference and the programming guide. Check each on your own panel before relying on it:
@@ -413,8 +426,8 @@ The wrong keystrokes on a fire or security panel can silence a smoke detector or
 | Model | Family | Verification | Notes |
 |---|---|---|---|
 | **VISTA-21iP** | Honeywell VISTA | Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
-| **VISTA-20P / 15P** | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide (2026-07-05): program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. |
-| **VISTA-10P** | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired + 9-24 RF (no zones 7-8), single partition. |
+| **VISTA-20P / 15P** | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide: program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. The 15P has zones 1-6, 9-34 and 49-56, one partition, and a `*56` menu without the partition prompt, zone doubling or double-balanced wiring. |
+| **VISTA-10P** | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired, 9-24 wireless and 49-56 buttons, single partition. Its `*56` menu has no partition prompt and asks hardwire type on zones 1 to 6, zone 1 included. |
 | VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** is supported (its own dialect); guided **zone** programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
 | DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke builders (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport speaks Honeywell TPI framing, so a DSC panel needs a DSC transport (and hardware verification) before anything reaches it, guided programming and arm, disarm and zone state alike. |
 

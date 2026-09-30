@@ -1,7 +1,8 @@
 """The programming form's enumerated fields, as selects on the panel device.
 
-Zone type, the three partition pickers, wiring style, response time, which
-timing field to edit, which function key and what it should do: every field of
+Zone type, the three partition pickers, wiring style, response time, how an
+expansion zone is connected, which timing field to edit, which function key and
+what it should do: every field of
 the guided actions whose values are a fixed list. Selecting an option writes
 that value into the entry's programming form and nothing else -- the panel
 hears nothing until a button in button.py is pressed with the confirm switch
@@ -29,8 +30,9 @@ from .field_programming import (
     FunctionKeyLetter,
     HardwireType,
     ResponseTime,
+    ZoneConnection,
 )
-from .panels import GuidedOp
+from .panels import GuidedOp, get_zone_layout
 
 # Nothing here reaches the panel; a selection only writes to the form.
 PARALLEL_UPDATES = 0
@@ -53,6 +55,10 @@ _RESPONSE_TIME_OPTIONS: dict[str, ResponseTime] = {
     "ms_350": ResponseTime.MS_350,
     "ms_700": ResponseTime.MS_700,
     "sec_1_2": ResponseTime.SEC_1_2,
+}
+
+_ZONE_CONNECTION_OPTIONS: dict[str, ZoneConnection] = {
+    connection.value: connection for connection in ZoneConnection
 }
 
 _FUNCTION_KEY_OPTIONS: dict[str, FunctionKeyLetter] = {
@@ -89,6 +95,12 @@ async def async_setup_entry(
         partitions = _partition_options(
             min(ZONE_MENU_MAX_PARTITION, coordinator.panel_model.max_partitions)
         )
+        layout = get_zone_layout(coordinator.panel_model.model_id)
+        hardwire_types = {
+            option: wiring
+            for option, wiring in _HARDWIRE_TYPE_OPTIONS.items()
+            if layout is None or wiring in layout.hardwire_types
+        }
         entities += [
             ProgrammingSelect(
                 coordinator,
@@ -108,7 +120,7 @@ async def async_setup_entry(
                 coordinator,
                 suffix="program_zone_hardwire_type",
                 translation_key="zone_hardwire_type",
-                options=_HARDWIRE_TYPE_OPTIONS,
+                options=hardwire_types,
                 attribute="zone_hardwire_type",
             ),
             ProgrammingSelect(
@@ -119,6 +131,18 @@ async def async_setup_entry(
                 attribute="zone_response_time",
             ),
         ]
+        # Only a model whose expansion zones can be wired needs to be told
+        # which kind a zone is; on the others every expansion zone is refused.
+        if layout is not None and layout.aux_wired:
+            entities.append(
+                ProgrammingSelect(
+                    coordinator,
+                    suffix="program_zone_connection",
+                    translation_key="zone_connection",
+                    options=_ZONE_CONNECTION_OPTIONS,
+                    attribute="zone_connection",
+                )
+            )
 
     if GuidedOp.TIMING in supported:
         timing_fields = {

@@ -49,8 +49,10 @@ program_zone:
     Guided zone programming (equivalent to *56 menu mode): set a zone's
     type, partition, reporting, and wiring settings. Always opens Program
     Mode, so an installer code must be configured in this integration's
-    options, and confirm must be true. Writes wired zones; wireless zones
-    are programmed at the keypad. This cannot read back a zone's current
+    options, and confirm must be true. Writes board zones, doubled zones and
+    zones on a wired zone expander; wireless zones and buttons are
+    programmed at the keypad. On a VISTA-21iP or 20P, zones 9-16 need Zone
+    doubling stated in the options. This cannot read back a zone's current
     programming first -- check it at the physical keypad (in Program Mode,
     *58 then the zone number shows it; # backs out without saving).
   fields:
@@ -101,9 +103,10 @@ program_zone:
     hardwire_type:
       name: Hardwire type
       description: >-
-        Wiring style for zones 2-8 (ignored for zone 1, which is always
-        end-of-line, and for zones 9+). 0=EOL, 1=NC, 2=NO, 3=zone doubling,
-        4=double-balanced.
+        Wiring style for the board zones whose menu asks it (zones 2-8; 2-6
+        on the 15P; 1-6 on the 10P), ignored for other zones. 0=EOL, 1=NC,
+        2=NO, 3=zone doubling (21iP/20P, with Zone doubling on in the
+        options), 4=double-balanced (21iP/20P).
       required: false
       default: "0"
       selector:
@@ -112,12 +115,23 @@ program_zone:
     response_time:
       name: Response time
       description: >-
-        For zones 1-8 only. 0=10ms, 1=350ms, 2=700ms, 3=1.2sec.
+        For board zones only. 0=10ms, 1=350ms, 2=700ms, 3=1.2sec.
       required: false
       default: "1"
       selector:
         select:
           options: ["0", "1", "2", "3"]
+    zone_connection:
+      name: Zone connection
+      description: >-
+        How an expansion zone (9 and up, not a doubled zone) is connected
+        now: wired_expander for a 4219/4229 zone expander, or wireless. The
+        panel asks different questions for each, so it is required for those
+        zones, and wireless is refused.
+      required: false
+      selector:
+        select:
+          options: ["wired_expander", "wireless"]
     confirm:
       name: Confirm
       description: Must be true. This always opens Program Mode.
@@ -137,11 +151,9 @@ program_zone:
     confirm_unverified_model:
       name: Confirm unverified panel model
       description: >-
-        Must be true if this config entry's panel model is anything other than
-        the VISTA-21iP. Every other model's field numbers/zone-type codes are
-        inherited or provisional and not verified against that panel's own
-        programming guide -- acknowledge that and verify the result at the
-        keypad.
+        Must be true if this config entry's panel model is not verified
+        against its own programming guide (the commercial VISTA and DSC
+        models). Acknowledge that and verify the result at the keypad.
       required: false
       default: false
       selector:
@@ -206,8 +218,9 @@ set_system_timing:
     confirm_unverified_model:
       name: Confirm unverified panel model
       description: >-
-        Must be true for any panel model other than the VISTA-21iP (field
-        numbers are inherited/provisional for the rest). Verify at the keypad.
+        Must be true if this config entry's panel model is not verified
+        against its own programming guide (the commercial VISTA and DSC
+        models). Verify at the keypad.
       required: false
       default: false
       selector:
@@ -264,8 +277,9 @@ program_function_key:
     confirm_unverified_model:
       name: Confirm unverified panel model
       description: >-
-        Must be true for any panel model other than the VISTA-21iP (field
-        numbers are inherited/provisional for the rest). Verify at the keypad.
+        Must be true if this config entry's panel model is not verified
+        against its own programming guide (the commercial VISTA and DSC
+        models). Verify at the keypad.
       required: false
       default: false
       selector:

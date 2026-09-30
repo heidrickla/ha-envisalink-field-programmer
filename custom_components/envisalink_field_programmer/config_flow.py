@@ -35,6 +35,7 @@ from .const import (
     CONF_REMOVE_INSTALLER_CODE,
     CONF_REMOVE_USER_CODE,
     CONF_USER_CODE,
+    CONF_ZONE_DOUBLING,
     DEFAULT_KEEPALIVE_INTERVAL,
     DEFAULT_NUM_PARTITIONS,
     DEFAULT_NUM_ZONES,
@@ -44,7 +45,8 @@ from .const import (
     PROBE_SETTLE_DELAY,
 )
 from .coordinator import VistaConsoleCoordinator
-from .panels import get_model, model_choices
+from .field_programming import ZoneDoubling
+from .panels import get_model, get_zone_layout, model_choices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +55,14 @@ _PASSWORD = selector.TextSelector(
 )
 # Both alarm codes are secrets too: they arm, disarm and open Program Mode.
 _SECRETS = {CONF_PASSWORD, CONF_USER_CODE, CONF_INSTALLER_CODE}
+
+_ZONE_DOUBLING_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[z.value for z in ZoneDoubling],
+        translation_key=CONF_ZONE_DOUBLING,
+        mode=selector.SelectSelectorMode.LIST,
+    )
+)
 
 # Zones/partitions ranges here are the widest any supported panel allows; the
 # actual per-model maximum is enforced against the selected model after submit
@@ -404,11 +414,13 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class VistaConsoleOptionsFlow(OptionsFlow):
-    """Adjust the default user code, installer code and keepalive interval.
+    """Adjust the codes, the keepalive interval and the panel's zone doubling.
 
     The stored codes never go back to the browser, so the code fields are
     shown empty: a blank field keeps the stored code, the remove switches
-    clear it.
+    clear it. Zone doubling is offered only on a model that has it, as a
+    choice with "not stated" in it, because a toggle saved for another reason
+    would record "off" for a panel nobody had asked about.
     """
 
     async def async_step_init(
@@ -420,8 +432,15 @@ class VistaConsoleOptionsFlow(OptionsFlow):
             CONF_USER_CODE, data.get(CONF_USER_CODE, "")
         )
         stored_installer_code: str = options.get(CONF_INSTALLER_CODE, "")
+        layout = get_zone_layout(data.get(CONF_PANEL_MODEL, DEFAULT_PANEL_MODEL))
+        offers_doubling = layout is not None and layout.zone_doubling
 
         if user_input is not None:
+            doubling = (
+                {CONF_ZONE_DOUBLING: user_input[CONF_ZONE_DOUBLING]}
+                if offers_doubling
+                else {}
+            )
             user_code = (
                 ""
                 if user_input[CONF_REMOVE_USER_CODE]
@@ -439,26 +458,32 @@ class VistaConsoleOptionsFlow(OptionsFlow):
                     CONF_USER_CODE: user_code,
                     CONF_INSTALLER_CODE: installer_code,
                     CONF_KEEPALIVE_INTERVAL: user_input[CONF_KEEPALIVE_INTERVAL],
+                    **doubling,
                 },
             )
 
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
-                vol.Optional(CONF_REMOVE_USER_CODE, default=False): bool,
-                vol.Optional(CONF_INSTALLER_CODE, default=""): _PASSWORD,
-                vol.Optional(CONF_REMOVE_INSTALLER_CODE, default=False): bool,
-                vol.Required(
-                    CONF_KEEPALIVE_INTERVAL,
-                    default=options.get(
-                        CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
-                    ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
-            }
-        )
+        fields: dict[vol.Marker, Any] = {
+            vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
+            vol.Optional(CONF_REMOVE_USER_CODE, default=False): bool,
+            vol.Optional(CONF_INSTALLER_CODE, default=""): _PASSWORD,
+            vol.Optional(CONF_REMOVE_INSTALLER_CODE, default=False): bool,
+            vol.Required(
+                CONF_KEEPALIVE_INTERVAL,
+                default=options.get(
+                    CONF_KEEPALIVE_INTERVAL, DEFAULT_KEEPALIVE_INTERVAL
+                ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+        }
+        if offers_doubling:
+            stored_doubling = options.get(CONF_ZONE_DOUBLING)
+            if stored_doubling not in {z.value for z in ZoneDoubling}:
+                stored_doubling = ZoneDoubling.NOT_STATED.value
+            fields[vol.Required(CONF_ZONE_DOUBLING, default=stored_doubling)] = (
+                _ZONE_DOUBLING_SELECTOR
+            )
         return self.async_show_form(
             step_id="init",
-            data_schema=schema,
+            data_schema=vol.Schema(fields),
             description_placeholders={
                 "user_code_state": "set" if stored_user_code else "not set",
                 "installer_code_state": "set" if stored_installer_code else "not set",

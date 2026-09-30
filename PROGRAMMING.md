@@ -8,23 +8,35 @@ Read [Safety](README.md#safety-read-this) first. The integration cannot read the
 
 | Change | Where |
 |---|---|
-| A wired zone's type, partition, reporting, wiring style and response time | Device page, Program zone (action `program_zone`) |
+| The type, partition, reporting, wiring style and response time of a board zone, a doubled zone or a zone on a wired zone expander | Device page, Program zone (action `program_zone`) |
 | Exit delay, entry delay 1 and 2, auto-stay arm | Device page, Set system timing (action `set_system_timing`) |
 | What the keypad's A, B, C and D keys do | Device page, Program function key (action `program_function_key`) |
-| Wireless (5800-series) zones, enrolling a transmitter | Keypad, `*56` |
+| Wireless (5800-series) zones and buttons, enrolling a transmitter | Keypad, `*56` |
 | Zone names shown on the keypad | Keypad, `*82` |
 | Relays and outputs, user codes, the communicator and phone settings | Keypad, or an installer's downloader software |
 
-A zone's number tells you what it is:
+A zone's number tells you what it is. On a VISTA-21iP or 20P:
 
 | Zones | What they are |
 |---|---|
 | 1 to 8 | Wired to the panel board |
-| 10 to 16 | With zone doubling on, the second sensor on board zones 2 to 8; zones 9 to 16 are then unavailable for anything else |
+| 10 to 16 | With zone doubling on, the second sensor on board zones 2 to 8 (zone 2 pairs with 10, zone 8 with 16); zone 9 does not exist and zones 9 to 16 are unavailable for anything else |
 | 9 to 48 | Zone expanders (4219/4229, eight zones each: module 1 zones 9 to 16, module 2 zones 17 to 24, and so on), or wireless (5800-series) transmitters |
 | 49 to 64 | Wireless buttons (key fobs) |
 
-Guided zone programming writes wired zones: zones 1 to 8 on the panel board, and zones 9 and up as aux-wired zones on a zone expander. It answers the panel's input-type question for zones 9 and up with "aux wired", so a wireless zone is changed at the keypad instead; the keypad check below shows which kind each zone is. With zone doubling on (hardwire type "zone doubling" on a zone 2 to 8), program zones 10 to 16 at the keypad too, because the panel skips the input-type question for them. Wireless buttons, zones 49 to 64, are programmed at the keypad as well.
+The VISTA-15P has board zones 1 to 6, expansion zones 9 to 34 and buttons 49 to 56, and no zone doubling. The VISTA-10P has board zones 1 to 6, wireless zones 9 to 24 and buttons 49 to 56.
+
+The panel asks different questions for each kind of zone, and nothing can read its menu back, so guided programming refuses any zone whose questions it cannot be sure of:
+
+| Zone | Guided programming |
+|---|---|
+| A board zone | Sets type, partition, reporting, wiring style and response time. |
+| A doubled zone (10 to 16, zone doubling on) | Sets type, partition and reporting. Its wiring and response time follow its board zone. |
+| An expansion zone on a wired zone expander | Sets type, partition and reporting, once you state it is wired (Zone connection). |
+| A wireless zone or button | Refused: the transmitter's serial number is enrolled at the keypad, so the zone is changed there. |
+| Zones 9 to 16 on a 21iP or 20P | Refused until Zone doubling is stated in the integration's options (see [Before you start](#before-you-start)). |
+
+To tell whether zone doubling is on, run the keypad check below on zones 2 to 8: HW shows each one's hardwire type, and zone doubling is type 3, ZD. Zones 10 to 16 reporting in Home Assistant while no zone expander is fitted point the same way.
 
 ## Words you will see
 
@@ -50,6 +62,7 @@ Guided zone programming writes wired zones: zones 1 to 8 on the panel board, and
 4. Know which zone number is which device. With the system disarmed, open a door or walk past a motion detector and watch which zone sensor in Home Assistant turns on.
 5. Write down what each zone is set to now, using [the keypad check](#check-the-result-at-the-keypad), and download diagnostics from the integration's entry. Nothing can read the panel's settings back later.
 6. Add the installer code: Settings, Devices & services, Envisalink Field Programmer, Configure, Installer code. Programming stays off until it is set.
+7. On a VISTA-21iP or 20P, set Zone doubling in the same form: On or Off, from the keypad check of zones 2 to 8. Zones 9 to 16 are refused while it says Not stated.
 
 ## Choosing a zone type
 
@@ -73,14 +86,14 @@ Fire and carbon monoxide types need the Confirm life-safety zone type switch as 
 
 ## Wiring style and response time
 
-These apply to zones 1 to 8. Leave them as they are unless you know how the zone is wired.
+These apply to board zones. Leave them as they are unless you know how the zone is wired.
 
 | Setting | Guidance |
 |---|---|
-| Zone hardwire type (zones 2 to 8) | Must match the wiring. End-of-line resistor is the standard; normally closed and normally open have no resistor; zone doubling puts two sensors on one input; double-balanced is a tamper-resistant variant. A mismatch makes the zone read open or closed when it is not. Zone 1 is always end-of-line. |
-| Zone response time (zones 1 to 8) | How long the circuit must stay open before the panel counts it: 10 ms, 350 ms, 700 ms or 1.2 seconds. Keep the zone's current value, which the keypad check shows as RT 0 to 3; the longer times ride out a noisy circuit. |
+| Zone hardwire type (zones 2 to 8; 2 to 6 on the 15P; 1 to 6 on the 10P) | Must match the wiring. End-of-line resistor is the standard; normally closed and normally open have no resistor; zone doubling puts two sensors on one input; double-balanced is a tamper-resistant variant. A mismatch makes the zone read open or closed when it is not. Zone 1 on the 21iP, 20P and 15P is always end-of-line. Zone doubling and double-balanced exist on the 21iP and 20P only, and zone doubling is accepted only while the Zone doubling option is On, because it changes what zones 9 to 16 are. |
+| Zone response time (board zones) | How long the circuit must stay open before the panel counts it: 10 ms, 350 ms, 700 ms or 1.2 seconds. Keep the zone's current value, which the keypad check shows as RT 0 to 3; the longer times ride out a noisy circuit. A doubled zone uses its board zone's response time. |
 
-Zones 9 and up take neither setting.
+Doubled zones and expansion zones take neither setting.
 
 ## Change a zone's type
 
@@ -90,16 +103,17 @@ Settings, Devices & services, Envisalink Field Programmer, then the panel device
 2. Zone type: from [the table above](#choosing-a-zone-type).
 3. Zone partition: Partition 1, unless your panel is partitioned.
 4. Zone reports to monitoring station: on, unless the zone should never report.
-5. Zone hardwire type and Zone response time: only for zones 1 to 8, and only if they need to change.
-6. Turn on Confirm programming. For a fire or CO type, also turn on Confirm life-safety zone type.
-7. Press Program zone.
+5. Zone hardwire type and Zone response time: only for board zones, and only if they need to change.
+6. Zone connection: for an expansion zone (9 and up, not a doubled zone), Wired, on a zone expander. It clears itself after every press, like the Confirm switches.
+7. Turn on Confirm programming. For a fire or CO type, also turn on Confirm life-safety zone type.
+8. Press Program zone.
 
 The Confirm switches turn themselves off after the press, so each write needs a fresh confirmation. Last programming result, under Diagnostic, shows what happened:
 
 | Result | Meaning |
 |---|---|
 | Accepted | The Envisalink acknowledged every keystroke. Check the zone at the keypad; nothing else can confirm what the panel stored. |
-| Refused before sending | Nothing reached the panel. The `detail` attribute names the reason: a confirmation not on, a field not set, no installer code. |
+| Refused before sending | Nothing reached the panel. The `detail` attribute names the reason: a confirmation not on, a field not set, no installer code, Zone doubling not stated, a zone that is wireless or does not exist on the model. [TROUBLESHOOTING.md](TROUBLESHOOTING.md#last-programming-result-says-refused-before-sending) lists each one. |
 | Failed while sending | The sequence stopped part-way. Go to the keypad, leave Program Mode with `*99` if it shows programming, and check the zone. |
 
 The same change from an automation or script is the `program_zone` action; the [README](README.md#envisalink_field_programmerprogram_zone) lists its fields.
@@ -135,7 +149,7 @@ Every check starts by opening Program Mode: type the installer code, then `800`.
 
 | To see | Keys | What you get |
 |---|---|---|
-| A zone | `*58`, then `0` `*` (no transmitter confirmation), then the zone number and `*` | One line: Zn (zone), ZT (zone type number), P (partition), RC (report code, 00 means not reported), then HW and RT (wiring and response time) for zones 1 to 8, or IN (input type: AW wired, RF, UR or BR wireless) for zones 9 and up. Press `#` to back out without saving, then `00` `*` to leave the zone menu. |
+| A zone | `*58`, then `0` `*` (no transmitter confirmation), then the zone number and `*` | One line: Zn (zone), ZT (zone type number), P (partition), RC (report code, 00 means not reported), then HW and RT (wiring and response time; EL under HW is end-of-line) for board zones, or IN (input type: AW wired, RF, UR or BR wireless) for zones 9 and up. Press `#` to back out without saving, then `00` `*` to leave the zone menu. |
 | A delay | `#34` exit delay, `#35` entry delay 1, `#36` entry delay 2, `#84` auto-stay arm | The field's current value. `#` shows a field without changing it. |
 
 Leave Program Mode with `*99`. The keypad returns to its normal display.
