@@ -4,7 +4,7 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
-## [Unreleased]
+## [0.5.0] - 2026-09-29
 
 ### Added
 

@@ -20,7 +20,7 @@ Typical uses:
 
 ## Features
 
-- Config flow setup (host, port, password, panel model, default user code, zone and partition counts); an optional installer code, set later in the integration's options, turns on field programming. Panel model defaults to the VISTA-21iP; see [Panel model support](#panel-model-support) for the full model list and what each one's support level means.
+- Config flow setup (host, port, password, panel model, default user code, zone and partition counts); an optional installer code, set later in the integration's options, turns on field programming, and on a VISTA-21iP or 20P the Zone doubling option says how zones 9 to 16 are programmed. Panel model defaults to the VISTA-21iP; see [Panel model support](#panel-model-support) for the full model list and what each one's support level means.
 - DHCP discovery: an Envisalink that takes a lease is offered with its address filled in, and one that later moves takes its entry with it. See [Discovery](#discovery).
 - Reconfigure without losing the entry: address, password, panel model and the zone and partition counts. See [Reconfiguring](#reconfiguring).
 - One `alarm_control_panel` entity per partition: arm away/home/night, disarm.
@@ -322,6 +322,19 @@ data:
   zone_type: 4
   partition: 1
   report_enabled: true
+  confirm: true
+```
+
+Retype zone 20, on a wired zone expander, as a perimeter zone:
+
+```yaml
+action: envisalink_field_programmer.program_zone
+data:
+  entry_id: "{{ state_attr('alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition', 'config_entry_id') }}"
+  zone_number: 20
+  zone_type: 3
+  partition: 1
+  zone_connection: wired_expander
   confirm: true
 ```
 
