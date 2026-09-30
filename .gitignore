@@ -21,3 +21,6 @@ Thumbs.db
 # HA config artifacts if a local test HA instance is ever run here
 config/.storage/
 config/home-assistant.log
+
+# Local task list
+TASKS.md
