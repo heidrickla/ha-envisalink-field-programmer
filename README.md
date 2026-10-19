@@ -158,6 +158,7 @@ Given that, this integration:
 - Spends the confirmation on the device page after every button press, so one confirmation authorizes exactly one write.
 - Puts no raw keystroke field on the device page. The guided form is what is offered there; `send_keystrokes` exists for anything it does not cover, and carries its own confirmation.
 - Treats zone bypass (`toggle_zone_bypass`, `*1zz#`) as the one keystroke sequence that is always allowed without confirmation, because it is an ordinary end-user keypad function that never opens Program Mode.
+- Lets only an administrator program the panel: `send_keystrokes`, `program_zone`, `set_system_timing`, `program_function_key` and the three programming buttons refuse a signed-in user who is not one. Automations and scripts started by the system run them. Zone bypass, as an action or a zone's switch, is open to every user.
 - Never logs the installer code, the user code or the Envisalink password, redacts them in diagnostics, and masks any run of four or more digits in a guard error before it reaches the log, an error message or the result sensor.
 
 A default user code changes who can disarm. A real Vista panel disarms by typing a user code; with a default user code stored, the alarm control panel entity disarms without asking anyone for a code. Anyone who can call `alarm_control_panel.alarm_disarm` in your Home Assistant (any user, any automation, any exposed voice assistant) can then disarm the panel. Leave the default code blank if that is not acceptable; every arm and disarm then needs the code on the call. The stored codes live in Home Assistant's config entry store in plain text, like every integration's credentials, so back that store up accordingly.
@@ -179,7 +180,7 @@ A tool that claims to read back Vista programming over a keypad-emulation link l
 
 Every action takes an `entry_id`, the config entry it should drive. In the UI the config entry picker fills it in. In YAML, every entity from this integration carries a `config_entry_id` attribute, so `{{ state_attr('alarm_control_panel.envisalink_field_programmer_203_0_113_50_partition', 'config_entry_id') }}` resolves it without copying an id by hand.
 
-Calling an action while the entry is not loaded, or with an id no entry has, is refused with a clear message rather than failing silently. Refusals for bad input (an unsupported panel, a missing installer code, a guarded sequence) are validation errors and carry no traceback; a command the Envisalink refuses or never acknowledges is reported as a device error.
+Every action except `toggle_zone_bypass` needs an administrator when a signed-in user calls it. Calling an action while the entry is not loaded, or with an id no entry has, is refused with a clear message rather than failing silently. Refusals for bad input (an unsupported panel, a missing installer code, a guarded sequence) are validation errors and carry no traceback; a command the Envisalink refuses or never acknowledges is reported as a device error.
 
 ### `envisalink_field_programmer.send_keystrokes`
 

@@ -15,7 +15,12 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.core import Context
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceValidationError,
+    Unauthorized,
+)
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.envisalink_field_programmer.client import (
@@ -25,6 +30,18 @@ from custom_components.envisalink_field_programmer.client import (
 from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import setup_entry, unload_entry
+
+
+async def _household_member(hass):
+    """A signed-in user in the ordinary users group, as a household account is.
+
+    The first person account is the owner, and the owner is an administrator.
+    """
+    if not any(u.is_owner for u in await hass.auth.async_get_users()):
+        await hass.auth.async_create_user("Owner")
+    user = await hass.auth.async_create_user("Household", group_ids=["system-users"])
+    assert not user.is_admin
+    return user
 
 
 async def _setup(
@@ -151,6 +168,29 @@ async def test_every_field_of_the_guided_actions_is_an_entity(hass, fake_server)
         _entity_id(hass, entry, "sensor", "last_programming_result")
     )
     assert result.entity_category == "diagnostic"
+    await unload_entry(hass, entry)
+
+
+async def test_a_press_by_a_user_who_is_not_an_administrator_is_refused(
+    hass, fake_server
+):
+    entry = await _setup(hass, fake_server)
+    await _fill_zone_form(hass, entry)
+    await _switch(hass, _entity_id(hass, entry, "switch", "program_confirm"), True)
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            "button",
+            "press",
+            {"entity_id": _entity_id(hass, entry, "button", "program_zone")},
+            blocking=True,
+            context=Context(user_id=(await _household_member(hass)).id),
+        )
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+    # The confirmation was not spent, so an administrator's press goes ahead.
+    await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == "4112800*560*03**03*1*1*0*1*0*00**99"
     await unload_entry(hass, entry)
 
 

@@ -24,6 +24,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.service import async_register_admin_service
 
 from .const import (
     CONF_ZONE_DOUBLING,
@@ -401,16 +402,22 @@ def async_register_field_programming_services(hass: HomeAssistant) -> None:
             confirm_unverified_model=call.data[ATTR_CONFIRM_UNVERIFIED_MODEL],
         )
 
-    hass.services.async_register(
-        DOMAIN, SERVICE_PROGRAM_ZONE, _handle_program_zone, schema=PROGRAM_ZONE_SCHEMA
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_PROGRAM_ZONE,
+        _handle_program_zone,
+        schema=PROGRAM_ZONE_SCHEMA,
     )
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_SET_SYSTEM_TIMING,
         _handle_set_system_timing,
         schema=SET_SYSTEM_TIMING_SCHEMA,
     )
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_PROGRAM_FUNCTION_KEY,
         _handle_program_function_key,

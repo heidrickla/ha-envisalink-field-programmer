@@ -6,9 +6,11 @@ operation from field_programming_services.py -- the same coroutine the action
 of the same name runs, so every guard applies identically whether a person
 pressed the button or an automation called the action.
 
-Two conditions are checked here and only here, because they exist only on the
-device page: the confirm switch has to be on, and every value the operation
-needs has to be set. Both refusals are ServiceValidationErrors, so Home
+A press by a signed-in user who is not an administrator is refused, as the
+actions are admin services; automations carry no user. Two conditions are
+checked here and only here, because they exist only on the device page: the
+confirm switch has to be on, and every value the operation needs has to be
+set. Both refusals are ServiceValidationErrors, so Home
 Assistant shows the sentence without a traceback.
 
 Every press that got past the confirm switch spends it: all three confirmations
@@ -23,7 +25,11 @@ from typing import override
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceValidationError,
+    Unauthorized,
+)
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, RESPONSE_ACCEPTED, TPI_RESPONSE_CODES
@@ -106,8 +112,17 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
             action=self.action_id, outcome=outcome, detail=detail
         )
 
+    async def _async_require_admin(self) -> None:
+        context = self._context
+        if context is None or context.user_id is None:
+            return
+        user = await self.hass.auth.async_get_user(context.user_id)
+        if user is None or not user.is_admin:
+            raise Unauthorized(context=context)
+
     @override
     async def async_press(self) -> None:
+        await self._async_require_admin()
         form = self.form
         if not form.confirm:
             raise ServiceValidationError(

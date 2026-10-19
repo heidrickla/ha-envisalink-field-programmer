@@ -11,7 +11,12 @@ import asyncio
 
 import pytest
 import voluptuous as vol
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.core import Context
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceValidationError,
+    Unauthorized,
+)
 
 from custom_components.envisalink_field_programmer.client import (
     EnvisalinkClient,
@@ -20,6 +25,18 @@ from custom_components.envisalink_field_programmer.client import (
 from custom_components.envisalink_field_programmer.const import DOMAIN
 
 from .conftest import setup_entry, unload_entry
+
+
+async def _household_member(hass):
+    """A signed-in user in the ordinary users group, as a household account is.
+
+    The first person account is the owner, and the owner is an administrator.
+    """
+    if not any(u.is_owner for u in await hass.auth.async_get_users()):
+        await hass.auth.async_create_user("Owner")
+    user = await hass.auth.async_create_user("Household", group_ids=["system-users"])
+    assert not user.is_admin
+    return user
 
 
 async def _setup_entry(
@@ -83,6 +100,55 @@ async def test_program_zone_sends_expected_keystrokes(hass, fake_server):
     # hardwire=EOL(default), response=350ms(default), alpha=no, exit zone
     # menu, then *99 (exit Program Mode).
     assert full_sent == "4112800*560*03**03*1*1*0*1*0*00**99"
+    await _unload(hass, entry)
+
+
+@pytest.mark.parametrize(
+    ("service", "data"),
+    [
+        ("send_keystrokes", {"partition": 1, "keys": "1"}),
+        (
+            "program_zone",
+            {"zone_number": 3, "zone_type": 3, "partition": 1, "confirm": True},
+        ),
+        (
+            "set_system_timing",
+            {"field": "10", "value": 4, "partition": 1, "confirm": True},
+        ),
+        (
+            "program_function_key",
+            {"key": "A", "partition": 1, "action": 3, "confirm": True},
+        ),
+    ],
+)
+async def test_a_panel_action_is_refused_to_a_user_who_is_not_an_administrator(
+    hass, fake_server, service, data
+):
+    entry = await _setup_entry(hass, fake_server)
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN,
+            service,
+            {"entry_id": entry.entry_id, **data},
+            blocking=True,
+            context=Context(user_id=(await _household_member(hass)).id),
+        )
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_zone_bypass_stays_open_to_every_user(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    await hass.services.async_call(
+        DOMAIN,
+        "toggle_zone_bypass",
+        {"entry_id": entry.entry_id, "zone": 2},
+        blocking=True,
+        context=Context(user_id=(await _household_member(hass)).id),
+    )
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == "*102#"
     await _unload(hass, entry)
 
 

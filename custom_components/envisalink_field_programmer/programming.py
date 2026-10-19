@@ -36,6 +36,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.service import async_register_admin_service
 
 from .client import EnvisalinkClient, TPIError
 from .const import DOMAIN, SERVICE_SEND_KEYSTROKES, SERVICE_TOGGLE_ZONE_BYPASS
@@ -211,12 +212,15 @@ def async_register_services(hass: HomeAssistant) -> None:
             coordinator.client, zone.partition, keys, dialect=coordinator.dialect
         )
 
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_SEND_KEYSTROKES,
         _handle_send_keystrokes,
         schema=SEND_KEYSTROKES_SCHEMA,
     )
+    # Bypass is an end-user keypad function, also a switch on each zone, so any
+    # user may call it; the other actions program the panel and need an admin.
     hass.services.async_register(
         DOMAIN,
         SERVICE_TOGGLE_ZONE_BYPASS,

@@ -4,6 +4,12 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.5.1] - 2026-10-19
+
+### Changed
+
+- `send_keystrokes`, `program_zone`, `set_system_timing` and `program_function_key` are admin actions, and the three programming buttons refuse a press by a signed-in user who is not an administrator. Automations are unaffected. `toggle_zone_bypass` and the zone bypass switches stay open to every user.
+
 ## [0.5.0] - 2026-09-29
 
 ### Added
