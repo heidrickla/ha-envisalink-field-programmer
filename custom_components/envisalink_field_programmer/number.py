@@ -98,5 +98,6 @@ class ProgrammingNumber(ProgrammingEntity, NumberEntity):
 
     @override
     async def async_set_native_value(self, value: float) -> None:
+        await self._async_require_admin()
         setattr(self.form, self._attribute, int(value))
         self.async_write_ha_state()

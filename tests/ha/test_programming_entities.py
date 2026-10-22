@@ -194,6 +194,74 @@ async def test_a_press_by_a_user_who_is_not_an_administrator_is_refused(
     await unload_entry(hass, entry)
 
 
+@pytest.mark.parametrize(
+    ("domain", "service", "suffix", "data", "attribute", "value"),
+    [
+        ("switch", "turn_on", "program_confirm", {}, "confirm", True),
+        (
+            "switch",
+            "turn_on",
+            "program_confirm_life_safety",
+            {},
+            "confirm_life_safety",
+            True,
+        ),
+        (
+            "switch",
+            "turn_off",
+            "program_zone_report_enabled",
+            {},
+            "zone_report_enabled",
+            False,
+        ),
+        ("number", "set_value", "program_zone_number", {"value": 3}, "zone_number", 3),
+        (
+            "select",
+            "select_option",
+            "program_zone_type",
+            {"option": "type_09"},
+            "zone_type",
+            9,
+        ),
+    ],
+)
+async def test_a_form_field_set_by_a_user_who_is_not_an_administrator_is_refused(
+    hass, fake_server, domain, service, suffix, data, attribute, value
+):
+    """A press sends what the fields hold, so setting one is programming too."""
+    entry = await _setup(hass, fake_server)
+    form = entry.runtime_data.programming
+    entity_id = _entity_id(hass, entry, domain, suffix)
+    before = getattr(form, attribute)
+    assert before != value
+    call = {"entity_id": entity_id, **data}
+
+    # The owner is created first; the household member is an ordinary user.
+    household = await _household_member(hass)
+    owner = next(u for u in await hass.auth.async_get_users() if u.is_owner)
+    assert owner.is_admin
+
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            domain, service, call, blocking=True, context=Context(user_id=household.id)
+        )
+    assert getattr(form, attribute) == before
+
+    await hass.services.async_call(
+        domain, service, call, blocking=True, context=Context(user_id=owner.id)
+    )
+    assert getattr(form, attribute) == value
+
+    # A call with no user, as an automation makes, passes.
+    setattr(form, attribute, before)
+    await hass.services.async_call(domain, service, call, blocking=True)
+    assert getattr(form, attribute) == value
+
+    await asyncio.sleep(0.05)
+    assert _sent(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
 async def test_setting_a_field_sends_nothing_to_the_panel(hass, fake_server):
     # The whole point of the form: filling it in is not programming. Nothing
     # reaches the panel until a button is pressed.

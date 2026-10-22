@@ -240,5 +240,6 @@ class ProgrammingSelect(ProgrammingEntity, SelectEntity):
 
     @override
     async def async_select_option(self, option: str) -> None:
+        await self._async_require_admin()
         setattr(self.form, self._attribute, self._values[option])
         self.async_write_ha_state()

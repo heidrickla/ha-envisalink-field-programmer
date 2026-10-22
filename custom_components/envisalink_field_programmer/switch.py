@@ -139,10 +139,12 @@ class ProgrammingSwitch(ProgrammingEntity, SwitchEntity):
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_require_admin()
         setattr(self.form, self._attribute, True)
         self.async_write_ha_state()
 
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_require_admin()
         setattr(self.form, self._attribute, False)
         self.async_write_ha_state()

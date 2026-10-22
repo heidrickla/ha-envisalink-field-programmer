@@ -25,11 +25,7 @@ from typing import override
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import (
-    HomeAssistantError,
-    ServiceValidationError,
-    Unauthorized,
-)
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, RESPONSE_ACCEPTED, TPI_RESPONSE_CODES
@@ -111,14 +107,6 @@ class ProgrammingButton(ProgrammingEntity, ButtonEntity):
         self.coordinator.last_programming_result = ProgrammingResult(
             action=self.action_id, outcome=outcome, detail=detail
         )
-
-    async def _async_require_admin(self) -> None:
-        context = self._context
-        if context is None or context.user_id is None:
-            return
-        user = await self.hass.auth.async_get_user(context.user_id)
-        if user is None or not user.is_admin:
-            raise Unauthorized(context=context)
 
     @override
     async def async_press(self) -> None:
