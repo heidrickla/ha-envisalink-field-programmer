@@ -309,6 +309,9 @@
     "no_code": {
       "message": "No user code was given and no default user code is configured. A Vista panel has no code-free way to arm or disarm."
     },
+    "invalid_user_code": {
+      "message": "The user code must be the four digits typed at the keypad (four or six on a DSC panel). Nothing was sent to the panel."
+    },
     "empty_keystrokes": {
       "message": "No keystrokes were given. There is nothing to send to the panel."
     },

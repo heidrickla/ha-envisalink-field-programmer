@@ -50,7 +50,7 @@ Then: Settings, Devices & services, Add integration, "Envisalink Field Programme
 | Port | yes | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
 | Envisalink password | yes | The password for the Envisalink's local web page. Not a panel code. |
 | Alarm panel model | yes | The panel behind the Envisalink. Sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified. Defaults to VISTA-21iP. |
-| Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none. Blank means every arm and disarm needs a code. Read the [Safety](#safety-read-this) note on what a default code means. |
+| Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none: four digits, or four or six on a DSC panel. A code in any other form, given here or on a call, is refused before anything is typed. Blank means every arm and disarm needs a code. Read the [Safety](#safety-read-this) note on what a default code means. |
 | Number of partitions | yes | Partitions configured on the panel, 1 to 8 within the model's limit. One alarm control panel entity per partition. |
 | Number of zones | yes | Zones to create sensors for, 1 to 250 within the model's limit. Unused zones stay closed. |
 

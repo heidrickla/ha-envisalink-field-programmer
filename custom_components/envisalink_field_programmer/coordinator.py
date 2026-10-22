@@ -17,12 +17,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import Callable
 from typing import override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -39,10 +41,15 @@ from .const import (
 )
 from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import VistaState
-from .panels import get_dialect, get_model
+from .panels import PanelFamily, get_dialect, get_model
 from .state_machine import apply_event
 
 _LOGGER = logging.getLogger(__name__)
+
+# The user code an arm or disarm types before its mode digit. VISTA user codes
+# are four digits; DSC PowerSeries takes four or six. ASCII digits only.
+_USER_CODE = re.compile(r"[0-9]{4}")
+_DSC_USER_CODE = re.compile(r"[0-9]{4}|[0-9]{6}")
 
 type VistaConsoleConfigEntry = ConfigEntry[VistaConsoleCoordinator]
 
@@ -346,16 +353,42 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
     # -- High level actions used by entity platforms -----------------------
 
     async def async_arm_away(self, partition: int, code: str) -> None:
-        await self._async_send_arm_disarm_keystrokes(partition, f"{code}2")
+        await self._async_send_arm_disarm_keystrokes(
+            partition, f"{self._user_code(code)}2"
+        )
 
     async def async_arm_stay(self, partition: int, code: str) -> None:
-        await self._async_send_arm_disarm_keystrokes(partition, f"{code}3")
+        await self._async_send_arm_disarm_keystrokes(
+            partition, f"{self._user_code(code)}3"
+        )
 
     async def async_arm_night(self, partition: int, code: str) -> None:
-        await self._async_send_arm_disarm_keystrokes(partition, f"{code}33")
+        await self._async_send_arm_disarm_keystrokes(
+            partition, f"{self._user_code(code)}33"
+        )
 
     async def async_disarm(self, partition: int, code: str) -> None:
-        await self._async_send_arm_disarm_keystrokes(partition, f"{code}1")
+        await self._async_send_arm_disarm_keystrokes(
+            partition, f"{self._user_code(code)}1"
+        )
+
+    def _user_code(self, code: str) -> str:
+        """The code as one keypad user code, or a refusal before anything is sent.
+
+        Anything longer reaches other keypad functions: on a VISTA the master
+        code followed by 8 and a user number changes a user code.
+        """
+        pattern = (
+            _DSC_USER_CODE
+            if self.dialect.family is PanelFamily.DSC_POWERSERIES
+            else _USER_CODE
+        )
+        if not pattern.fullmatch(code):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_user_code",
+            )
+        return code
 
     async def _async_send_arm_disarm_keystrokes(
         self, partition: int, keys: str

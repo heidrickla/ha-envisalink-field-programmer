@@ -4,6 +4,12 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [Unreleased]
+
+### Changed
+
+- An arm or disarm takes the code as one keypad user code: four digits, or four or six on a DSC panel. Any other code is refused before a keystroke is sent.
+
 ## [0.5.1] - 2026-10-19
 
 ### Changed
