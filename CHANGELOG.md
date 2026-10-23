@@ -4,6 +4,13 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.5.2] - 2026-10-22
+
+### Changed
+
+- An arm or disarm takes the code as one keypad user code: four digits, or four or six on a DSC panel. Any other code is refused before a keystroke is sent.
+- The programming form's switches, numbers and selects on the device page refuse a change by a signed-in user who is not an administrator, as the programming buttons do. Automations are unaffected.
+
 ## [0.5.1] - 2026-10-19
 
 ### Changed

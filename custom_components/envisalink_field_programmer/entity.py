@@ -6,6 +6,7 @@ from typing import override
 
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -56,6 +57,10 @@ class ProgrammingEntity(VistaConsoleEntity):
     Every one of them is a configuration entity: setting it writes to the
     entry's :class:`ProgrammingForm` and nothing else. Only a button press
     sends anything to the panel, and only with the confirm switch on.
+
+    Setting a field and pressing a button both need an administrator: the
+    press sends what the fields hold, so whoever sets a field chooses what the
+    panel is programmed with. A call with no user (an automation) passes.
     """
 
     _attr_entity_category = EntityCategory.CONFIG
@@ -63,6 +68,14 @@ class ProgrammingEntity(VistaConsoleEntity):
     @property
     def form(self) -> ProgrammingForm:
         return self.coordinator.programming
+
+    async def _async_require_admin(self) -> None:
+        context = self._context
+        if context is None or context.user_id is None:
+            return
+        user = await self.hass.auth.async_get_user(context.user_id)
+        if user is None or not user.is_admin:
+            raise Unauthorized(context=context)
 
 
 def programming_entity_display_name(

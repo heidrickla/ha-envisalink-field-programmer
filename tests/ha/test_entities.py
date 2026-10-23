@@ -10,6 +10,7 @@ import asyncio
 
 import pytest
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.envisalink_field_programmer.client import EnvisalinkClient
@@ -63,6 +64,78 @@ async def test_arming_types_the_code_and_the_mode_digits(
     )
     await asyncio.sleep(0.05)
     assert _sent_keys(fake_server) == expected
+    await unload_entry(hass, entry)
+
+
+@pytest.mark.parametrize("service", ["alarm_disarm", "alarm_arm_away"])
+@pytest.mark.parametrize(
+    "code",
+    [
+        # Master code, 8, user 05, new code: the VISTA add-a-user sequence.
+        "12348051111",
+        "123",
+        "12345",
+        "123456",
+        "12*4",
+        "1234#",
+        # Not ASCII digits, though str.isdigit() accepts them.
+        "¹234",
+        "١٢٣٤",
+    ],
+)
+async def test_an_arm_or_disarm_code_that_is_not_a_user_code_sends_nothing(
+    hass, fake_server, service, code
+):
+    """A call's code is typed onto the keypad bus, so it must be one user code."""
+    entry = await setup_entry(hass, fake_server, num_zones=2, user_code="1234")
+    with pytest.raises(ServiceValidationError) as raised:
+        await hass.services.async_call(
+            "alarm_control_panel",
+            service,
+            {
+                "entity_id": _entity_id(
+                    hass, entry, "alarm_control_panel", "partition_1"
+                ),
+                "code": code,
+            },
+            blocking=True,
+        )
+    assert raised.value.translation_key == "invalid_user_code"
+    await asyncio.sleep(0.05)
+    assert _sent_keys(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
+async def test_a_stored_default_code_is_held_to_the_same_rule(hass, fake_server):
+    entry = await setup_entry(hass, fake_server, num_zones=2, user_code="1234801")
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "alarm_control_panel",
+            "alarm_disarm",
+            {
+                "entity_id": _entity_id(
+                    hass, entry, "alarm_control_panel", "partition_1"
+                )
+            },
+            blocking=True,
+        )
+    await asyncio.sleep(0.05)
+    assert _sent_keys(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
+async def test_a_dsc_panel_takes_a_six_digit_user_code(hass, fake_server):
+    entry = await setup_entry(
+        hass, fake_server, num_zones=2, user_code="123456", panel_model="dsc_pc1864"
+    )
+    await hass.services.async_call(
+        "alarm_control_panel",
+        "alarm_disarm",
+        {"entity_id": _entity_id(hass, entry, "alarm_control_panel", "partition_1")},
+        blocking=True,
+    )
+    await asyncio.sleep(0.05)
+    assert _sent_keys(fake_server) == "1234561"
     await unload_entry(hass, entry)
 
 

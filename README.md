@@ -50,7 +50,7 @@ Then: Settings, Devices & services, Add integration, "Envisalink Field Programme
 | Port | yes | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
 | Envisalink password | yes | The password for the Envisalink's local web page. Not a panel code. |
 | Alarm panel model | yes | The panel behind the Envisalink. Sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified. Defaults to VISTA-21iP. |
-| Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none. Blank means every arm and disarm needs a code. Read the [Safety](#safety-read-this) note on what a default code means. |
+| Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none: four digits, or four or six on a DSC panel. A code in any other form, given here or on a call, is refused before anything is typed. Blank means every arm and disarm needs a code. Read the [Safety](#safety-read-this) note on what a default code means. |
 | Number of partitions | yes | Partitions configured on the panel, 1 to 8 within the model's limit. One alarm control panel entity per partition. |
 | Number of zones | yes | Zones to create sensors for, 1 to 250 within the model's limit. Unused zones stay closed. |
 
@@ -158,7 +158,7 @@ Given that, this integration:
 - Spends the confirmation on the device page after every button press, so one confirmation authorizes exactly one write.
 - Puts no raw keystroke field on the device page. The guided form is what is offered there; `send_keystrokes` exists for anything it does not cover, and carries its own confirmation.
 - Treats zone bypass (`toggle_zone_bypass`, `*1zz#`) as the one keystroke sequence that is always allowed without confirmation, because it is an ordinary end-user keypad function that never opens Program Mode.
-- Lets only an administrator program the panel: `send_keystrokes`, `program_zone`, `set_system_timing`, `program_function_key` and the three programming buttons refuse a signed-in user who is not one. Automations and scripts started by the system run them. Zone bypass, as an action or a zone's switch, is open to every user.
+- Lets only an administrator program the panel: `send_keystrokes`, `program_zone`, `set_system_timing`, `program_function_key`, the three programming buttons and the programming form's switches, numbers and selects refuse a signed-in user who is not one. Automations and scripts started by the system run them. Zone bypass, as an action or a zone's switch, is open to every user.
 - Never logs the installer code, the user code or the Envisalink password, redacts them in diagnostics, and masks any run of four or more digits in a guard error before it reaches the log, an error message or the result sensor.
 
 A default user code changes who can disarm. A real Vista panel disarms by typing a user code; with a default user code stored, the alarm control panel entity disarms without asking anyone for a code. Anyone who can call `alarm_control_panel.alarm_disarm` in your Home Assistant (any user, any automation, any exposed voice assistant) can then disarm the panel. Leave the default code blank if that is not acceptable; every arm and disarm then needs the code on the call. The stored codes live in Home Assistant's config entry store in plain text, like every integration's credentials, so back that store up accordingly.

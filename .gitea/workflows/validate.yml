@@ -14,36 +14,42 @@ jobs:
     name: Lint and structure
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         timeout-minutes: 15
 
-      - name: Install ruff (pinned)
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        timeout-minutes: 15
+        with:
+          python-version: "3.14"
+
+      # A venv of the job's own: the image's Python is externally managed, and
+      # the runner's toolcache Python carries other repos' packages.
+      # Pinned: an unpinned linter makes CI non-reproducible.
+      - name: Install ruff and PyYAML (PINNED)
         timeout-minutes: 15
         run: |
-          python3 -m pip install --quiet --upgrade pip
-          python3 -m pip install --quiet "ruff==0.15.21"
-          python3 -m ruff --version
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet "ruff==0.15.21" "PyYAML==6.0.2"
+          "$RUNNER_TEMP/venv/bin/python" -m ruff --version
 
       - name: Ruff
         timeout-minutes: 15
         run: |
-          python3 -m ruff check .
-          python3 -m ruff format --check .
+          "$RUNNER_TEMP/venv/bin/python" -m ruff check .
+          "$RUNNER_TEMP/venv/bin/python" -m ruff format --check .
 
-      # No ast.parse step: the default python3 here is 3.10 and cannot parse
-      # py314 syntax. Ruff parses every file at py314.
       - name: JSON is valid
         timeout-minutes: 15
         run: |
           for f in custom_components/envisalink_field_programmer/*.json custom_components/envisalink_field_programmer/translations/*.json hacs.json; do
-            python3 -c "import json,sys; json.load(open(sys.argv[1],encoding='utf-8'))" "$f" || exit 1
+            "$RUNNER_TEMP/venv/bin/python" -c "import json,sys; json.load(open(sys.argv[1],encoding='utf-8'))" "$f" || exit 1
           done
           echo "all JSON valid"
 
       - name: Manifest sanity
         timeout-minutes: 15
         run: |
-          python3 - <<'PY'
+          "$RUNNER_TEMP/venv/bin/python" - <<'PY'
           import json
           m = json.load(open("custom_components/envisalink_field_programmer/manifest.json", encoding="utf-8"))
           missing = [k for k in ("domain","name","version","documentation","codeowners") if not m.get(k)]
@@ -56,8 +62,7 @@ jobs:
       - name: Quality scale is complete and honest
         timeout-minutes: 15
         run: |
-          python3 -m pip install --quiet "PyYAML==6.0.2"
-          python3 - <<'PY'
+          "$RUNNER_TEMP/venv/bin/python" - <<'PY'
           import json, yaml
           base = "custom_components/envisalink_field_programmer/"
           rules = yaml.safe_load(open(base + "quality_scale.yaml", encoding="utf-8"))["rules"]
@@ -80,12 +85,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         timeout-minutes: 15
 
       # Home Assistant 2026.x needs 3.14. On an older interpreter pip resolves
       # an old Home Assistant and the pinned harness cannot be found.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         timeout-minutes: 15
         with:
           python-version: "3.14"
@@ -143,7 +148,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         timeout-minutes: 15
-      - uses: home-assistant/actions/hassfest@master
+      - uses: home-assistant/actions/hassfest@cd6f3635a740c84d8a14f6121a90068b8ece6bf6 # master
         timeout-minutes: 15
