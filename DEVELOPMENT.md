@@ -135,7 +135,7 @@ The EVL processes one command at a time. It acknowledges every command with `^CO
 
 `pyenvisalink` is GPL v3. Copies of `envisalink_base_client.py`, `honeywell_client.py` and `honeywell_envisalinkdefs.py` were downloaded from `https://github.com/ufodone/envisalink_new` to read those field layouts, then deleted rather than committed, the same handling as the Vista Programming Guide PDF. Every module here paraphrases the protocol's meaning in its own words and carries no copied `pyenvisalink` source.
 
-The Vista `*56`/`*57`/`*99` field-programming keystroke language (`field_programming.py`, and `programming.py`'s Program Mode guard) is independent of all of this. It is a string of keystrokes typed at a keypad, whatever frames carry them.
+The Vista `*56`/`*57`/`*99` field-programming keystroke language (`field_programming.py`, and `programming.py`'s Program Mode guard) is independent of all of this. It is a string of keystrokes typed at a keypad, whatever frames carry them. One key class reaches past the keypad: a bare `A` to `D` frame is that key's emergency, which is how `pyenvisalink` raises its Fire, Ambulance and Police panics, so `programming.py` passes a letter only at the `*57` PRESS KEY TO PGM prompt of a sequence that opens Program Mode. The source of each guided keystroke is the README's "Where each keystroke comes from".
 
 ## Where the Vista programming-guide research came from
 

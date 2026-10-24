@@ -34,6 +34,39 @@ def test_invalid_characters_rejected():
         validate_keystrokes("12A34")
 
 
+_GUIDED_FUNCTION_KEY = "4112800*57A*1*03*0**99"
+_BOTH = {"allow_installer_mode": True, "allow_function_key": True}
+
+
+def test_function_key_letter_passes_at_the_57_prompt_in_program_mode():
+    validate_keystrokes(_GUIDED_FUNCTION_KEY, **_BOTH)  # must not raise
+
+
+@pytest.mark.parametrize(
+    ("keys", "flags"),
+    [
+        (_GUIDED_FUNCTION_KEY, {"allow_installer_mode": True}),
+        (_GUIDED_FUNCTION_KEY, {"allow_function_key": True}),
+        ("4112800*56A*", _BOTH),
+        ("*57A*1*03*0**99", _BOTH),
+        ("4112800*57A*1*03*0*57B*", _BOTH),
+        ("A", _BOTH),
+    ],
+    ids=[
+        "function key not allowed",
+        "installer mode not allowed",
+        "not at the *57 prompt",
+        "Program Mode not opened",
+        "two letters",
+        "bare panic letter",
+    ],
+)
+def test_function_key_letter_refused_anywhere_else(keys, flags):
+    with pytest.raises(KeystrokeGuardError) as exc:
+        validate_keystrokes(keys, **flags)
+    assert exc.value.translation_key == "invalid_keystroke_characters"
+
+
 def test_program_mode_sequence_blocked_with_known_installer_code():
     with pytest.raises(KeystrokeGuardError) as exc:
         validate_keystrokes("4112800*56", installer_code="4112")

@@ -528,26 +528,12 @@ def build_system_timing_keystrokes(field: SystemTimingField, value: int) -> str:
 
 
 class FunctionKeyLetter(StrEnum):
+    """The keypad's A-D keys, separate from the digit keys (guide p. 4, *57)."""
+
     A = "A"
     B = "B"
     C = "C"
     D = "D"
-
-
-# Mapping from letter to the digit the physical keypad uses to select it in
-# *57 menu mode isn't documented as a plain digit in the guide (keys A-D are
-# their own physical buttons) -- *57 prompts "PRESS KEY TO PGM" and expects
-# the actual A/B/C/D key to be pressed. On the ECP keystroke encoding used
-# by Envisalink's keystroke-string command, those map to the digits 1-4
-# in the classic Ademco keypad numbering (A=1, B=2, C=3, D=4 position on a
-# 4-button function row); if this turns out wrong against real hardware,
-# it is the first thing to check (see README verification notes).
-_FUNCTION_KEY_DIGIT: dict[FunctionKeyLetter, str] = {
-    FunctionKeyLetter.A: "1",
-    FunctionKeyLetter.B: "2",
-    FunctionKeyLetter.C: "3",
-    FunctionKeyLetter.D: "4",
-}
 
 
 class FunctionKeyAction(int, Enum):
@@ -578,16 +564,18 @@ FUNCTION_KEY_ACTION_LABELS: dict[FunctionKeyAction, str] = {
 def build_function_key_keystrokes(
     key: FunctionKeyLetter, partition: int, action: FunctionKeyAction
 ) -> str:
-    """Translate a function-key assignment into its *57 keystroke sequence."""
+    """Translate a function-key assignment into its *57 keystroke sequence.
+
+    Prompts from the guide's "*57 FUNCTION KEY PROGRAMMING", page 12.
+    """
     if not 1 <= partition <= 3:
         raise ValueError(f"partition must be 1-3, got {partition}")
-    key_digit = _FUNCTION_KEY_DIGIT[key]
     return (
         "*57"
-        f"{key_digit}*"  # PRESS KEY TO PGM
-        f"{partition}*"  # PARTITION
-        f"{action.value:02d}*"  # KEY FUNC
-        "0*00"  # exit function-key programming (0 to exit this mode)
+        f"{key.value}*"  # PRESS KEY TO PGM: the A-D key itself, then [*]
+        f"{partition}*"  # PARTITION 1-3
+        f"{action.value:02d}*"  # KEY "A" FUNC, [*] returns to the key prompt
+        "0*"  # 0 at the key prompt exits to data field mode
     )
 
 

@@ -53,9 +53,13 @@ ATTR_KEYS = "keys"
 ATTR_ZONE = "zone"
 ATTR_CONFIRM_INSTALLER_RISK = "confirm_installer_risk"
 
-# Only digits, *, and # are valid ECP keystrokes per the TPI spec (true for
-# both the Honeywell and DSC keypad character sets).
+# Digits, * and # are the keypad keys any sequence may carry.
 _VALID_KEYSTROKE_CHARS = set("0123456789*#")
+# The A-D function keys. Outside Program Mode a bare letter over the TPI is
+# that key's emergency (pyenvisalink raises a Fire panic with "A"), so a letter
+# passes only as the key chosen at the *57 PRESS KEY TO PGM prompt.
+_FUNCTION_KEY_CHARS = set("ABCD")
+_FUNCTION_KEY_PROMPT = "*57"
 
 # A keystroke string can embed a secret: the installer code (4-6 digits) or a
 # user/arm-disarm code. Any run of 4+ consecutive digits is a code; mask it
@@ -102,12 +106,16 @@ def validate_keystrokes(
     allow_installer_mode: bool = False,
     installer_code: str | None = None,
     dialect: PanelDialect | None = None,
+    allow_function_key: bool = False,
 ) -> None:
     """Raise KeystrokeGuardError if ``keys`` is unsafe to send unattended.
 
     ``dialect`` selects the panel family whose Program-Mode trigger to guard
     against (VISTA's ``<code>800`` vs. DSC's ``*8<code>``). It defaults to the
     VISTA dialect when no dialect is passed.
+
+    ``allow_function_key`` lets one A-D letter through, and only directly after
+    ``*57`` in a sequence that opens Program Mode with installer mode allowed.
     """
     if not keys:
         raise KeystrokeGuardError(
@@ -115,16 +123,26 @@ def validate_keystrokes(
             translation_key="empty_keystrokes",
         )
 
+    if dialect is None:
+        dialect = get_dialect(None)  # VISTA-21iP default
+
+    letters = [i for i, key in enumerate(keys) if key in _FUNCTION_KEY_CHARS]
+    letter_allowed = (
+        allow_function_key
+        and allow_installer_mode
+        and len(letters) == 1
+        and keys[: letters[0]].endswith(_FUNCTION_KEY_PROMPT)
+        and dialect.opens_program_mode(keys[: letters[0]], installer_code)
+    )
     invalid_chars = set(keys) - _VALID_KEYSTROKE_CHARS
+    if letter_allowed:
+        invalid_chars -= _FUNCTION_KEY_CHARS
     if invalid_chars:
         raise KeystrokeGuardError(
             translation_domain=DOMAIN,
             translation_key="invalid_keystroke_characters",
             translation_placeholders={"characters": " ".join(sorted(invalid_chars))},
         )
-
-    if dialect is None:
-        dialect = get_dialect(None)  # VISTA-21iP default
 
     if not allow_installer_mode and dialect.opens_program_mode(keys, installer_code):
         raise KeystrokeGuardError(
@@ -142,6 +160,7 @@ async def async_send_guarded_keystrokes(
     allow_installer_mode: bool = False,
     installer_code: str | None = None,
     dialect: PanelDialect | None = None,
+    allow_function_key: bool = False,
 ) -> None:
     """Validate ``keys`` against the safety guard, then send them."""
     validate_keystrokes(
@@ -149,6 +168,7 @@ async def async_send_guarded_keystrokes(
         allow_installer_mode=allow_installer_mode,
         installer_code=installer_code,
         dialect=dialect,
+        allow_function_key=allow_function_key,
     )
     try:
         await client.send_keystrokes(partition, keys)

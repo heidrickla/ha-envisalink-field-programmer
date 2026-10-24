@@ -317,7 +317,7 @@ def test_build_function_key_keystrokes():
     keys = build_function_key_keystrokes(
         FunctionKeyLetter.A, partition=1, action=FunctionKeyAction.ARM_AWAY
     )
-    assert keys == "*571*1*03*0*00"
+    assert keys == "*57A*1*03*0*"
 
 
 def test_build_function_key_keystrokes_rejects_bad_partition():

@@ -216,6 +216,7 @@ async def _send_program_mode_sequence(
         full_sequence,
         allow_installer_mode=True,
         dialect=coordinator.dialect,
+        allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
 
 

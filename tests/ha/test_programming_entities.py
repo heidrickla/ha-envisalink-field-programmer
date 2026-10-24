@@ -530,7 +530,7 @@ async def test_the_function_key_button_sends_what_the_action_sends(hass, fake_se
     await _switch(hass, _entity_id(hass, entry, "switch", "program_confirm"), True)
     await _press(hass, _entity_id(hass, entry, "button", "program_function_key"))
     await asyncio.sleep(0.05)
-    assert _sent(fake_server) == "4112800*571*1*03*0*00*99"
+    assert _sent(fake_server) == "4112800*57A*1*03*0**99"
     await unload_entry(hass, entry)
 
 

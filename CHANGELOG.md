@@ -4,6 +4,17 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.5.3] - 2026-10-24
+
+### Fixed
+
+- `program_function_key` and the Program function key button press the chosen A, B, C or D key at the `*57` PRESS KEY TO PGM prompt, as the programming guide's page 12 gives it, where they had typed a digit 1 to 4. The sequence leaves the function key menu with `0` and `*` and nothing after it.
+
+### Changed
+
+- The keystroke guard accepts an A to D letter only directly after `*57` in a sequence that opens Program Mode, and only from the guided function key operation. `send_keystrokes` refuses every letter.
+- The README lists the programming guide page for each guided keystroke, and PROGRAMMING.md gives the factory emergency function of each key.
+
 ## [0.5.2] - 2026-10-22
 
 ### Changed

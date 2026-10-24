@@ -144,6 +144,26 @@ Each operation has two front ends onto the same code: the entities and buttons o
 
 Every one of these always opens the panel's installer Program Mode (typing the installer code followed by `800`), which is why they require an installer code configured and an explicit confirmation -- the Confirm programming switch on the device, or `confirm: true` in the action; see [Safety](#safety-read-this).
 
+### Where each keystroke comes from
+
+Pages are in the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3 10/12 Rev B. The VISTA-20P, 15P and 10P guides give the same commands; [Panel model support](#panel-model-support) lists the differences.
+
+| Keystrokes | Field or prompt | Guide |
+|---|---|---|
+| `<installer code>800` | Open Program Mode | Page 4, "To enter programming mode", method B |
+| `*99` | Leave Program Mode, re-enterable by code | Page 4, Programming Mode Commands |
+| `*56`, then one entry and `*` per prompt: SET TO CONFIRM, ENTER ZN NUM, summary, ZONE TYPE, PARTITION, REPORT CODE, HARDWIRE TYPE, RESPONSE TIME or INPUT TYPE, PROGRAM ALPHA, `00` to quit | Zone programming | Page 11, "*56 Zone Programming Menu Mode" |
+| Zone type codes | ZONE TYPE | Page 21, "Zone Type Definitions" |
+| `*34`, `*35`, `*36` and the value | Exit delay, entry delay 1, entry delay 2 | Page 5, Data Field Programming Form |
+| `*84` and the value | Auto stay arm | Page 7, Data Field Programming Form |
+| `*57` | Function key menu | Page 4 ("Unlabeled keypad keys (known as ABCD keys)") and page 12 |
+| `A` to `D`, then `*` | PRESS KEY TO PGM: the function key itself, one of the four keys beside the digit keys | Page 12, "*57 Function Key Programming" |
+| `1` to `3`, then `*` | PARTITION | Page 12 |
+| `00` to `08`, then `*` | KEY "A" FUNC; `*` returns to the key prompt | Page 12, options 00 to 08 |
+| `0`, then `*` | Leave the function key menu for data field mode | Page 12 |
+
+The Envisalink carries each key as one `^03` keypress frame. Over that link a bare `A` to `D` is the key's emergency function, so the keystroke guard passes a letter only directly after `*57` in a sequence that opens Program Mode, and `send_keystrokes` never sends one.
+
 ## Safety (read this)
 
 Opening Vista's installer Program Mode gives access to every data field on the panel, including fire-zone and UL-listing-relevant settings, and once inside, most functions (including disarm) are unavailable until you exit. At worst that means a physical power cycle to get out. Two important specifics:
@@ -245,7 +265,7 @@ Guided edit of a single timing data field. Always opens Program Mode, so an inst
 
 ### `envisalink_field_programmer.program_function_key`
 
-Guided assignment of one keypad function key (the `*57` menu). Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Residential VISTA only.
+Guided assignment of one keypad function key (the `*57` menu, guide page 12). Always opens Program Mode, so an installer code must be configured and `confirm` must be true. Residential VISTA only. Key A set to Arm Away on partition 1 with installer code 4112 types `4112800*57A*1*03*0**99`.
 
 | Field | Required | Description |
 |---|---|---|
@@ -427,9 +447,9 @@ Five behaviours are built from the TPI protocol reference and the programming gu
 | **Zone bypass `*1zz#`** | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
 | **Zone open/closed from `%FF`** | Decode logic matching the reference `pyenvisalink` implementation. | Reading a zone that is genuinely open and one that is closed. |
 | **Exit-delay detection** | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
-| **The field-programming keystroke sequences** | The programming guide's documented prompt flow: `*56` zone prompt order, `*57` function key A/B/C/D-to-digit mapping, numbered data field entry. | Programming a non-critical zone and reading the result at the keypad. |
+| **The field-programming keystroke sequences** | The programming guide's documented prompt flow: `*56` zone prompt order, the `*57` function key prompts, numbered data field entry ([sources](#where-each-keystroke-comes-from)). | Programming a non-critical zone and reading the result at the keypad. |
 
-The A/B/C/D key digit mapping (`field_programming.py::_FUNCTION_KEY_DIGIT`) is flagged in code as the first thing to check if `program_function_key` does not do what is expected. Test any field-programming change on a non-critical zone first and verify it at the physical keypad ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)) before trusting it on a fire or security zone.
+Test any field-programming change on a non-critical zone first and verify it at the physical keypad ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)) before trusting it on a fire or security zone.
 
 ## Panel model support
 

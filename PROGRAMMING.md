@@ -135,7 +135,16 @@ Auto-stay arm switches an Away arming to Stay when nobody opens an entry door du
 
 ## Set a keypad function key
 
-The A, B, C and D keys on the keypad can run one function each.
+The A, B, C and D keys are the four keys beside the digit keys, and each can run one function. The panel's `*57` menu sets them (guide page 12, "*57 Function Key Programming").
+
+| Key | Factory emergency function (action "Default emergency key") | Same as pressing |
+|---|---|---|
+| A | Zone 95 | `1` and `*` together |
+| B | Zone 99 | `*` and `#` together |
+| C | Zone 96 | `3` and `#` together |
+| D | Single-button paging | |
+
+The emergency zone's type decides what it raises: zone 95 for A, 99 for B, 96 for C, each given its zone type in the `*56` menu (guide page 12). A key given any other action stops being an emergency or macro key.
 
 1. Function key: Key A to Key D.
 2. Function key action: for example Arm Away, Arm Stay, Show the time. "Default emergency key" puts the key back to its factory emergency function.

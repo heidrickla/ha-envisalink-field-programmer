@@ -517,5 +517,28 @@ async def test_program_function_key_sends_expected_keystrokes(hass, fake_server)
     await asyncio.sleep(0.05)
     keystroke_frames = [d for c, d in fake_server.received if c == "03"]
     full_sent = "".join(d.split(",", 1)[1] for d in keystroke_frames)
-    assert full_sent == "4112800*571*1*03*0*00*99"
+    assert full_sent == "4112800*57A*1*03*0**99"
+    await _unload(hass, entry)
+
+
+async def test_send_keystrokes_never_sends_a_function_key_letter(hass, fake_server):
+    # Over the TPI a bare A-D is that key's emergency; only the guided *57
+    # operation may send one, even with confirm_installer_risk.
+    entry = await _setup_entry(hass, fake_server)
+    for keys in ("A", "4112800*57A*1*03*0**99"):
+        with pytest.raises(ServiceValidationError) as raised:
+            await hass.services.async_call(
+                DOMAIN,
+                "send_keystrokes",
+                {
+                    "entry_id": entry.entry_id,
+                    "partition": 1,
+                    "keys": keys,
+                    "confirm_installer_risk": True,
+                },
+                blocking=True,
+            )
+        assert raised.value.translation_key == "invalid_keystroke_characters"
+    await asyncio.sleep(0.05)
+    assert not [d for c, d in fake_server.received if c == "03"]
     await _unload(hass, entry)
