@@ -175,7 +175,13 @@ Zone-type numbers on the summary line for the types the device page offers: 00 n
 | Installer code followed by `800` does nothing | The code is not the installer code, or programming was last left with `*98`, which locks the code out. Use the power-up method below. |
 | `Busy Standby` or `dI` for about a minute after power returns | Normal start-up while sensors settle. `#0` skips the wait. |
 
-The power-up method: remove all power from the panel (unplug its transformer and disconnect its backup battery), restore it, and within 50 seconds press `*` and `#` together on the keypad. The panel opens Program Mode without the installer code. This is the only way back in after `*98`.
+The power-up method opens Program Mode without the installer code. It is the only way back in after `*98`, and it takes two people:
+
+1. If the panel is monitored, put the central station on test first.
+2. At the panel: unplug its transformer and disconnect its backup battery, wait 1 minute, then reconnect both.
+3. At the keypad: as soon as the keypad comes up, hold `*` and `#` together for 5 seconds, then let go. This has to happen within 50 seconds of power returning.
+
+Warning: `*` and `#` together are also the keypad's panic keys. Held longer than 30 seconds, they send a panic alarm, and on a monitored panel the police are dispatched.
 
 Two keys to avoid while in Program Mode:
 
