@@ -9,6 +9,7 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 ### Changed
 
 - Setup asks only for the Envisalink password, and the address unless DHCP discovery found it. The port waits in a collapsed Address and port section, which an error opens with what was typed kept.
+- The first screen submits with Address and port left collapsed: the section opens holding the port and any discovered address, where before the frontend sent it empty and refused Submit with "Not all required fields are filled in."
 - A last setup screen, Your alarm panel, holds the panel model, the partition and zone counts, the default user code and the installer code, all preset (VISTA-21iP, one partition, eight zones, no codes), so Submit finishes the setup. Both codes are stored in the options.
 - The integration ships `translations/en.json` alone; `strings.json` is gone, and `hacs.json` drops `render_readme`.
 - The README starts with the installation: My Home Assistant buttons for HACS and for adding the integration, then the setup screens in order.

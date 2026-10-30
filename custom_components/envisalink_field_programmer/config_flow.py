@@ -102,7 +102,9 @@ def _connection_schema(discovered_host: str | None, *, collapsed: bool) -> vol.S
         advanced[vol.Required(CONF_HOST, default=discovered_host)] = str
     first[vol.Required(CONF_PASSWORD)] = _PASSWORD
     advanced[vol.Required(CONF_PORT, default=DEFAULT_PORT)] = cv.port
-    first[vol.Required(CONF_ADVANCED, default={})] = section(
+    # No default on the section key: the frontend would send that default as
+    # the section's data and never fill in the defaults of the fields inside.
+    first[vol.Required(CONF_ADVANCED)] = section(
         vol.Schema(advanced), {"collapsed": collapsed}
     )
     return vol.Schema(first)
