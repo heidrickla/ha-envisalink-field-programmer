@@ -6,6 +6,20 @@ A standalone Home Assistant custom integration for a Honeywell/Ademco VISTA alar
 
 Envisalink Field Programmer talks the Envisalink TPI (Third Party Interface) protocol directly over TCP (port 4025) with its own asyncio client. It does not depend on `pyenvisalink` or any other integration.
 
+## Screenshots
+
+![The Connect to the Envisalink setup screen with the Address and port section collapsed](docs/images/setup.png)
+
+The first setup screen asks for the address and the Envisalink password.
+
+![The setup screen shown when the Envisalink is busy](docs/images/busy.png)
+
+When another client holds the module's one TPI session, setup says so and logs in again on Submit.
+
+![The Envisalink device page with the partition and eight zones](docs/images/device.png)
+
+The device page, captured against the test suite's fake TPI server.
+
 ## Installation
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=heidrickla&repository=ha-envisalink-field-programmer&category=integration)
