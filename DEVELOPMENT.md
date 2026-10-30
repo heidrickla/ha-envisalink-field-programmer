@@ -74,7 +74,7 @@ Observed on 2026-09-16: `212 passed` for the full suite, `81 passed, 1 skipped` 
 
 `mypy --strict` only means something with Home Assistant installed in the interpreter running it: without it every Home Assistant class is `Any`, so subclassing an entity and decorating with `@callback` are reported and the real checks are skipped. Run it from the venv that has the harness. `[tool.mypy]` is Home Assistant core's own generated `[mypy]` block for 2026.8.3 plus `strict`, so `warn_unreachable` and core's `enable_error_code` list apply: a new method that overrides a base method needs `@typing.override`, under the existing `@property` or `@callback`. `.github/workflows/tests.yml` runs all four steps on every push with Home Assistant 2026.8 on Python 3.14, with `pytest-cov` reporting coverage for `tests/ha`.
 
-`tools/validate_local.py` is the offline stand-in for hassfest and the cross-file checks nothing else does: `services.yaml` and the README against the action names in `const.py`, every translated exception key against `strings.json`, `strings.json` against `translations/en.json`, the manifest against the components the code imports, `quality_scale.yaml` against the pinned list of 54 rules, the four `brand/` PNGs against their sizes, and the `hacs.json` Home Assistant floor against 2026.3.0. Two checks are there because the obvious form of each is wrong:
+`tools/validate_local.py` is the offline stand-in for hassfest and the cross-file checks nothing else does: `services.yaml` and the README against the action names in `const.py`, every translated exception key against `translations/en.json`, which is the only translation file shipped (no `strings.json`, which the Marketplace does not take), every step the config flow shows against its translation, the manifest against the components the code imports, `quality_scale.yaml` against the pinned list of 54 rules, the four `brand/` PNGs against their sizes, and the `hacs.json` Home Assistant floor against 2026.3.0. Two checks are there because the obvious form of each is wrong:
 
 | Check | Why it is written that way |
 |---|---|
@@ -98,7 +98,7 @@ python -m script.hassfest --action validate --integration-path /path/to/custom_c
 
 Core 2026.8.3 sets `required-version = ">=0.16.0"` in its own `[tool.ruff]`, and hassfest's `serializer.py` resolves `ruff` with `shutil.which` and runs it with the core checkout as the working directory. The pinned 0.15.21 exits 2 there and hassfest raises `CalledProcessError`, so a 0.16.0 or newer ruff has to come first on `PATH` for the local run.
 
-`.github/workflows/ci.yml`'s `validate-*` jobs run the version-matched `home-assistant/actions/hassfest` and `hacs/action` on a push to `main`, on a `v*` tag and on a pull request. The manifest, `services.yaml`, `strings.json` and `hacs.json` checks in `tools/validate_local.py` approximate hassfest's and `hacs/action`'s rules offline.
+`.github/workflows/ci.yml`'s `validate-*` jobs run the version-matched `home-assistant/actions/hassfest` and `hacs/action` on a push to `main`, on a `v*` tag and on a pull request. The manifest, `services.yaml`, `translations/en.json` and `hacs.json` checks in `tools/validate_local.py` approximate hassfest's and `hacs/action`'s rules offline.
 
 ## The programming form (no frontend build)
 
@@ -112,11 +112,11 @@ The form lives in three places:
 | `number.py`, `select.py`, `switch.py` | The fields. Setting one writes to the form and calls `async_write_ha_state()`. None of them touches the panel. |
 | `button.py` | The only thing that sends. It checks the confirm switch and the required values, calls the matching `async_program_*` coroutine in `field_programming_services.py`, the same one the action calls, records the result, clears the confirmations, and calls `coordinator.async_update_listeners()` so the switches and the result sensor redraw. |
 
-Adding a field means: the attribute on `ProgrammingForm`, the entity in its platform, the name (and any option names) in `strings.json`, an icon in `icons.json`, and the read in the button. `tools/validate_local.py` fails a name or icon that matches no entity, and an entity whose name is not declared.
+Adding a field means: the attribute on `ProgrammingForm`, the entity in its platform, the name (and any option names) in `translations/en.json`, an icon in `icons.json`, and the read in the button. `tools/validate_local.py` fails a name or icon that matches no entity, and an entity whose name is not declared.
 
 ## Only one TPI client at a time
 
-Observed 2026-07-04 against a live Envisalink EVL-4 and VISTA-21iP: setting this integration up while `envisalink_new`, or anything else, already holds a TPI connection to the same module fails with "Could not connect to the Envisalink at that host/port". The config flow cannot tell that apart from a wrong host or port. The module's TPI server accepts exactly one client connection on port 4025 and refuses a second outright, which matches the TPI spec's "will only accept one client connection on that port".
+The module's TPI server accepts one client connection on port 4025, which matches the TPI spec's "will only accept one client connection on that port". Observed 2026-07-04 against a live EVL-4 and VISTA-21iP: setup while `envisalink_new` held the session failed with "Could not connect". Measured 2026-09-05: a client that connects while the module still counts another connection gets the `Login:` prompt and is then dropped with no answer. `client.py` raises `TPISessionBusyError` for that drop, and the config flow turns it into The Envisalink is busy step, which logs in again on Submit; any other connection failure stays "Could not connect".
 
 Before assuming the new entry's host, port or password is wrong: if another Envisalink integration is configured on the same Home Assistant instance, check its `disabled_by` in `.storage/core.config_entries`, or in the UI. An entry that is not disabled is the likely cause.
 
@@ -126,8 +126,8 @@ The protocol this integration speaks is in `client.py`'s module docstring. Two s
 
 | Source | What it gave |
 |---|---|
-| **Raw socket capture** | The EVL sends `Login:\r\n`, takes the plain-text password with no framing and no checksum, and answers `OK\r\n`, `FAILED\r\n` or `Timed Out!\r\n`. Every later message is `%CODE,DATA$` (EVL to client) or `^CODE,DATA$` (client to EVL), terminated by `$`. Keystrokes go one character per frame, `^03,<partition>,<char>$`. |
-| **`pyenvisalink`** | The icon-LED bitfield layout, CID event parsing, zone timer dump maths, and the Honeywell response-code table where `01` is "Receive Buffer Overrun". |
+| Raw socket capture | The EVL sends `Login:\r\n`, takes the plain-text password with no framing and no checksum, and answers `OK\r\n`, `FAILED\r\n` or `Timed Out!\r\n`. Every later message is `%CODE,DATA$` (EVL to client) or `^CODE,DATA$` (client to EVL), terminated by `$`. Keystrokes go one character per frame, `^03,<partition>,<char>$`. |
+| `pyenvisalink` | The icon-LED bitfield layout, CID event parsing, zone timer dump maths, and the Honeywell response-code table where `01` is "Receive Buffer Overrun". |
 
 The "EnvisaLink TPI Programmer's Document v1.08" (2017-02-10) PDF describes a different variant of TPI: hex-ASCII, checksum-framed, 3-digit numeric command codes, a `005`/`505` login handshake. This hardware does not answer it. A client built to that PDF fails at the handshake with a checksum mismatch on the literal string `Login:`.
 

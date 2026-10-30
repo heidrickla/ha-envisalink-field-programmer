@@ -6,55 +6,41 @@ A standalone Home Assistant custom integration for a Honeywell/Ademco VISTA alar
 
 Envisalink Field Programmer talks the Envisalink TPI (Third Party Interface) protocol directly over TCP (port 4025) with its own asyncio client. It does not depend on `pyenvisalink` or any other integration.
 
-## Why this exists (and how it relates to `envisalink_new`)
-
-[`ufodone/envisalink_new`](https://github.com/ufodone/envisalink_new) is a mature, actively maintained HACS integration that already covers arm/disarm, zone/partition status, and bypass switches for both DSC and Honeywell panels well. If all you want is basic alarm control, use that one.
-
-This integration's reason to exist is guided installer field programming: a structured, plain-language layer over Vista's `*56`/`*57` keypad programming language (zone types, entry/exit timing, function keys), with strong confirmation gates given the fire/UL-safety stakes of getting installer programming wrong. Nothing else exposes this through Home Assistant today. Arm, disarm, status and zone entities are included.
-
-Typical uses:
-
-- Retype a zone (say, a former window contact now on a motion detector) from the Home Assistant UI instead of at the keypad, with the zone type chosen by name rather than by remembering that Perimeter is 3.
-- Change the exit delay for a season, or assign a keypad function key, as a scripted, repeatable action.
-- Arm, disarm, watch zones and bypass one for the night, all locally.
-
-## Features
-
-- Config flow setup (host, port, password, panel model, default user code, zone and partition counts); an optional installer code, set later in the integration's options, turns on field programming, and on a VISTA-21iP or 20P the Zone doubling option says how zones 9 to 16 are programmed. Panel model defaults to the VISTA-21iP; see [Panel model support](#panel-model-support) for the full model list and what each one's support level means.
-- DHCP discovery: an Envisalink that takes a lease is offered with its address filled in, and one that later moves takes its entry with it. See [Discovery](#discovery).
-- Reconfigure without losing the entry: address, password, panel model and the zone and partition counts. See [Reconfiguring](#reconfiguring).
-- One `alarm_control_panel` entity per partition: arm away/home/night, disarm.
-- One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities for bypass (disabled by default in the entity registry; enable the ones you want).
-- A system trouble `binary_sensor` (AC power, low battery, general trouble per partition, plus installer mode), filed as a diagnostic entity.
-- Diagnostic sensors: last user to arm or disarm each partition, and the last raw panel event (disabled by default: it changes on every keepalive acknowledgement, so enable it only while debugging the protocol).
-- A repair issue when the Envisalink stops answering for several minutes, naming the usual cause: another client holding its single TPI session.
-- Guided field programming on the device page: a configuration entity per programming field, a button per operation, a Confirm programming switch that has to be on for any write and turns itself off again afterwards, and a diagnostic sensor carrying the last result. Nothing to install and no dashboard card to add. See [The device page](#the-device-page).
-- Guided field-programming actions `program_zone`, `set_system_timing` and `program_function_key`, the same operations for automations, plus the lower-level `send_keystrokes` and `toggle_zone_bypass`; see [Actions](#actions) and [Safety](#safety-read-this).
-- Diagnostics download (Settings, Devices & services, Envisalink Field Programmer, Download diagnostics) with the password, both codes, the Envisalink's address, its MAC and your zone names redacted; see [Backups](#backups-what-this-can-and-cant-capture).
-
 ## Installation
 
-HACS (custom repository): add this repository as a custom repository (category Integration), then install "Envisalink Field Programmer". Home Assistant 2026.3 or newer. Two things need that release: the DHCP discovery helper the config flow imports (2025.2), and the brands component that serves an integration's own `brand/` directory (2026.3). This integration ships its icon and logo in `custom_components/envisalink_field_programmer/brand/` and is in no brands repository, so on anything older it would load with no icon anywhere in the interface.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=heidrickla&repository=ha-envisalink-field-programmer&category=integration)
 
-`hacs.json` sets no `country`. That key filters the store listing to the countries it names and hides the repository from every other viewer. This integration speaks Envisalink TPI over TCP 4025 on the local network, with no cloud and no regional service, and the EyezOn module and the Honeywell VISTA and DSC PowerSeries panels behind it sell outside the United States. Naming a country would hide the listing from real owners and gate nothing.
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=envisalink_field_programmer)
+
+1. Open the repository in HACS with the first button, download Envisalink Field Programmer, and restart Home Assistant (2026.3 or newer).
+2. Disable any other integration connected to this Envisalink, such as `envisalink_new` or the built-in Envisalink integration: the module admits one TPI client at a time.
+3. Add the integration with the second button. A module Home Assistant found on the network is also offered under Settings, Devices & services, with its address filled in.
+4. Connect to the Envisalink: type the Envisalink password, and the address unless it was found. The port, 4025, waits under Address and port.
+5. If The Envisalink is busy appears, another client still holds the module's session: disable it and press Submit to check again.
+6. Your alarm panel: the panel model, partitions and zones are set for a VISTA-21iP with one partition and eight zones, and both codes are optional. Change what differs on your panel and press Submit.
+
+Without the buttons: in HACS add `https://github.com/heidrickla/ha-envisalink-field-programmer` as a custom repository (category Integration) and download it, restart, then Settings, Devices & services, Add integration, Envisalink Field Programmer.
 
 Manual: copy `custom_components/envisalink_field_programmer/` into your Home Assistant `config/custom_components/` directory and restart.
 
-Then: Settings, Devices & services, Add integration, "Envisalink Field Programmer".
+Home Assistant 2026.3 or newer is needed for two things: the DHCP discovery helper the config flow imports (2025.2), and the brands component that serves an integration's own `brand/` directory (2026.3). This integration ships its icon and logo in `custom_components/envisalink_field_programmer/brand/` and is in no brands repository.
 
-### Installation parameters
+`hacs.json` sets no `country`. That key filters the store listing to the countries it names and hides the repository from every other viewer. This integration speaks Envisalink TPI over TCP 4025 on the local network, with no cloud and no regional service, and the EyezOn module and the Honeywell VISTA and DSC PowerSeries panels behind it sell outside the United States.
 
-| Field | Required | Description |
-|---|---|---|
-| Host | yes | The Envisalink's IP address or hostname on your LAN. A DHCP reservation is still the tidiest arrangement, but a changed address no longer means starting over: see [Discovery](#discovery) and [Reconfiguring](#reconfiguring). |
-| Port | yes | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
-| Envisalink password | yes | The password for the Envisalink's local web page. Not a panel code. |
-| Alarm panel model | yes | The panel behind the Envisalink. Sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified. Defaults to VISTA-21iP. |
-| Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none: four digits, or four or six on a DSC panel. A code in any other form, given here or on a call, is refused before anything is typed. Blank means every arm and disarm needs a code. Read the [Safety](#safety-read-this) note on what a default code means. |
-| Number of partitions | yes | Partitions configured on the panel, 1 to 8 within the model's limit. One alarm control panel entity per partition. |
-| Number of zones | yes | Zones to create sensors for, 1 to 250 within the model's limit. Unused zones stay closed. |
+### Setup screens
 
-The flow logs in to the Envisalink before creating the entry, so a wrong password ("The Envisalink rejected that password") or a busy or unreachable port ("Could not connect") is caught on the form. That test hands the module's single client slot back before the entry's own connection opens, and the entry tries a second time if the module has not caught up yet, so submitting the form does not leave you with an entry that has to wait for a retry.
+| Screen | Field | Required | Description |
+|---|---|---|---|
+| Connect to the Envisalink | Host | yes | The Envisalink's IP address or hostname on your LAN. Not asked when discovery found the module; its address is then under Address and port. A changed address is followed: see [Discovery](#discovery) and [Reconfiguring](#reconfiguring). |
+| Connect to the Envisalink | Envisalink password | yes | The password for the Envisalink's local web page. Not a panel code. |
+| Address and port (collapsed) | Port | no | The TPI port, 4025 unless you changed it on the Envisalink's web page. |
+| Your alarm panel | Alarm panel model | no | The panel behind the Envisalink, VISTA-21iP unless changed. Sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified. |
+| Your alarm panel | Number of partitions | no | Partitions configured on the panel, 1 to 8 within the model's limit, 1 unless changed. One alarm control panel entity per partition. |
+| Your alarm panel | Number of zones | no | Zones to create sensors for, 1 to 250 within the model's limit, 8 unless changed. Unused zones stay closed. |
+| Your alarm panel | Default user code | no | A panel user code Home Assistant types to arm and disarm when a call supplies none: four digits, or four or six on a DSC panel. A code in any other form, given here or on a call, is refused before anything is typed. Blank means every arm and disarm needs a code. See [Safety](#safety-read-this). |
+| Your alarm panel | Installer code | no | Enables field programming. Every guided operation types this code followed by `800` to open Program Mode. Blank leaves field programming off. |
+
+The first screen logs in to the Envisalink before going on, so a wrong password ("The Envisalink rejected that password") or an unreachable address ("Could not connect") is caught there, with Address and port opened. A login the module answers with its prompt and then drops unanswered, which is how it turns a client away while another holds its TPI session, opens The Envisalink is busy, which logs in again on Submit. The test hands the module's single client slot back before the entry's own connection opens, and the entry tries a second time if the module has not caught up yet. The panel screen dials nothing. Both codes are stored in the options, where they can be changed or removed later.
 
 ### Options
 
@@ -73,7 +59,7 @@ The stored codes are never shown in the form, only whether one is set. Saving th
 
 ### Discovery
 
-Envisalink modules carry a MAC address from `00:1C:2A`, the block the IEEE registry assigns to Envisacor Technologies Inc., who make them. When one takes a DHCP lease, Home Assistant offers it under Settings, Devices & services as a discovered device with its address already filled in. Nothing is created automatically: the Envisalink password still has to be typed, and the rest of the form is the ordinary setup form.
+Envisalink modules carry a MAC address from `00:1C:2A`, the block the IEEE registry assigns to Envisacor Technologies Inc., who make them. When one takes a DHCP lease, Home Assistant offers it under Settings, Devices & services as a discovered device with its address already filled in. Nothing is created automatically: the first screen asks only for the Envisalink password, with the address under Address and port, and the panel screen follows as usual.
 
 Setting an entry up from a discovery also stores the module's MAC with it, which is the only way this integration can ever know one. TPI reports no serial number and no MAC of its own, so without that a module that reappears at a new address is indistinguishable from a second module. With it:
 
@@ -103,11 +89,11 @@ Lowering a count reloads the entry, and setup then deletes the registry entries 
 
 ### The Envisalink only accepts one TPI client at a time
 
-Confirmed against real hardware: if `envisalink_new` (or any other integration or app already talking TPI to this Envisalink) is connected, setting up this integration against the same device fails with "Could not connect to the Envisalink at that host and port", not because the host, port or password are wrong, but because the Envisalink's TPI server (port 4025) refuses a second simultaneous connection outright. This is a hardware/firmware limit, not a bug in either integration.
+While `envisalink_new`, the built-in Envisalink integration or any other app is connected over TPI, the Envisalink's TPI server (port 4025) turns this integration away. Setup shows The Envisalink is busy when the module drops the login unanswered, and "Could not connect" when it refuses the connection outright; neither means the host, port or password is wrong. This is a limit of the module's firmware.
 
-If you hit that error and you are sure your connection details are correct, check whether another integration already holds the connection (Settings, Devices & services, find it, confirm it is enabled) and disable it first. The two integrations cannot both be connected at the same time, so plan your setup around whichever one you want active day to day (for example keep `envisalink_new` enabled for daily zone and arm status, and only temporarily disable it and enable this one when you need to do field programming).
+Check whether another integration holds the connection (Settings, Devices & services, find it, confirm it is enabled), disable it, and press Submit. The two integrations cannot both be connected at the same time, so plan your setup around whichever one you want active day to day (for example keep `envisalink_new` enabled for daily zone and arm status, and only temporarily disable it and enable this one when you need to do field programming).
 
-The one client is also released and reclaimed rather than shared. Measured against an EVL-4 on 2026-09-05: the module frees its slot only when it has seen the previous connection close, and a client that connects a few milliseconds later is dropped part-way through the login with no answer at all. So this integration waits for its own disconnect to land, the setup form waits a further half second after testing a login, and setup makes a second connection attempt before giving up on a module that is still catching up. There is no lockout to worry about on the way: the module accepts the right password immediately after any number of rejected ones.
+The one client is also released and reclaimed rather than shared. Measured against an EVL-4 on 2026-09-05: the module frees its slot only when it has seen the previous connection close, and a client that connects a few milliseconds later is dropped part-way through the login with no answer at all. So this integration waits for its own disconnect to land, the setup form waits a further half second after testing a login, and setup makes a second connection attempt before giving up on a module that is still catching up.
 
 ### Removing the integration
 
@@ -116,6 +102,32 @@ The one client is also released and reclaimed rather than shared. Measured again
 3. Nothing else is left behind: the integration registers no dashboard resource and ships no card, so there is nothing to unregister.
 
 Nothing is written to the panel by installing or removing the integration.
+
+## Why this exists (and how it relates to `envisalink_new`)
+
+[`ufodone/envisalink_new`](https://github.com/ufodone/envisalink_new) is a mature, actively maintained HACS integration that already covers arm/disarm, zone/partition status, and bypass switches for both DSC and Honeywell panels well. Home Assistant's built-in [Envisalink](https://www.home-assistant.io/integrations/envisalink) integration, set up in YAML on `pyenvisalink`, covers the same basics. If all you want is basic alarm control, use one of those.
+
+This integration's reason to exist is guided installer field programming: a structured, plain-language layer over Vista's `*56`/`*57` keypad programming language (zone types, entry/exit timing, function keys), with strong confirmation gates given the fire/UL-safety stakes of getting installer programming wrong. Nothing else exposes this through Home Assistant today. Arm, disarm, status and zone entities are included.
+
+Typical uses:
+
+- Retype a zone (say, a former window contact now on a motion detector) from the Home Assistant UI instead of at the keypad, with the zone type chosen by name rather than by remembering that Perimeter is 3.
+- Change the exit delay for a season, or assign a keypad function key, as a scripted, repeatable action.
+- Arm, disarm, watch zones and bypass one for the night, all locally.
+
+## Features
+
+- Setup in two screens: the Envisalink password (and its address unless discovered), then the panel with its model, counts and optional codes already set to defaults. An optional installer code turns on field programming, and on a VISTA-21iP or 20P the Zone doubling option says how zones 9 to 16 are programmed. See [Panel model support](#panel-model-support) for the full model list and what each one's support level means.
+- DHCP discovery: an Envisalink that takes a lease is offered with its address filled in, and one that later moves takes its entry with it. See [Discovery](#discovery).
+- Reconfigure without losing the entry: address, password, panel model and the zone and partition counts. See [Reconfiguring](#reconfiguring).
+- One `alarm_control_panel` entity per partition: arm away/home/night, disarm.
+- One `binary_sensor` per zone (open/closed), plus per-zone `switch` entities for bypass (disabled by default in the entity registry; enable the ones you want).
+- A system trouble `binary_sensor` (AC power, low battery, general trouble per partition, plus installer mode), filed as a diagnostic entity.
+- Diagnostic sensors: last user to arm or disarm each partition, and the last raw panel event (disabled by default: it changes on every keepalive acknowledgement, so enable it only while debugging the protocol).
+- A repair issue when the Envisalink stops answering for several minutes, naming the usual cause: another client holding its single TPI session.
+- Guided field programming on the device page: a configuration entity per programming field, a button per operation, a Confirm programming switch that has to be on for any write and turns itself off again afterwards, and a diagnostic sensor carrying the last result. Nothing to install and no dashboard card to add. See [The device page](#the-device-page).
+- Guided field-programming actions `program_zone`, `set_system_timing` and `program_function_key`, the same operations for automations, plus the lower-level `send_keystrokes` and `toggle_zone_bypass`; see [Actions](#actions) and [Safety](#safety-read-this).
+- Diagnostics download (Settings, Devices & services, Envisalink Field Programmer, Download diagnostics) with the password, both codes, the Envisalink's address, its MAC and your zone names redacted; see [Backups](#backups-what-this-can-and-cant-capture).
 
 ## How it updates
 
@@ -181,7 +193,7 @@ Given that, this integration:
 - Lets only an administrator program the panel: `send_keystrokes`, `program_zone`, `set_system_timing`, `program_function_key`, the three programming buttons and the programming form's switches, numbers and selects refuse a signed-in user who is not one. Automations and scripts started by the system run them. Zone bypass, as an action or a zone's switch, is open to every user.
 - Never logs the installer code, the user code or the Envisalink password, redacts them in diagnostics, and masks any run of four or more digits in a guard error before it reaches the log, an error message or the result sensor.
 
-A default user code changes who can disarm. A real Vista panel disarms by typing a user code; with a default user code stored, the alarm control panel entity disarms without asking anyone for a code. Anyone who can call `alarm_control_panel.alarm_disarm` in your Home Assistant (any user, any automation, any exposed voice assistant) can then disarm the panel. Leave the default code blank if that is not acceptable; every arm and disarm then needs the code on the call. The stored codes live in Home Assistant's config entry store in plain text, like every integration's credentials, so back that store up accordingly.
+With a default user code stored, the alarm control panel entity arms and disarms without asking for a code. Leave it blank and every arm and disarm needs the code on the call.
 
 If you do not need field programming, ignore it entirely and do not configure an installer code. Arm, disarm, status and zone bypass never touch any of this.
 
@@ -367,19 +379,19 @@ Setting any of these changes nothing on the panel. They are a form. The panel he
 
 | Field | Entity | Notes |
 |---|---|---|
-| Zone to program | **Zone to program** (number) | 1 to 64, within the model's zone count. |
-| Zone type | **Zone type** (select) | Plain-language names, not Vista codes. |
-| Partition | **Zone partition** (select) | 1 to 3, as the `*56` menu takes. |
-| Reporting | **Zone reports to monitoring station** (switch) | On by default. |
-| Wiring style | **Zone hardwire type** (select) | Board zones that ask it; offers only the model's wiring types. |
-| Response time | **Zone response time** (select) | Board zones only. |
-| Expansion zone connection | **Zone connection** (select) | Wired on a zone expander, or wireless. Needed for zones 9 and up that are not doubled zones; cleared after every press. Not shown on the 10P. |
-| Timing field | **Timing field** (select) | Only the fields this panel's dialect has. |
-| Timing value | **Timing value** (number) | Range checked against the chosen field on press. |
-| Timing partition | **Timing partition** (select) | Commercial panels only, where timing is per partition. |
-| Function key | **Function key** (select) | A, B, C or D. |
-| Function key action | **Function key action** (select) | Arm Away, Show the time, and so on. |
-| Function key partition | **Function key partition** (select) | 1 to 3, as the `*57` menu takes. |
+| Zone to program | Zone to program (number) | 1 to 64, within the model's zone count. |
+| Zone type | Zone type (select) | Plain-language names, not Vista codes. |
+| Partition | Zone partition (select) | 1 to 3, as the `*56` menu takes. |
+| Reporting | Zone reports to monitoring station (switch) | On by default. |
+| Wiring style | Zone hardwire type (select) | Board zones that ask it; offers only the model's wiring types. |
+| Response time | Zone response time (select) | Board zones only. |
+| Expansion zone connection | Zone connection (select) | Wired on a zone expander, or wireless. Needed for zones 9 and up that are not doubled zones; cleared after every press. Not shown on the 10P. |
+| Timing field | Timing field (select) | Only the fields this panel's dialect has. |
+| Timing value | Timing value (number) | Range checked against the chosen field on press. |
+| Timing partition | Timing partition (select) | Commercial panels only, where timing is per partition. |
+| Function key | Function key (select) | A, B, C or D. |
+| Function key action | Function key action (select) | Arm Away, Show the time, and so on. |
+| Function key partition | Function key partition (select) | 1 to 3, as the `*57` menu takes. |
 
 Three buttons submit what the form holds: Program zone, Set system timing, Program function key. Each one runs exactly the operation the action of the same name runs.
 
@@ -398,15 +410,15 @@ The form is held in memory for as long as the entry is loaded. Reloading the ent
 
 | Limitation | Detail |
 |---|---|
-| **One TPI client** | The Envisalink serves one client at a time. See [above](#the-envisalink-only-accepts-one-tpi-client-at-a-time). |
-| **No read-back** | Nothing about the panel's programming can be read over TPI. Every field-programming action is blind and must be checked at the keypad. |
-| **No entry-delay state** | Exit delay is detected from the keypad's display text. Entry delay, "pending", is not represented, matching the reference `pyenvisalink` implementation. |
-| **Zone state lags up to 30 seconds** | That is the zone timer dump cadence. Partition state is immediate. |
-| **Bypass state is optimistic** | The panel does not say which zone was bypassed, so the switch assumes success and clears with the partition's bypass flag. |
-| **Guided zone programming is refused on commercial VISTA** | Arm, disarm, bypass and guided timing work there. The device page leaves the zone fields out rather than offering buttons that always refuse. |
-| **DSC PowerSeries is reference only** | `client.py` speaks Honeywell TPI framing. A DSC panel needs a transport this tree does not carry, and arm, disarm, zone state and guided programming all wait on it. The DSC dialect supplies the section grammar and the zone-type table and drives nothing. |
-| **The programming form is not remembered** | It lives in memory while the entry is loaded and clears on a reload or restart. |
-| **The panel has no identity over TPI** | No serial and no MAC, so an entry is identified by its address. A module's MAC is known only if a DHCP discovery supplied it, and that is what lets a move be followed. |
+| One TPI client | The Envisalink serves one client at a time. See [above](#the-envisalink-only-accepts-one-tpi-client-at-a-time). |
+| No read-back | Nothing about the panel's programming can be read over TPI. Every field-programming action is blind and must be checked at the keypad. |
+| No entry-delay state | Exit delay is detected from the keypad's display text. Entry delay, "pending", is not represented, matching the reference `pyenvisalink` implementation. |
+| Zone state lags up to 30 seconds | That is the zone timer dump cadence. Partition state is immediate. |
+| Bypass state is optimistic | The panel does not say which zone was bypassed, so the switch assumes success and clears with the partition's bypass flag. |
+| Guided zone programming is refused on commercial VISTA | Arm, disarm, bypass and guided timing work there. The device page leaves the zone fields out rather than offering buttons that always refuse. |
+| DSC PowerSeries is reference only | `client.py` speaks Honeywell TPI framing. A DSC panel needs a transport this tree does not carry, and arm, disarm, zone state and guided programming all wait on it. The DSC dialect supplies the section grammar and the zone-type table and drives nothing. |
+| The programming form is not remembered | It lives in memory while the entry is loaded and clears on a reload or restart. |
+| The panel has no identity over TPI | No serial and no MAC, so an entry is identified by its address. A module's MAC is known only if a DHCP discovery supplied it, and that is what lets a move be followed. |
 
 ## Troubleshooting
 
@@ -443,11 +455,11 @@ Five behaviours are built from the TPI protocol reference and the programming gu
 
 | Behaviour | Built from | Check on your panel |
 |---|---|---|
-| **Arm and disarm by keystrokes** | User code plus a mode digit, the mechanism a physical keypad uses. | Arming and disarming a live partition end to end. |
-| **Zone bypass `*1zz#`** | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
-| **Zone open/closed from `%FF`** | Decode logic matching the reference `pyenvisalink` implementation. | Reading a zone that is genuinely open and one that is closed. |
-| **Exit-delay detection** | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
-| **The field-programming keystroke sequences** | The programming guide's documented prompt flow: `*56` zone prompt order, the `*57` function key prompts, numbered data field entry ([sources](#where-each-keystroke-comes-from)). | Programming a non-critical zone and reading the result at the keypad. |
+| Arm and disarm by keystrokes | User code plus a mode digit, the mechanism a physical keypad uses. | Arming and disarming a live partition end to end. |
+| Zone bypass `*1zz#` | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
+| Zone open/closed from `%FF` | Decode logic matching the reference `pyenvisalink` implementation. | Reading a zone that is genuinely open and one that is closed. |
+| Exit-delay detection | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
+| The field-programming keystroke sequences | The programming guide's documented prompt flow: `*56` zone prompt order, the `*57` function key prompts, numbered data field entry ([sources](#where-each-keystroke-comes-from)). | Programming a non-critical zone and reading the result at the keypad. |
 
 Test any field-programming change on a non-critical zone first and verify it at the physical keypad ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)) before trusting it on a fire or security zone.
 
@@ -459,10 +471,10 @@ The wrong keystrokes on a fire or security panel can silence a smoke detector or
 
 | Model | Family | Verification | Notes |
 |---|---|---|---|
-| **VISTA-21iP** | Honeywell VISTA | Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
-| **VISTA-20P / 15P** | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide: program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. The 15P has zones 1-6, 9-34 and 49-56, one partition, and a `*56` menu without the partition prompt, zone doubling or double-balanced wiring. |
-| **VISTA-10P** | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired, 9-24 wireless and 49-56 buttons, single partition. Its `*56` menu has no partition prompt and asks hardwire type on zones 1 to 6, zone 1 included. |
-| VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided **timing** is supported (its own dialect); guided **zone** programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
+| VISTA-21iP | Honeywell VISTA | Verified | Built from its own programming guide (K14488PRV3) and partially hardware-tested. The reference implementation. |
+| VISTA-20P / 15P | Honeywell VISTA | Verified | Cross-checked field by field against the VISTA-15P/20P Programming Guide: program-mode entry, `*56`/`*57` menus, `*34`/`*35`/`*36`/`*84` timing, and the whole zone-type table are identical to the 21iP. The 15P has zones 1-6, 9-34 and 49-56, one partition, and a `*56` menu without the partition prompt, zone doubling or double-balanced wiring. |
+| VISTA-10P | Honeywell VISTA | Verified | Cross-checked against the VISTA-10P Programming Guide. Same grammar and zone types; zones 1-6 hardwired, 9-24 wireless and 49-56 buttons, single partition. Its `*56` menu has no partition prompt and asks hardwire type on zones 1 to 6, zone 1 included. |
+| VISTA-128BP / 250BP | Honeywell VISTA | Provisional, timing only | Commercial panels (K5894PRV6): `<code>8000` entry, partition-specific `*09`-`*12` timing, `#93` zone menu. Guided timing is supported (its own dialect); guided zone programming is refused, since the `#93` flow is too conditional to drive without hardware. Timing is guide-derived, not hardware-confirmed, so it stays Provisional (needs `confirm_unverified_model`). Arm/disarm/bypass work. |
 | DSC PC1555 / 1555MX / 1575 / 5010 / 5020 / 1616 / 1832 / 1864 | DSC PowerSeries | Provisional, guided disabled | Section-based (`*8` + code) grammar and zone-definition reference checked against real DSC manuals (PC1616/1832/1864 v4.6, PC1555MX, PC5020); the installer-mode guard works. Section keystroke builders (`build_dsc_zone_definitions`, `build_dsc_partition_timing`) exist and are unit-tested, but nothing is wired to send them: the transport speaks Honeywell TPI framing, so a DSC panel needs a DSC transport (and hardware verification) before anything reaches it, guided programming and arm, disarm and zone state alike. |
 
 The four Verified residential VISTA panels are fully field-programmable. The commercial VISTA panels add guided timing at Provisional, so verify at the keypad; their `#93` zone flow stays selectable and arm, disarm and bypass work on it. The DSC models are selectable for the zone-type reference the dialect carries, and reach the panel with nothing. Two pieces are hardware-gated: a conditional commercial `#93` zone builder, and a DSC transport layer.

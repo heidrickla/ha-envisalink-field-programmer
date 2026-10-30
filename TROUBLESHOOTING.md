@@ -13,7 +13,7 @@ Two causes produce this same message. Check both before assuming the host, port 
 
 ### The Envisalink accepts one TPI client at a time
 
-Port 4025 accepts exactly one client connection. It does not queue a second connection and does not share the feed: it refuses the new connection, which surfaces as "Could not connect to the Envisalink at that host/port", indistinguishable from a wrong host or port. This is a limit of the module's firmware, not of any integration. Confirmed against an EVL-4 and a VISTA-21iP on 2026-07-04; see [Installation](README.md#the-envisalink-only-accepts-one-tpi-client-at-a-time).
+Port 4025 accepts exactly one client connection. It does not queue a second connection and does not share the feed. When the module answers with its login prompt and then hangs up, setup shows The Envisalink is busy and checks again on Submit; when it refuses the connection outright, setup shows "Could not connect to the Envisalink at that host/port", indistinguishable from a wrong host or port. This is a limit of the module's firmware; see [Installation](README.md#the-envisalink-only-accepts-one-tpi-client-at-a-time).
 
 - While `envisalink_new`, this integration, the Envisalink's own mobile app, Total Connect or anything else holds a TPI session to the module, nothing else can connect until that one disconnects.
 - This integration and `envisalink_new` cannot both be connected to the same Envisalink. Pick the one you want active day to day, for example `envisalink_new` for arm, disarm and status and this one for field programming, and disable the other.
@@ -23,11 +23,11 @@ To check: Settings, Devices & services, find any other Envisalink integration on
 
 ### "The Envisalink rejected that password"
 
-This is the plain-text password from the Envisalink's own local web page login, Settings tab. It is not your Vista user code or installer code; those are separate fields in this integration's setup form. If it looks right, check whether it was changed from the device's local web page (`http://<envisalink-address>`), and check for leading or trailing whitespace if you pasted it.
+This is the plain-text password from the Envisalink's own local web page login, Settings tab. It is not your Vista user code or installer code; those are separate, optional fields on the setup's Your alarm panel screen. If it looks right, check whether it was changed from the device's local web page (`http://<envisalink-address>`), and check for leading or trailing whitespace if you pasted it.
 
 Finding the password: it is whatever logs in to the Envisalink's own local web page. If it has never been changed from the factory default, the sticker on the device and the manual carry it. EyezOn's default is commonly `user`; check rather than assume, since a previous owner or installer may have changed it.
 
-Reading what Home Assistant has saved for another integration, to compare against a working `envisalink_new` setup: it is in `/config/.storage/core.config_entries`, under that integration's entry, `data.password`. Treat that file as a secrets file. It holds plain-text credentials for every integration configured on this Home Assistant instance. Read the one field you need and paste its contents nowhere, including into a chat with an AI assistant.
+Reading what Home Assistant has saved for another integration, to compare against a working `envisalink_new` setup: it is in `/config/.storage/core.config_entries`, under that integration's entry, `data.password`. Treat that file as a secrets file: it holds the credentials of every integration configured on this Home Assistant instance. Read the one field you need and paste its contents nowhere, including into a chat with an AI assistant.
 
 A password read byte-for-byte out of that file can still fail to connect. Check the single-TPI-session cause above before re-checking the password, and if that is not it, take the traceback from the log rather than trusting the generic "rejected" or "cannot connect" message.
 
@@ -73,7 +73,7 @@ The operation needs a value that is unset, and the message names which one. Set 
 
 ### Last programming result says "Refused before sending"
 
-A guard said no and the panel heard nothing. The `detail` attribute of the sensor carries the exact reason. The usual ones: no installer code in the options, a life-safety zone type without Confirm life-safety zone type, an unverified panel model without Confirm unverified panel model, or a timing value the chosen field cannot take.
+A guard said no and the panel heard nothing. The `detail` attribute of the sensor carries the exact reason. The usual ones: no installer code set, a life-safety zone type without Confirm life-safety zone type, an unverified panel model without Confirm unverified panel model, or a timing value the chosen field cannot take.
 
 Program zone has more, each because the panel would ask a question the keystrokes do not answer:
 
@@ -97,7 +97,7 @@ The sequence was sent and the module rejected it, or the session dropped part-wa
 
 This protocol has no read-back, so the integration cannot confirm what the panel did. Before assuming it failed:
 
-- Confirm an installer code is set in this integration's options, Configure, Installer code. Without it, field programming is disabled.
+- Confirm an installer code is set, at setup or in this integration's options, Configure, Installer code. Without it, field programming is disabled.
 - Check Last programming result on the device. `Accepted` means the Envisalink acknowledged every keystroke; anything else names the reason in its `detail` attribute. If you used the action rather than the buttons, the refusal is in the response to the call and in the log.
 - Verify at the physical keypad. Inside Program Mode, `*58` then the zone number shows the zone's current programming on one line, and `#` backs out without saving; `#` plus a field number, such as `#34`, shows a timing field without changing it. [PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad) has the keys step by step. That is the only way to confirm a field-programming change took.
 

@@ -8,7 +8,7 @@ DOMAIN: Final = "envisalink_field_programmer"
 
 # tools/validate_local.py pins this against manifest.json and pyproject.toml,
 # so a release bump that misses one of the three fails before the push.
-VERSION: Final = "0.5.3"
+VERSION: Final = "0.6.0"
 
 # Action names. Registered once in async_setup; tools/validate_local.py pins
 # services.yaml against this list.
@@ -37,6 +37,8 @@ CONF_ZONE_DOUBLING: Final = "zone_doubling"
 # so a blank code field keeps the stored one and these are how it is cleared.
 CONF_REMOVE_USER_CODE: Final = "remove_user_code"
 CONF_REMOVE_INSTALLER_CODE: Final = "remove_installer_code"
+# The collapsed section of the first setup screen.
+CONF_ADVANCED: Final = "advanced"
 
 DEFAULT_PORT: Final = 4025
 # The panel this integration is hardware-tested against, and the default so a

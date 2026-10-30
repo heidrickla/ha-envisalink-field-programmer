@@ -18,6 +18,7 @@ client_module = pure.load("client")
 EnvisalinkClient = client_module.EnvisalinkClient
 TPIAuthError = client_module.TPIAuthError
 TPIConnectionError = client_module.TPIConnectionError
+TPISessionBusyError = client_module.TPISessionBusyError
 TPIProtocolError = client_module.TPIProtocolError
 
 Handler = Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
@@ -72,8 +73,10 @@ async def test_a_socket_that_closes_before_the_prompt_is_a_connection_error():
     async def _handler(reader, writer):
         writer.close()
 
-    with pytest.raises(TPIConnectionError, match="before login prompt"):
+    with pytest.raises(TPIConnectionError, match="before login prompt") as caught:
         await _connect_to(_handler)
+    # No prompt means no Envisalink answered, so nothing says the session is held.
+    assert not isinstance(caught.value, TPISessionBusyError)
 
 
 async def test_something_that_is_not_an_envisalink_is_a_connection_error():
@@ -85,16 +88,17 @@ async def test_something_that_is_not_an_envisalink_is_a_connection_error():
         await _connect_to(_handler)
 
 
-async def test_a_socket_that_closes_after_the_prompt_is_a_connection_error():
-    # The prompt also arrives without its line ending, which the reader
-    # recovers from the partial read.
+async def test_a_socket_that_closes_after_the_prompt_is_a_held_session():
+    # The module's way of turning away a client while another holds its one
+    # TPI session. The prompt also arrives without its line ending, which the
+    # reader recovers from the partial read.
     async def _handler(reader, writer):
         writer.write(b"Login:")
         await writer.drain()
         await asyncio.sleep(0.05)
         writer.close()
 
-    with pytest.raises(TPIConnectionError, match="during login"):
+    with pytest.raises(TPISessionBusyError, match="during login"):
         await _connect_to(_handler)
 
 

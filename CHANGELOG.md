@@ -4,6 +4,19 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.6.0] - 2026-10-30
+
+### Changed
+
+- Setup asks only for the Envisalink password, and the address unless DHCP discovery found it. The port waits in a collapsed Address and port section, which an error opens with what was typed kept.
+- A last setup screen, Your alarm panel, holds the panel model, the partition and zone counts, the default user code and the installer code, all preset (VISTA-21iP, one partition, eight zones, no codes), so Submit finishes the setup. Both codes are stored in the options.
+- The integration ships `translations/en.json` alone; `strings.json` is gone, and `hacs.json` drops `render_readme`.
+- The README starts with the installation: My Home Assistant buttons for HACS and for adding the integration, then the setup screens in order.
+
+### Added
+
+- The Envisalink is busy: a setup step shown when the module prompts for the login and then hangs up unanswered, which it does while another client holds its one TPI session. It names the cause and logs in again on Submit. Reconfigure and reauthentication show the same cause as a form error.
+
 ## [0.5.3] - 2026-10-24
 
 ### Fixed

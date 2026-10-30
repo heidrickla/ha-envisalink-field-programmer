@@ -48,19 +48,22 @@ rules:
   config-flow-test-coverage:
     status: done
     comment: |
-      tests/ha/test_config_flow.py covers the user step, every error
-      (invalid_auth, cannot_connect, unknown, too_many_zones,
-      too_many_partitions) followed by recovery to CREATE_ENTRY, both
-      already_configured aborts, reauth in both outcomes, the options flow,
-      all four DHCP outcomes and reconfigure in five. Run against a fake TPI
-      server, not a mocked connection. The rule wants the whole file, so the
-      measurement is the check: config_flow.py 174 statements, 0 missed,
-      100%, measured 2026-09-16 on Home Assistant 2026.8.3.
+      tests/ha/test_config_flow.py covers the user, session_busy and panel
+      steps, every error (invalid_auth, cannot_connect, unknown,
+      session_busy, still_busy, too_many_zones, too_many_partitions)
+      followed by recovery to CREATE_ENTRY, both already_configured aborts,
+      reauth in both outcomes, the options flow, all four DHCP outcomes and
+      reconfigure in six. Run against a fake TPI server, not a mocked
+      connection. The rule wants the whole file, so the measurement is the
+      check: config_flow.py 234 statements, 0 missed, 100%, measured
+      2026-10-30 on Home Assistant 2026.8.3.
   config-flow:
     status: done
     comment: |
       Every field has a data_description; the password and both codes use a
-      password selector and are never sent back to the browser.
+      password selector and are never sent back to the browser. The first
+      screen asks only for the password, and the address unless discovered;
+      the port is in a collapsed section and the panel step has defaults.
   dependency-transparency:
     status: done
     comment: |
@@ -92,8 +95,9 @@ rules:
     status: done
     comment: |
       The flow completes the TPI login handshake against the Envisalink and
-      disconnects before creating the entry, so a wrong password or a busy
-      or unreachable port is caught on the form. The disconnect is awaited
+      disconnects before the panel step, so a wrong password or an
+      unreachable port is caught on the form, and a login the module drops
+      unanswered opens the session_busy step, which tries again on Submit. The disconnect is awaited
       and settled before the entry's own connection opens, because the
       module admits one client and frees the slot only on the close.
       Reconfigure borrows the running entry's session to make the same test,
@@ -207,8 +211,8 @@ rules:
       2026-09-04 against the IEEE registry through two independent lookups.
       The company's other block is an IAB (00:50:C2:49:C), which only one
       lookup confirmed, so it is deliberately not matched. A discovered unit
-      opens the normal form with the address filled in, since the Envisalink
-      password still has to be typed.
+      opens the first screen asking only for the Envisalink password, with
+      the address in the collapsed section.
   discovery-update-info:
     status: done
     comment: |

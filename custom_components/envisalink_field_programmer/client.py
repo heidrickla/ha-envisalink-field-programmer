@@ -70,6 +70,14 @@ class TPIConnectionError(TPIError):
     """Raised when the TCP connection or login handshake fails."""
 
 
+class TPISessionBusyError(TPIConnectionError):
+    """Raised when the module prompts for the login and then hangs up unanswered.
+
+    Measured 2026-09-05: this is how the module drops a client while it counts
+    another connection against its one TPI session.
+    """
+
+
 class TPIAuthError(TPIError):
     """Raised when the Envisalink rejects the configured password."""
 
@@ -232,7 +240,7 @@ class EnvisalinkClient:
                 "TPI login to %s:%s: module answered %r", self._host, self._port, result
             )
             if result is None:
-                raise TPIConnectionError("connection closed during login")
+                raise TPISessionBusyError("connection closed during login")
             if result == LOGIN_FAILURE:
                 raise TPIAuthError("Envisalink rejected the configured password")
             if result == LOGIN_TIMEOUT_MESSAGE:

@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import pytest
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, section
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.envisalink_field_programmer.client import EnvisalinkClient
 from custom_components.envisalink_field_programmer.config_flow import (
     VistaConsoleConfigFlow,
 )
@@ -27,11 +28,15 @@ from .conftest import PASSWORD, entry_data, setup_entry, unload_entry
 OLD_ADDRESS = "192.0.2.10"
 
 
-def _form_input(fake_server, **overrides) -> dict:
-    """What a user types on the setup form."""
-    values = entry_data(fake_server, **overrides)
-    values.pop("panel_model", None)
-    return values
+def _connection_input(
+    fake_server, *, host: str = "127.0.0.1", password: str = PASSWORD, port=None
+) -> dict:
+    """What a user types on the first screen; the port sits in the collapsed section."""
+    return {
+        "host": host,
+        "password": password,
+        "advanced": {"port": fake_server.port if port is None else port},
+    }
 
 
 async def _start(hass):
@@ -43,6 +48,17 @@ async def _start(hass):
     return result
 
 
+async def _to_panel(hass, fake_server, **typed):
+    """The first screen submitted with a login the fake server accepts."""
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _connection_input(fake_server, **typed)
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "panel"
+    return result
+
+
 async def _finish_and_unload(hass, result) -> None:
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -50,55 +66,126 @@ async def _finish_and_unload(hass, result) -> None:
     await unload_entry(hass, entry)
 
 
-def _suggested(result, key):
-    for marker in result["data_schema"].schema:
+def _marker(schema, key):
+    for marker in schema.schema:
         if marker == key:
-            return (marker.description or {}).get("suggested_value")
+            return marker
     pytest.fail(f"no {key} field on the form")
 
 
-async def test_user_flow_creates_the_entry(hass, fake_server):
+def _suggested(result, key, within: str | None = None):
+    schema = result["data_schema"]
+    if within is not None:
+        schema = schema.schema[_marker(schema, within)].schema
+    return (_marker(schema, key).description or {}).get("suggested_value")
+
+
+def _advanced(result) -> section:
+    schema = result["data_schema"]
+    return schema.schema[_marker(schema, "advanced")]
+
+
+async def test_the_first_screen_asks_only_for_the_address_and_password(
+    hass, fake_server
+):
     result = await _start(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
-    )
+    assert [str(m) for m in result["data_schema"].schema] == [
+        "host",
+        "password",
+        "advanced",
+    ]
+    advanced = _advanced(result)
+    assert advanced.options["collapsed"] is True
+    assert [str(m) for m in advanced.schema.schema] == ["port"]
+    assert _marker(advanced.schema, "port").default() == 4025
+
+
+async def test_user_flow_creates_the_entry(hass, fake_server):
+    result = await _to_panel(hass, fake_server)
+    assert result["description_placeholders"] == {"host": "127.0.0.1"}
+    defaults = {str(m): m.default() for m in result["data_schema"].schema}
+    assert defaults == {
+        "panel_model": "vista_21ip",
+        "num_partitions": 1,
+        "num_zones": 8,
+        "user_code": "",
+        "installer_code": "",
+    }
+    # The defaults are the answer: Submit alone finishes the setup.
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"]["host"] == "127.0.0.1"
-    assert result["data"]["panel_model"] == "vista_21ip"
+    assert result["data"] == {
+        "host": "127.0.0.1",
+        "port": fake_server.port,
+        "password": PASSWORD,
+        "panel_model": "vista_21ip",
+        "num_partitions": 1,
+        "num_zones": 8,
+    }
+    assert result["options"] == {"user_code": "", "installer_code": ""}
     assert result["result"].unique_id == f"127.0.0.1:{fake_server.port}"
+    await _finish_and_unload(hass, result)
+
+
+async def test_the_last_step_stores_the_panel_and_both_codes(hass, fake_server):
+    result = await _to_panel(hass, fake_server)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "panel_model": "vista_20p",
+            "num_partitions": 2,
+            "num_zones": 16,
+            "user_code": "1357",
+            "installer_code": "4112",
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["panel_model"] == "vista_20p"
+    assert result["data"]["num_partitions"] == 2
+    assert result["data"]["num_zones"] == 16
+    assert "user_code" not in result["data"]
+    assert result["options"] == {"user_code": "1357", "installer_code": "4112"}
     await _finish_and_unload(hass, result)
 
 
 async def test_wrong_password_then_the_right_one(hass, fake_server):
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server, password="wrong")
+        result["flow_id"], _connection_input(fake_server, password="wrong")
     )
     assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
     assert result["errors"] == {"base": "invalid_auth"}
-    # The typed secrets never come back as suggested values; the address does.
+    # The typed password never comes back as a suggested value; the address
+    # does, and the error opens the section so the port can be checked.
     assert _suggested(result, "password") is None
-    assert _suggested(result, "user_code") is None
     assert _suggested(result, "host") == "127.0.0.1"
+    assert _suggested(result, "port", within="advanced") == fake_server.port
+    assert _advanced(result).options["collapsed"] is False
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
+    assert result["step_id"] == "panel"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await _finish_and_unload(hass, result)
 
 
 async def test_unreachable_host_then_the_right_one(hass, fake_server):
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server, port=1)
+        result["flow_id"], _connection_input(fake_server, port=1)
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
+    assert _suggested(result, "port", within="advanced") == 1
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
+    assert result["step_id"] == "panel"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await _finish_and_unload(hass, result)
 
 
@@ -112,16 +199,76 @@ async def test_unexpected_error_then_success(hass, fake_server, monkeypatch):
     )
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "unknown"}
 
     monkeypatch.undo()
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await _finish_and_unload(hass, result)
+
+
+async def _other_client(fake_server) -> EnvisalinkClient:
+    """Another TPI client, logged in and holding the module's one session."""
+    fake_server.single_session = True
+    other = EnvisalinkClient(
+        "127.0.0.1", fake_server.port, PASSWORD, event_callback=lambda _event: None
+    )
+    await other.connect()
+    return other
+
+
+async def test_a_held_session_is_a_step_that_checks_again(hass, fake_server):
+    other = await _other_client(fake_server)
+    try:
+        result = await _start(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _connection_input(fake_server)
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "session_busy"
+        assert result["errors"] == {}
+        assert result["description_placeholders"] == {"host": "127.0.0.1"}
+
+        # Still held: the step stays, now saying so.
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+        assert result["step_id"] == "session_busy"
+        assert result["errors"] == {"base": "still_busy"}
+    finally:
+        await other.disconnect()
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["step_id"] == "panel"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["data"]["password"] == PASSWORD
+    await _finish_and_unload(hass, result)
+
+
+async def test_a_wrong_password_found_by_the_busy_check_goes_back_to_the_form(
+    hass, fake_server
+):
+    # A held session drops the login before the password is judged, so a
+    # wrong one shows only once the other client has gone.
+    other = await _other_client(fake_server)
+    try:
+        result = await _start(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _connection_input(fake_server, password="wrong")
+        )
+        assert result["step_id"] == "session_busy"
+    finally:
+        await other.disconnect()
+
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert _suggested(result, "host") == "127.0.0.1"
+    assert _suggested(result, "password") is None
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 @pytest.mark.parametrize(
@@ -135,18 +282,20 @@ async def test_capacity_over_the_model_limit_then_within_it(
     hass, fake_server, field, value, error
 ):
     # The VISTA-21iP takes 48 zones and 2 partitions.
-    result = await _start(hass)
+    result = await _to_panel(hass, fake_server)
+    connections = fake_server.connections
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server, **{field: value})
+        result["flow_id"], {field: value, "user_code": "1357"}
     )
     assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "panel"
     assert result["errors"] == {field: error}
-    # Nothing was tried against the Envisalink.
-    assert fake_server.received == []
+    assert _suggested(result, field) == value
+    assert _suggested(result, "user_code") is None
+    # The panel step dials nothing.
+    assert fake_server.connections == connections
 
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
-    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await _finish_and_unload(hass, result)
 
 
@@ -154,7 +303,7 @@ async def test_same_host_and_port_is_refused(hass, fake_server):
     MockConfigEntry(domain=DOMAIN, data=entry_data(fake_server)).add_to_hass(hass)
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -170,7 +319,7 @@ async def test_same_unique_id_under_another_name_is_refused(hass, fake_server):
     ).add_to_hass(hass)
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"], _connection_input(fake_server)
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -190,21 +339,42 @@ async def _start_dhcp(hass, host: str = "127.0.0.1"):
     )
 
 
-async def test_dhcp_discovery_prefills_the_address_and_keeps_the_mac(hass, fake_server):
+async def test_dhcp_discovery_asks_only_for_the_password_and_keeps_the_mac(
+    hass, fake_server
+):
     result = await _start_dhcp(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
-    # The address is offered; the password still has to be typed.
-    assert _suggested(result, "host") == "127.0.0.1"
-    assert _suggested(result, "password") is None
+    # The address found is in the collapsed section; only the password is asked.
+    assert [str(m) for m in result["data_schema"].schema] == ["password", "advanced"]
+    advanced = _advanced(result)
+    assert advanced.options["collapsed"] is True
+    assert _marker(advanced.schema, "host").default() == "127.0.0.1"
 
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], _form_input(fake_server)
+        result["flow_id"],
+        {"password": PASSWORD, "advanced": {"port": fake_server.port}},
     )
+    assert result["step_id"] == "panel"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["host"] == "127.0.0.1"
     # The MAC is stored so a later lease elsewhere is known to be this unit.
     assert result["data"]["mac"] == MAC
     await _finish_and_unload(hass, result)
+
+
+async def test_dhcp_discovery_keeps_the_address_after_an_error(hass, fake_server):
+    result = await _start_dhcp(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"password": "wrong", "advanced": {"port": fake_server.port}},
+    )
+    assert result["errors"] == {"base": "invalid_auth"}
+    assert _advanced(result).options["collapsed"] is False
+    assert _suggested(result, "host", within="advanced") == "127.0.0.1"
+    assert _suggested(result, "password") is None
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 async def test_dhcp_at_a_new_address_moves_the_entry_it_belongs_to(hass, fake_server):
@@ -253,9 +423,8 @@ async def test_dhcp_for_an_already_discovered_address_aborts(hass, fake_server):
 
 def _reconfigure_input(fake_server, **overrides) -> dict:
     """What a user submits on the reconfigure form (no codes there)."""
-    values = _form_input(fake_server, **overrides)
+    values = entry_data(fake_server, **overrides)
     values.pop("user_code", None)
-    values["panel_model"] = overrides.get("panel_model", "vista_21ip")
     return values
 
 
@@ -537,6 +706,26 @@ async def test_reconfigure_of_an_unloaded_entry_still_probes(hass, fake_server):
     assert entry.data["host"] == "127.0.0.1"
     await hass.async_block_till_done()
     await unload_entry(hass, entry)
+
+
+async def test_reconfigure_names_a_session_another_client_holds(hass, fake_server):
+    # The entry is not loaded, so the session the probe meets is someone else's.
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=entry_data(fake_server, host=OLD_ADDRESS)
+    )
+    entry.add_to_hass(hass)
+    other = await _other_client(fake_server)
+    try:
+        result = await entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _reconfigure_input(fake_server, host="127.0.0.1")
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["errors"] == {"base": "session_busy"}
+        assert entry.data["host"] == OLD_ADDRESS
+    finally:
+        await other.disconnect()
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 async def test_reauth_with_a_still_wrong_password_then_the_right_one(hass, fake_server):

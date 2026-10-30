@@ -4,24 +4,50 @@
     "step": {
       "user": {
         "title": "Connect to the Envisalink",
-        "description": "Enter the connection details for your Envisalink EVL-3/EVL-4 module. The Envisalink admits one TPI client at a time, so disable any other Envisalink integration first.",
+        "description": "Enter the password of your Envisalink EVL-3 or EVL-4. A module Home Assistant found on the network has its address filled in already. The Envisalink admits one TPI client at a time, so disable any other Envisalink integration first.",
         "data": {
           "host": "Host",
-          "port": "Port",
-          "password": "Envisalink password",
-          "panel_model": "Alarm panel model",
-          "user_code": "Default user code",
-          "num_partitions": "Number of partitions",
-          "num_zones": "Number of zones"
+          "password": "Envisalink password"
         },
         "data_description": {
           "host": "The Envisalink's IP address or hostname on your LAN. Give it a DHCP reservation; a changed address means reconfiguring.",
-          "port": "The TPI port. 4025 unless you changed it on the Envisalink's web page.",
-          "password": "The password for the Envisalink's local web page, not a panel code.",
+          "password": "The password for the Envisalink's local web page, not a panel code."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Address and port",
+            "description": "The address found on the network and the TPI port. Change them only if the module is somewhere else or its port was changed.",
+            "data": {
+              "host": "Host",
+              "port": "Port"
+            },
+            "data_description": {
+              "host": "The Envisalink's IP address or hostname on your LAN. Give it a DHCP reservation; a changed address means reconfiguring.",
+              "port": "The TPI port. 4025 unless you changed it on the Envisalink's web page."
+            }
+          }
+        }
+      },
+      "session_busy": {
+        "title": "The Envisalink is busy",
+        "description": "The Envisalink at {host} asked for the password and then hung up without an answer, which it does while another client holds its only TPI session. Disable the other client, such as another Envisalink integration or an app connected to the module, then press Submit to check again."
+      },
+      "panel": {
+        "title": "Your alarm panel",
+        "description": "The Envisalink at {host} accepted the password. The defaults suit a VISTA-21iP with one partition and eight zones. Change what differs on your panel and press Submit. All of this can be changed later.",
+        "data": {
+          "panel_model": "Alarm panel model",
+          "num_partitions": "Number of partitions",
+          "num_zones": "Number of zones",
+          "user_code": "Default user code",
+          "installer_code": "Installer code"
+        },
+        "data_description": {
           "panel_model": "The alarm panel behind the Envisalink. It sets the zone and partition limits and, for field programming, which keystroke grammar is used and how much of it is verified.",
-          "user_code": "Optional. A panel user code Home Assistant will type to arm and disarm when a call does not supply one. Leaving it blank means every arm and disarm needs a code. It can be changed or removed later in the options.",
           "num_partitions": "How many partitions the panel has configured (1 to 8). One alarm control panel entity is created per partition.",
-          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Unused zones simply stay closed."
+          "num_zones": "How many zones to create sensors for (1 to 250, within the model's limit). Unused zones simply stay closed.",
+          "user_code": "Optional. A panel user code Home Assistant will type to arm and disarm when a call does not supply one. Leaving it blank means every arm and disarm needs a code. It can be changed or removed later in the options.",
+          "installer_code": "Optional. Enables field programming: every guided operation types this code followed by 800 to open Program Mode. Leave it blank if you never program the panel from Home Assistant. It can be set later in the options."
         }
       },
       "reconfigure": {
@@ -58,6 +84,8 @@
     "error": {
       "cannot_connect": "Could not connect to the Envisalink at that host and port. If another Envisalink integration or app is connected, it holds the only TPI session.",
       "invalid_auth": "The Envisalink rejected that password.",
+      "session_busy": "The Envisalink asked for the password and then hung up without an answer, which it does while another client holds its only TPI session. Disable the other client, then submit again.",
+      "still_busy": "The Envisalink still hung up without an answer. Check that the other client is disabled or disconnected, then press Submit again.",
       "too_many_zones": "That is more zones than the selected panel model supports.",
       "too_many_partitions": "That is more partitions than the selected panel model supports.",
       "unknown": "Unexpected error while connecting."

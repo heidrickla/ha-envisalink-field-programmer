@@ -1,6 +1,5 @@
 {
   "name": "Envisalink Field Programmer",
-  "render_readme": true,
   "content_in_root": false,
   "zip_release": false,
   "homeassistant": "2026.3.0"

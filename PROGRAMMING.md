@@ -61,7 +61,7 @@ To tell whether zone doubling is on, run the keypad check below on zones 2 to 8:
 3. If a monitoring company watches the panel, ask them to put the account on test while you work, and tell them afterwards which zones changed type or reporting.
 4. Know which zone number is which device. With the system disarmed, open a door or walk past a motion detector and watch which zone sensor in Home Assistant turns on.
 5. Write down what each zone is set to now, using [the keypad check](#check-the-result-at-the-keypad), and download diagnostics from the integration's entry. Nothing can read the panel's settings back later.
-6. Add the installer code: Settings, Devices & services, Envisalink Field Programmer, Configure, Installer code. Programming stays off until it is set.
+6. Add the installer code, on the setup's Your alarm panel screen or later under Settings, Devices & services, Envisalink Field Programmer, Configure, Installer code. Programming stays off until it is set.
 7. On a VISTA-21iP or 20P, set Zone doubling in the same form: On or Off, from the keypad check of zones 2 to 8. Zones 9 to 16 are refused while it says Not stated.
 
 ## Choosing a zone type

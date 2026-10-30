@@ -269,7 +269,7 @@ def raised_exceptions(source: str) -> list[tuple[str, str | None, int]]:
     """Every raise of a user-facing exception: class, translation key, line.
 
     The key is None when the raise passes none, "<not a literal>" when it
-    passes something the cross-check against strings.json cannot resolve, and
+    passes something the cross-check against en.json cannot resolve, and
     FORWARDED when it passes on ``<name>.translation_key`` inside ``except
     <translated exception> as <name>``: those keys are checked where the
     caught exception is raised.
@@ -361,15 +361,9 @@ TREE_NETS = tuple(ipaddress.ip_network(c) for c in _netblocks.TREE_CIDRS)
 MANIFEST_ONLY_NAMES = ("localhost",)
 PRIVATE_SUFFIXES = _netblocks.PRIVATE_SUFFIXES
 
-# Hosts that look like a development host and are not one. Every entry is
-# load-bearing in this repository and carries the reason on its line; an
-# entry added without one is how the rule stops working.
-ALLOWED_HOSTS = frozenset(
-    {
-        "homeassistant.local",  # the default Home Assistant address, in every install doc
-    }
-    | REPO_ALLOWED_HOSTS
-)
+# Hosts that look like a development host and are not one: only the entries
+# REPO_ALLOWED_HOSTS gives, each with its reason on its line.
+ALLOWED_HOSTS: frozenset[str] = REPO_ALLOWED_HOSTS
 
 # Development host names are matched too, and they cannot be listed here:
 # naming them in a published file is the disclosure this rule exists to
@@ -650,7 +644,8 @@ def scan_published_tree() -> None:
 def main() -> int:
     manifest = read_json(COMP, "manifest.json")
     const_src = read(COMP, "const.py")
-    strings = read_json(COMP, "strings.json")
+    # The Marketplace ships translations/en.json alone; hassfest validates it.
+    strings = read_json(COMP, "translations", "en.json")
 
     # ---------------------------------------------------------- manifest
     for key in REQUIRED_MANIFEST:
@@ -795,19 +790,36 @@ def main() -> int:
         )
 
     # ---------------------------------------------------------- translations
-    en = read_json(COMP, "translations", "en.json")
     check(
-        strings == en,
-        "strings.json and translations/en.json differ - copy strings.json over",
+        not os.path.exists(os.path.join(COMP, "strings.json")),
+        "strings.json is shipped; the Marketplace takes translations/en.json alone",
+    )
+    check(
+        "[%key:" not in read(COMP, "translations", "en.json"),
+        "translations/en.json holds a [%key:...] reference, which ships as literal text",
     )
     for flow in ("config", "options"):
         for step, spec in strings.get(flow, {}).get("step", {}).items():
-            data = set(spec.get("data", {}))
-            described = set(spec.get("data_description", {}))
-            check(
-                data == described,
-                f"{flow}.{step}: data_description {sorted(data ^ described)} out of step with data",
-            )
+            parts = {step: spec} | {
+                f"{step}.{name}": sub for name, sub in spec.get("sections", {}).items()
+            }
+            for where, part in parts.items():
+                data = set(part.get("data", {}))
+                described = set(part.get("data_description", {}))
+                check(
+                    data == described,
+                    f"{flow}.{where}: data_description {sorted(data ^ described)} out of step with data",
+                )
+    # Every form the flows show has its title and text.
+    flow_src = read(COMP, "config_flow.py")
+    shown = set(re.findall(r'step_id="(\w+)"', flow_src))
+    declared_steps = set(strings.get("config", {}).get("step", {})) | set(
+        strings.get("options", {}).get("step", {})
+    )
+    check(
+        bool(shown) and shown <= declared_steps,
+        f"config_flow.py shows steps {sorted(shown - declared_steps)} that en.json does not declare",
+    )
 
     # ------------------------------------------------- entity translations
     # Every entity name comes from a translation key, and every declared key
@@ -820,16 +832,16 @@ def main() -> int:
         check(
             used <= declared_keys,
             f"{platform}.py uses translation keys {sorted(used - declared_keys)} "
-            "that strings.json does not declare",
+            "that en.json does not declare",
         )
         check(
             declared_keys <= used,
-            f"strings.json declares entity keys {sorted(declared_keys - used)} "
+            f"en.json declares entity keys {sorted(declared_keys - used)} "
             f"that {platform}.py does not use",
         )
     check(
         set(entity_strings) <= set(PLATFORMS),
-        f"strings.json entity section names non-platforms {sorted(set(entity_strings) - set(PLATFORMS))}",
+        f"en.json entity section names non-platforms {sorted(set(entity_strings) - set(PLATFORMS))}",
     )
 
     # ---------------------------------------------------------- actions
@@ -847,7 +859,7 @@ def main() -> int:
             f"{sorted(service_consts)}",
         )
         # Fields are described inline in services.yaml (no services section
-        # in strings.json yet); when one appears the two must agree.
+        # in en.json yet); when one appears the two must agree.
         if "services" in strings:
             for name, spec in services.items():
                 yaml_fields = set((spec or {}).get("fields", {}))
@@ -855,7 +867,7 @@ def main() -> int:
                 check(
                     yaml_fields == described,
                     f"action {name}: services.yaml fields {sorted(yaml_fields)} != "
-                    f"strings.json fields {sorted(described)}",
+                    f"en.json fields {sorted(described)}",
                 )
         # README documents every field of every action.
         readme = read(ROOT, "README.md")
@@ -879,7 +891,7 @@ def main() -> int:
     # ---------------------------------------------------------- icons
     # Actions and the entities with no device class carry an icon; entities
     # whose device class already supplies one are deliberately absent, so an
-    # entry here that strings.json does not know is a typo, not an override.
+    # entry here that en.json does not know is a typo, not an override.
     icons_path = os.path.join(COMP, "icons.json")
     check(os.path.isfile(icons_path), "icons.json is missing")
     if os.path.isfile(icons_path):
@@ -957,7 +969,7 @@ def main() -> int:
     )
     check(
         declared_exc <= raised,
-        f"strings.json declares unused exceptions {sorted(declared_exc - raised)}",
+        f"en.json declares unused exceptions {sorted(declared_exc - raised)}",
     )
 
     # ----------------------------------------------------- issue translations
@@ -965,7 +977,7 @@ def main() -> int:
     declared_issues = set(strings.get("issues", {}))
     check(
         issue_consts == declared_issues,
-        f"const.py issues {sorted(issue_consts)} != strings.json issues {sorted(declared_issues)}",
+        f"const.py issues {sorted(issue_consts)} != en.json issues {sorted(declared_issues)}",
     )
 
     # ------------------------------------------------------------ platforms

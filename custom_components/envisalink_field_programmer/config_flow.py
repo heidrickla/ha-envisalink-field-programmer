@@ -1,4 +1,9 @@
-"""Config flow for Envisalink Field Programmer: setup, reauth and options."""
+"""Config flow for Envisalink Field Programmer: setup, reauth and options.
+
+Setup asks for the password, and the address unless DHCP discovery found it;
+the port waits in a collapsed section. A last step describes the panel with
+defaults already chosen.
+"""
 
 from __future__ import annotations
 
@@ -16,13 +21,15 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import selector
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
-from .client import EnvisalinkClient, TPIAuthError, TPIError
+from .client import EnvisalinkClient, TPIAuthError, TPIError, TPISessionBusyError
 from .const import (
+    CONF_ADVANCED,
     CONF_HOST,
     CONF_INSTALLER_CODE,
     CONF_KEEPALIVE_INTERVAL,
@@ -64,32 +71,48 @@ _ZONE_DOUBLING_SELECTOR = selector.SelectSelector(
     )
 )
 
-# Zones/partitions ranges here are the widest any supported panel allows; the
-# actual per-model maximum is enforced against the selected model after submit
-# (see async_step_user), so the form can stay a single step.
-STEP_USER_SCHEMA = vol.Schema(
+_PARTITIONS = vol.All(vol.Coerce(int), vol.Range(min=1, max=8))
+_ZONES = vol.All(vol.Coerce(int), vol.Range(min=1, max=250))
+
+# The zone and partition ranges here are the widest any supported panel allows;
+# the selected model's own maximum is checked after submit.
+STEP_PANEL_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
-        vol.Required(CONF_PASSWORD): _PASSWORD,
         vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
             model_choices()
         ),
+        vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): _PARTITIONS,
+        vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): _ZONES,
         vol.Optional(CONF_USER_CODE, default=""): _PASSWORD,
-        vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=8)
-        ),
-        vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=250)
-        ),
+        vol.Optional(CONF_INSTALLER_CODE, default=""): _PASSWORD,
     }
 )
 
+# A login that the module drops unanswered: another client holds the session.
+_SESSION_BUSY = {"base": "session_busy"}
+
+
+def _connection_schema(discovered_host: str | None, *, collapsed: bool) -> vol.Schema:
+    """The first screen: the password, and the address unless discovery found it."""
+    first: dict[vol.Marker, Any] = {}
+    advanced: dict[vol.Marker, Any] = {}
+    if discovered_host is None:
+        first[vol.Required(CONF_HOST)] = str
+    else:
+        advanced[vol.Required(CONF_HOST, default=discovered_host)] = str
+    first[vol.Required(CONF_PASSWORD)] = _PASSWORD
+    advanced[vol.Required(CONF_PORT, default=DEFAULT_PORT)] = cv.port
+    first[vol.Required(CONF_ADVANCED, default={})] = section(
+        vol.Schema(advanced), {"collapsed": collapsed}
+    )
+    return vol.Schema(first)
+
+
 STEP_REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): _PASSWORD})
 
-# The reconfigure form is the connection half of the setup form. The password
-# is optional here: blank keeps the stored one, since it is never sent back to
-# the browser. The default user code stays in the options, where it is set.
+# The reconfigure form is the setup steps on one page, without the codes, which
+# stay in the options. The password is optional here: blank keeps the stored
+# one, since it is never sent back to the browser.
 STEP_RECONFIGURE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
@@ -98,12 +121,8 @@ STEP_RECONFIGURE_SCHEMA = vol.Schema(
         vol.Required(CONF_PANEL_MODEL, default=DEFAULT_PANEL_MODEL): vol.In(
             model_choices()
         ),
-        vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=8)
-        ),
-        vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=250)
-        ),
+        vol.Required(CONF_NUM_PARTITIONS, default=DEFAULT_NUM_PARTITIONS): _PARTITIONS,
+        vol.Required(CONF_NUM_ZONES, default=DEFAULT_NUM_ZONES): _ZONES,
     }
 )
 
@@ -111,7 +130,7 @@ STEP_RECONFIGURE_SCHEMA = vol.Schema(
 async def _test_connection(host: str, port: int, password: str) -> None:
     """Attempt a login handshake, then leave the module's session properly free.
 
-    Raises TPIAuthError / TPIConnectionError / OSError on failure.
+    Raises TPIAuthError, TPISessionBusyError, TPIConnectionError or OSError.
 
     The Envisalink admits one TPI client at a time and frees that slot only
     once it has seen the connection close. ``disconnect()`` waits for the
@@ -135,6 +154,8 @@ async def _async_try(host: str, port: int, password: str) -> dict[str, str]:
         await _test_connection(host, port, password)
     except TPIAuthError:
         return {"base": "invalid_auth"}
+    except TPISessionBusyError:
+        return dict(_SESSION_BUSY)
     except TPIError, OSError:
         return {"base": "cannot_connect"}
     except Exception:  # noqa: BLE001
@@ -165,45 +186,120 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self) -> None:
-        # Filled in by a DHCP discovery: what to suggest on the form and the
-        # MAC to store with the entry so a later move can be recognised.
-        self._discovered: dict[str, Any] = {}
+        # Filled in by a DHCP discovery: the address to offer and the MAC to
+        # store with the entry so a later move can be recognised.
+        self._discovered_host: str | None = None
         self._discovered_mac: str | None = None
+        # Host, port and password once typed, for the busy check and the entry.
+        self._connection: dict[str, Any] = {}
 
     @override
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """The address and the password; the port waits in the collapsed section."""
+        if user_input is None:
+            return self._async_show_connection_form()
+        advanced: dict[str, Any] = dict(user_input.get(CONF_ADVANCED) or {})
+        host: str = user_input.get(CONF_HOST) or advanced[CONF_HOST]
+        port: int = advanced.get(CONF_PORT, DEFAULT_PORT)
+        self._async_abort_entries_match({CONF_HOST: host, CONF_PORT: port})
+        self._connection = {
+            CONF_HOST: host,
+            CONF_PORT: port,
+            CONF_PASSWORD: user_input[CONF_PASSWORD],
+        }
+        return await self._async_log_in(retry=False)
+
+    async def async_step_session_busy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Another client holds the module's one TPI session; Submit logs in again."""
+        if user_input is None:
+            return self._async_show_session_busy_form({})
+        return await self._async_log_in(retry=True)
+
+    async def async_step_panel(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """The panel behind the module, with defaults chosen, and the optional codes."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            self._async_abort_entries_match(
-                {CONF_HOST: user_input[CONF_HOST], CONF_PORT: user_input[CONF_PORT]}
-            )
             errors = _capacity_errors(user_input)
             if not errors:
-                errors = await _async_try(
-                    user_input[CONF_HOST],
-                    user_input[CONF_PORT],
-                    user_input[CONF_PASSWORD],
-                )
-            if not errors:
-                await self.async_set_unique_id(
-                    f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
-                )
-                self._abort_if_unique_id_configured()
-                data = dict(user_input)
+                host: str = self._connection[CONF_HOST]
+                data: dict[str, Any] = {
+                    **self._connection,
+                    CONF_PANEL_MODEL: user_input[CONF_PANEL_MODEL],
+                    CONF_NUM_PARTITIONS: user_input[CONF_NUM_PARTITIONS],
+                    CONF_NUM_ZONES: user_input[CONF_NUM_ZONES],
+                }
                 if self._discovered_mac is not None:
                     data[CONF_MAC] = self._discovered_mac
                 return self.async_create_entry(
-                    title=f"Envisalink Field Programmer ({user_input[CONF_HOST]})",
+                    title=f"Envisalink Field Programmer ({host})",
                     data=data,
+                    options={
+                        CONF_USER_CODE: user_input.get(CONF_USER_CODE, ""),
+                        CONF_INSTALLER_CODE: user_input.get(CONF_INSTALLER_CODE, ""),
+                    },
                 )
+        return self.async_show_form(
+            step_id="panel",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_PANEL_SCHEMA, _without_secrets(user_input or {})
+            ),
+            description_placeholders={"host": self._connection[CONF_HOST]},
+            errors=errors,
+        )
 
+    async def _async_log_in(self, *, retry: bool) -> ConfigFlowResult:
+        """Log in with the typed connection and go on to the panel step.
+
+        A dropped login goes to the busy step, or keeps it open with an error
+        on a retry from it; any other failure shows the first screen again.
+        """
+        connection = self._connection
+        errors = await _async_try(
+            connection[CONF_HOST], connection[CONF_PORT], connection[CONF_PASSWORD]
+        )
+        if errors == _SESSION_BUSY:
+            if retry:
+                return self._async_show_session_busy_form({"base": "still_busy"})
+            return await self.async_step_session_busy()
+        if errors:
+            return self._async_show_connection_form(errors)
+        await self.async_set_unique_id(
+            f"{connection[CONF_HOST]}:{connection[CONF_PORT]}"
+        )
+        self._abort_if_unique_id_configured()
+        return await self.async_step_panel()
+
+    def _async_show_connection_form(
+        self, errors: dict[str, str] | None = None
+    ) -> ConfigFlowResult:
+        """The first screen, keeping what was typed apart from the password."""
+        schema = _connection_schema(self._discovered_host, collapsed=not errors)
+        if self._connection:
+            host = self._connection[CONF_HOST]
+            suggested: dict[str, Any] = {
+                CONF_ADVANCED: {CONF_PORT: self._connection[CONF_PORT]}
+            }
+            if self._discovered_host is None:
+                suggested[CONF_HOST] = host
+            else:
+                suggested[CONF_ADVANCED][CONF_HOST] = host
+            schema = self.add_suggested_values_to_schema(schema, suggested)
         return self.async_show_form(
             step_id="user",
-            data_schema=self.add_suggested_values_to_schema(
-                STEP_USER_SCHEMA, _without_secrets(user_input or self._discovered)
-            ),
+            data_schema=schema,
+            errors=errors or {},
+        )
+
+    def _async_show_session_busy_form(self, errors: dict[str, str]) -> ConfigFlowResult:
+        return self.async_show_form(
+            step_id="session_busy",
+            description_placeholders={"host": self._connection[CONF_HOST]},
             errors=errors,
         )
 
@@ -244,7 +340,7 @@ class VistaConsoleConfigFlow(ConfigFlow, domain=DOMAIN):
 
         await self.async_set_unique_id(f"{host}:{DEFAULT_PORT}")
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
-        self._discovered = {CONF_HOST: host}
+        self._discovered_host = host
         self._discovered_mac = mac
         self.context["title_placeholders"] = {"host": host}
         return await self.async_step_user()
