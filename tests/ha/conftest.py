@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -44,6 +45,7 @@ from tests.helpers import FakeEnvisalinkServer  # noqa: E402
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 SOURCE = REPO_ROOT / "custom_components" / "envisalink_field_programmer"
+SOURCE_MODULE = "custom_components.envisalink_field_programmer"
 
 PASSWORD = "user"
 
@@ -70,6 +72,15 @@ pytest_socket.disable_socket = lambda *args, **kwargs: None
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+@pytest.fixture(autouse=True)
+def no_probe_settle():
+    """The probe's settle is the real module's reaction time; the fake server
+    frees its slot at once. test_the_probe_settles_after_its_close checks the
+    settle is still asked for. patch, not monkeypatch: tests call undo()."""
+    with patch(f"{SOURCE_MODULE}.config_flow.PROBE_SETTLE_DELAY", 0):
+        yield
 
 
 @pytest.fixture

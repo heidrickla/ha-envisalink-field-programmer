@@ -6,6 +6,8 @@ than a mocked connection.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, section
@@ -13,6 +15,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.envisalink_field_programmer import config_flow
 from custom_components.envisalink_field_programmer.client import EnvisalinkClient
 from custom_components.envisalink_field_programmer.config_flow import (
     VistaConsoleConfigFlow,
@@ -857,3 +860,30 @@ async def test_options_new_codes_replace_and_switches_remove(hass, fake_server):
     assert entry.options["installer_code"] == ""
     await hass.async_block_till_done()
     await unload_entry(hass, entry)
+
+
+async def test_the_probe_settles_after_its_close(fake_server, monkeypatch):
+    """The probe asks for PROBE_SETTLE_DELAY once its own disconnect has
+    returned, so the module has seen its one slot go free before setup
+    connects. The other tests run the settle at zero (conftest); this one
+    checks it is still asked for, in that order."""
+    settle = 7.25  # nothing else in a probe waits this long
+    monkeypatch.setattr(config_flow, "PROBE_SETTLE_DELAY", settle)
+    steps: list[str] = []
+    real_disconnect = EnvisalinkClient.disconnect
+    real_sleep = asyncio.sleep
+
+    async def disconnect(self):
+        await real_disconnect(self)
+        steps.append("closed")
+
+    async def sleep(delay, result=None):
+        if delay == settle:
+            steps.append("settle")
+            return result
+        return await real_sleep(delay, result)
+
+    monkeypatch.setattr(EnvisalinkClient, "disconnect", disconnect)
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    await config_flow._test_connection("127.0.0.1", fake_server.port, PASSWORD)
+    assert steps == ["closed", "settle"]

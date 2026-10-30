@@ -96,14 +96,16 @@ jobs:
           python-version: "3.14"
 
       # A venv, so nothing is inherited from the setup-python toolcache.
-      # 0.13.357 pins Home Assistant 2026.8.3.
+      # 0.13.357 pins Home Assistant 2026.8.3. uv installs the same packages
+      # as pip did (compared 2026-10-30) in a quarter of the time; 0.11.31 is
+      # the uv the harness itself pins.
       - name: Install
         timeout-minutes: 15
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install --quiet --upgrade pip
-          .venv/bin/python -m pip install --quiet "mypy==1.18.2" \
-            "pytest-homeassistant-custom-component==0.13.357"
+          .venv/bin/python -m pip install --quiet "uv==0.11.31"
+          .venv/bin/python -m uv pip install --quiet --python .venv/bin/python \
+            "mypy==1.18.2" "pytest-homeassistant-custom-component==0.13.357"
 
       # Coverage gate on both suites together, as in .github/workflows/tests.yml.
       - name: Pure tests
