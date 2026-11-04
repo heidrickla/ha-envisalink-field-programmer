@@ -18,17 +18,19 @@ keystrokes of their own.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
 from .const import (
     CONF_ZONE_DOUBLING,
     DOMAIN,
+    PROGRAM_MODE_ENTRY_TIMEOUT,
     SERVICE_PROGRAM_FUNCTION_KEY,
     SERVICE_PROGRAM_ZONE,
     SERVICE_SET_SYSTEM_TIMING,
@@ -52,8 +54,9 @@ from .field_programming import (
 from .panels import GuidedOp, Verification, get_zone_layout
 from .programming import (
     KeystrokeGuardError,
-    async_send_guarded_keystrokes,
+    async_send_keystrokes,
     get_loaded_coordinator,
+    validate_keystrokes,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -202,22 +205,60 @@ async def _send_program_mode_sequence(
     _require_guided_support(coordinator, op)
     _require_verified_or_ack(coordinator, confirm_unverified)
     installer_code = _require_installer_code(coordinator)
+    entry_keys = coordinator.dialect.program_mode_entry(installer_code)
     full_sequence = coordinator.dialect.program_mode_wrapper(
         installer_code, action_keystrokes
     )
     # allow_installer_mode=True: every one of these operations always opens
     # Program Mode by design, gated on the caller's own confirmation instead of
-    # the generic send_keystrokes confirmation flag. The coordinator's dialect
-    # selects the correct family guard, and the guarded sender turns a refused
-    # or unacknowledged command into HomeAssistantError.
-    await async_send_guarded_keystrokes(
-        coordinator.client,
-        partition,
+    # the generic send_keystrokes confirmation flag. The whole sequence passes
+    # the dialect's guard before its first key goes out.
+    validate_keystrokes(
         full_sequence,
         allow_installer_mode=True,
         dialect=coordinator.dialect,
         allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
+    async with coordinator.program_mode_lock:
+        _require_panel_idle(coordinator, partition)
+        with coordinator.expect_program_mode_entry() as entered:
+            await async_send_keystrokes(coordinator.client, partition, entry_keys)
+            await _wait_for_program_mode(entered)
+        await async_send_keystrokes(
+            coordinator.client, partition, full_sequence[len(entry_keys) :]
+        )
+
+
+def _require_panel_idle(coordinator: VistaConsoleCoordinator, partition: int) -> None:
+    """Refuse before typing anything into a panel that is armed or in Program Mode.
+
+    Armed, the entry keys would be taken as a user code; already in Program
+    Mode, they would be typed as data into whatever field is showing.
+    """
+    if coordinator.data.system.installers_mode:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="program_mode_already_open"
+        )
+    state = coordinator.data.partitions.get(partition)
+    if state is not None and (state.armed or state.exit_delay):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="partition_armed",
+            translation_placeholders={"partition": str(partition)},
+        )
+
+
+async def _wait_for_program_mode(entered: asyncio.Event) -> None:
+    """Wait for the panel's Program Mode Entry report; without it send nothing more."""
+    try:
+        async with asyncio.timeout(PROGRAM_MODE_ENTRY_TIMEOUT):
+            await entered.wait()
+    except TimeoutError:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="program_mode_not_confirmed",
+            translation_placeholders={"seconds": str(PROGRAM_MODE_ENTRY_TIMEOUT)},
+        ) from None
 
 
 def zone_doubling_option(coordinator: VistaConsoleCoordinator) -> ZoneDoubling:

@@ -114,7 +114,7 @@ The Confirm switches turn themselves off after the press, so each write needs a 
 |---|---|
 | Accepted | The Envisalink acknowledged every keystroke. Check the zone at the keypad; nothing else can confirm what the panel stored. |
 | Refused before sending | Nothing reached the panel. The `detail` attribute names the reason: a confirmation not on, a field not set, no installer code, Zone doubling not stated, a zone that is wireless or does not exist on the model. [TROUBLESHOOTING.md](TROUBLESHOOTING.md#last-programming-result-says-refused-before-sending) lists each one. |
-| Failed while sending | The sequence stopped part-way. Go to the keypad, leave Program Mode with `*99` if it shows programming, and check the zone. |
+| Failed while sending | The sequence stopped part-way. Go to the keypad, leave Program Mode with `*99` if it shows programming, and check the zone. When the detail says the panel did not report Program Mode, only the installer code and `800` were typed. |
 
 The same change from an automation or script is the `program_zone` action; the [README](README.md#envisalink_field_programmerprogram_zone) lists its fields.
 
@@ -172,6 +172,8 @@ Zone-type numbers on the summary line for the types the device page offers: 00 n
 | The keypad still shows field numbers after a change | Type `*99` to leave Program Mode. |
 | `EE` or `ENTRY ERROR` | The field number typed does not exist. Type a valid one, or `*99` to leave. |
 | `OC` | The keypad has lost contact with the panel. Check the keypad wiring before anything else. |
+| A press fails with "did not report Program Mode" | Only the installer code and `800` were sent. The stored code is wrong, the partition is armed, or programming was last left with `*98`. Check the code with the power-up method below. If the keypad shows a field number, leave with `*99`. |
+| A press is refused because Program Mode is already open | The panel reported Program Mode Entry and has not reported leaving it. Type `*99` at the keypad, then press again. |
 | Installer code followed by `800` does nothing | The code is not the installer code, or programming was last left with `*98`, which locks the code out. Use the power-up method below. |
 | `Busy Standby` or `dI` for about a minute after power returns | Normal start-up while sensors settle. `#0` skips the wait. |
 

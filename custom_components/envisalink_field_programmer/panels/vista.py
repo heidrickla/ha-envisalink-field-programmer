@@ -57,6 +57,7 @@ from ..field_programming import (
     ZONE_TYPES,
     SystemTimingField,
     VistaZoneLayout,
+    build_program_mode_entry,
     build_program_mode_wrapper,
     build_system_timing_keystrokes,
 )
@@ -111,6 +112,9 @@ class VistaDialect:
 
     def life_safety_zone_codes(self) -> frozenset[int]:
         return LIFE_SAFETY_ZONE_TYPE_CODES
+
+    def program_mode_entry(self, installer_code: str) -> str:
+        return build_program_mode_entry(installer_code)
 
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         return build_program_mode_wrapper(installer_code, action_keystrokes)
@@ -257,10 +261,13 @@ class CommercialVistaDialect:
     def life_safety_zone_codes(self) -> frozenset[int]:
         return _COMMERCIAL_LIFE_SAFETY
 
+    def program_mode_entry(self, installer_code: str) -> str:
+        # Commercial panels open Program Mode with <code>8000, not 800.
+        return f"{installer_code}8000"
+
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
-        # Commercial panels open Program Mode with <code>8000 (not 800) and exit
-        # with *99 (never *98, the lockout exit) -- same as residential.
-        return f"{installer_code}8000{action_keystrokes}*99"
+        # Exit with *99 (never *98, the lockout exit), as residential does.
+        return f"{self.program_mode_entry(installer_code)}{action_keystrokes}*99"
 
     def opens_program_mode(self, keys: str, installer_code: str | None) -> bool:
         return _vista_opens_program_mode(keys, installer_code, "8000")

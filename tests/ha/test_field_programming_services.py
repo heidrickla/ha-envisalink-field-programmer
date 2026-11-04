@@ -18,6 +18,7 @@ from homeassistant.exceptions import (
     Unauthorized,
 )
 
+from custom_components.envisalink_field_programmer import field_programming_services
 from custom_components.envisalink_field_programmer.client import (
     EnvisalinkClient,
     TPICommandError,
@@ -389,6 +390,7 @@ async def test_commercial_vista_timing_sends_expected_keystrokes(hass, fake_serv
     # Commercial timing IS supported: set Exit Delay #1 (*10) = 4 units (60s) on
     # partition 1. Requires confirm_unverified_model (128BP is provisional).
     entry = await _setup_entry(hass, fake_server, panel_model="vista_128bp")
+    fake_server.program_mode_entry = "41128000"
     await hass.services.async_call(
         DOMAIN,
         "set_system_timing",
@@ -541,4 +543,102 @@ async def test_send_keystrokes_never_sends_a_function_key_letter(hass, fake_serv
         assert raised.value.translation_key == "invalid_keystroke_characters"
     await asyncio.sleep(0.05)
     assert not [d for c, d in fake_server.received if c == "03"]
+    await _unload(hass, entry)
+
+
+def _typed(fake_server) -> str:
+    return "".join(d.split(",", 1)[1] for c, d in fake_server.received if c == "03")
+
+
+async def _program_key_a(hass, entry) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "program_function_key",
+        {
+            "entry_id": entry.entry_id,
+            "key": "A",
+            "partition": 1,
+            "action": 3,
+            "confirm": True,
+        },
+        blocking=True,
+    )
+
+
+async def test_nothing_follows_the_entry_until_the_panel_reports_program_mode(
+    hass, fake_server
+):
+    # Over the TPI a bare A is that key's emergency, so the *57A must not go
+    # out until the panel itself says Program Mode is open (CID 627).
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    call = hass.async_create_task(_program_key_a(hass, entry))
+    for _ in range(100):
+        if _typed(fake_server) == "4112800":
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.2)
+    assert _typed(fake_server) == "4112800"
+    assert not call.done()
+    await fake_server.push("03", "1627" + "01" + "000")
+    await call
+    assert _typed(fake_server) == "4112800*57A*1*03*0**99"
+    await _unload(hass, entry)
+
+
+async def test_a_silent_panel_gets_nothing_after_the_entry(
+    hass, fake_server, monkeypatch
+):
+    # A wrong installer code, an armed panel or a *98 lockout leaves the panel
+    # in normal mode: no CID 627 arrives, and the sequence stops at 800.
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_ENTRY_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert not isinstance(raised.value, ServiceValidationError)
+    assert raised.value.translation_key == "program_mode_not_confirmed"
+    await asyncio.sleep(0.2)
+    assert _typed(fake_server) == "4112800"
+    await _unload(hass, entry)
+
+
+@pytest.mark.parametrize("flag", ["armed", "exit_delay"])
+async def test_an_armed_or_arming_partition_is_refused_before_anything_is_sent(
+    hass, fake_server, flag
+):
+    entry = await _setup_entry(hass, fake_server)
+    setattr(entry.runtime_data.data.partition(1), flag, True)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "partition_armed"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_a_panel_already_in_program_mode_is_refused_before_anything_is_sent(
+    hass, fake_server
+):
+    # Keys typed into an open Program Mode land in whatever field is showing.
+    entry = await _setup_entry(hass, fake_server)
+    await fake_server.push("03", "1627" + "01" + "000")
+    for _ in range(100):
+        if entry.runtime_data.data.system.installers_mode:
+            break
+        await asyncio.sleep(0.01)
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_already_open"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == ""
+    await _unload(hass, entry)
+
+
+async def test_two_operations_take_turns_in_program_mode(hass, fake_server):
+    # The second waits for the first to exit with *99 rather than typing its
+    # entry into the first one's Program Mode.
+    entry = await _setup_entry(hass, fake_server)
+    await asyncio.gather(_program_key_a(hass, entry), _program_key_a(hass, entry))
+    assert _typed(fake_server) == "4112800*57A*1*03*0**99" * 2
     await _unload(hass, entry)

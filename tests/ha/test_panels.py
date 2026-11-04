@@ -82,6 +82,7 @@ def test_vista_dialect_family_and_guided_support():
 
 
 def test_vista_program_mode_wrapper():
+    assert VISTA_DIALECT.program_mode_entry("4112") == "4112800"
     assert VISTA_DIALECT.program_mode_wrapper("4112", "*56X") == "4112800*56X*99"
 
 
@@ -122,6 +123,7 @@ def test_commercial_vista_program_mode_uses_8000():
     from custom_components.envisalink_field_programmer.panels import get_dialect
 
     dialect = get_dialect("vista_128bp")
+    assert dialect.program_mode_entry("1234") == "12348000"
     assert dialect.program_mode_wrapper("1234", "X") == "12348000X*99"
     assert dialect.opens_program_mode("12348000*0902", "1234") is True
     # Residential <code>800 is not the commercial trigger's full form, but the
@@ -160,6 +162,7 @@ def test_dsc_dialect_family_and_no_guided_support():
 
 
 def test_dsc_program_mode_wrapper():
+    assert DSC_DIALECT.program_mode_entry("5555") == "*85555"
     assert DSC_DIALECT.program_mode_wrapper("5555", "001") == "*85555001##"
 
 

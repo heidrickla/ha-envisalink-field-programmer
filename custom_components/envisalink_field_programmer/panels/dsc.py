@@ -155,9 +155,13 @@ class DscPowerSeriesDialect:
             "build_dsc_partition_timing() directly for the keystroke string."
         )
 
+    def program_mode_entry(self, installer_code: str) -> str:
+        """``*8`` + code opens DSC installer programming."""
+        return f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}"
+
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         """Wrap section keystrokes: ``*8`` + code + <sections> + ``##``."""
-        return f"{DSC_PROGRAM_MODE_PREFIX}{installer_code}{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
+        return f"{self.program_mode_entry(installer_code)}{action_keystrokes}{DSC_EXIT_PROGRAM_MODE}"
 
     def opens_program_mode(self, keys: str, installer_code: str | None) -> bool:
         """DSC opens installer programming via ``*8`` + installer code.

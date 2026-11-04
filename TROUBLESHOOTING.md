@@ -89,6 +89,8 @@ Program zone has more, each because the panel would ask a question the keystroke
 
 ### Last programming result says "Failed while sending"
 
+When the detail says the panel did not report Program Mode within 10 seconds, only the installer code and `800` went out: the integration waits for the panel's Program Mode Entry report (Contact ID 627) before typing the rest. The usual causes are a wrong installer code in the options, an armed partition, and a code locked out by leaving programming with `*98`. [PROGRAMMING.md](PROGRAMMING.md#getting-out-of-trouble) has the power-up method that opens Program Mode without the code.
+
 The sequence was sent and the module rejected it, or the session dropped part-way, so what reached the panel is unknown. Check the log and the `detail` attribute, then verify at the keypad before pressing anything again.
 
 ## Field programming

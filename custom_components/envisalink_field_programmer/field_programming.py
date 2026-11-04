@@ -579,6 +579,11 @@ def build_function_key_keystrokes(
     )
 
 
+def build_program_mode_entry(installer_code: str) -> str:
+    """The keystrokes that open residential VISTA Program Mode: code + 800."""
+    return f"{installer_code}{PROGRAM_MODE_SUFFIX}"
+
+
 def build_program_mode_wrapper(installer_code: str, action_keystrokes: str) -> str:
     """Wrap any in-Program-Mode keystroke sequence with entry/exit.
 
@@ -586,7 +591,8 @@ def build_program_mode_wrapper(installer_code: str, action_keystrokes: str) -> s
     lockout exit) -- see const.py's EXIT_PROGRAM_MODE for why.
     """
     return (
-        f"{installer_code}{PROGRAM_MODE_SUFFIX}{action_keystrokes}{EXIT_PROGRAM_MODE}"
+        f"{build_program_mode_entry(installer_code)}{action_keystrokes}"
+        f"{EXIT_PROGRAM_MODE}"
     )
 
 

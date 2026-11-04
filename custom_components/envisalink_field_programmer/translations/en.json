@@ -349,6 +349,15 @@
     "opens_program_mode": {
       "message": "Refusing to send {keys}: on this panel that sequence opens installer Program Mode, which governs every data field including fire zones and UL-listing-relevant settings, and this protocol cannot read back what is on the keypad display. Set confirm_installer_risk to true if you intend it."
     },
+    "program_mode_already_open": {
+      "message": "The panel reports Program Mode is already open, so nothing was sent: keys typed now would land in whatever field is showing. Exit at the keypad with *99, then try again."
+    },
+    "partition_armed": {
+      "message": "Partition {partition} is armed or arming, so nothing was sent. Disarm it, then try again."
+    },
+    "program_mode_not_confirmed": {
+      "message": "The panel did not report Program Mode within {seconds} seconds of the installer code and 800, so nothing more was sent. Check the installer code, and that the panel is disarmed and not locked out with *98. If the keypad shows a Program Mode field, exit it with *99."
+    },
     "keystrokes_not_accepted": {
       "message": "The Envisalink did not accept the keystroke sequence: {error}"
     },

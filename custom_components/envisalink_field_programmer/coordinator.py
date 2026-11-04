@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import override
 
 from homeassistant.config_entries import ConfigEntry
@@ -134,6 +134,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # causes does not start a reconnect that would take the session back.
         self._session_released = False
         self.last_event: TPIEvent | None = None
+        # Program Mode sequences run one at a time, and each waits for the
+        # panel's own Program Mode Entry report before typing past the entry.
+        self.program_mode_lock = asyncio.Lock()
+        self._program_mode_entered: asyncio.Event | None = None
         self._remove_stop_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
@@ -271,9 +275,26 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # via async_set_updated_data() from _handle_event() as events arrive.
         return self.data
 
+    @contextlib.contextmanager
+    def expect_program_mode_entry(self) -> Iterator[asyncio.Event]:
+        """An event set when the panel next reports Program Mode Entry (CID 627)."""
+        entered = asyncio.Event()
+        self._program_mode_entered = entered
+        try:
+            yield entered
+        finally:
+            self._program_mode_entered = None
+
     def _handle_event(self, event: TPIEvent) -> None:
         self.last_event = event
+        was_in_program_mode = self.data.system.installers_mode
         apply_event(self.data, event)
+        if (
+            self._program_mode_entered is not None
+            and self.data.system.installers_mode
+            and not was_in_program_mode
+        ):
+            self._program_mode_entered.set()
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:

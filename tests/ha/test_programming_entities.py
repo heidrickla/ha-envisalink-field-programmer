@@ -657,3 +657,29 @@ async def test_a_refusal_follows_the_user_s_own_entity_names(hass, fake_server):
         "switch": "Armed for programming",
     }
     await unload_entry(hass, entry)
+
+
+async def test_a_press_the_panel_never_confirms_is_reported_as_a_failure(
+    hass, fake_server, monkeypatch
+):
+    # The button runs the same wait as the action: with no Program Mode
+    # report the press fails after the entry and says why.
+    from custom_components.envisalink_field_programmer import (
+        field_programming_services,
+    )
+
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_ENTRY_TIMEOUT", 0.3)
+    entry = await _setup(hass, fake_server)
+    fake_server.program_mode_entry = None
+    await _fill_zone_form(hass, entry)
+    await _switch(hass, _entity_id(hass, entry, "switch", "program_confirm"), True)
+    with pytest.raises(HomeAssistantError) as raised:
+        await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
+    assert raised.value.translation_key == "program_mode_not_confirmed"
+    result = hass.states.get(
+        _entity_id(hass, entry, "sensor", "last_programming_result")
+    )
+    assert result.state == "failed"
+    keys = "".join(d.split(",", 1)[1] for c, d in fake_server.received if c == "03")
+    assert keys == "4112800"
+    await unload_entry(hass, entry)

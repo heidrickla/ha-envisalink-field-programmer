@@ -34,6 +34,13 @@ class FakeEnvisalinkServer:
         # one TPI client at a time: a connection arriving while another is
         # still open is dropped during login exactly as above.
         self.single_session = False
+        # Stands in for the panel's Program Mode reports: once the typed keys
+        # end with this entry it sends CID 627 (Program Mode Entry), and *99
+        # typed while open sends 628. None keeps the panel silent, as one with
+        # a wrong installer code, armed, or locked out with *98 would be.
+        self.program_mode_entry: str | None = "4112800"
+        self.in_program_mode = False
+        self._typed = ""
         # Connections accepted, connections still open, and connections whose
         # handler has finished, so a test can assert a disconnect landed.
         self.connections = 0
@@ -133,8 +140,30 @@ class FakeEnvisalinkServer:
                             f"^{code},{self._next_response(code)}$".encode("ascii")
                         )
                         await writer.drain()
+                    if parsed is not None:
+                        report = self._panel_report(*parsed)
+                        if report is not None:
+                            writer.write(f"%03,{report}$".encode("ascii"))
+                            await writer.drain()
         except asyncio.IncompleteReadError, ConnectionResetError:
             pass
+
+    def _panel_report(self, code: str, data: str) -> str | None:
+        """The CID event the panel reports after this keypress, if any."""
+        if code != "03" or "," not in data:
+            return None
+        self._typed += data.split(",", 1)[1]
+        # qualifier, CID event, partition 01, zone or user 000
+        if not self.in_program_mode and self.program_mode_entry is not None:
+            if self._typed.endswith(self.program_mode_entry):
+                self.in_program_mode = True
+                self._typed = ""
+                return "1627" + "01" + "000"
+        elif self.in_program_mode and self._typed.endswith("*99"):
+            self.in_program_mode = False
+            self._typed = ""
+            return "1628" + "01" + "000"
+        return None
 
     def _next_response(self, code: str) -> str:
         queue = self.scripted_responses.get(code)

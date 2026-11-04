@@ -8,7 +8,7 @@ DOMAIN: Final = "envisalink_field_programmer"
 
 # tools/validate_local.py pins this against manifest.json and pyproject.toml,
 # so a release bump that misses one of the three fails before the push.
-VERSION: Final = "0.6.0"
+VERSION: Final = "0.7.0"
 
 # Action names. Registered once in async_setup; tools/validate_local.py pins
 # services.yaml against this list.
@@ -182,6 +182,10 @@ ICON_LED_BITS: Final[dict[str, int]] = {
 # coordinator detects it.
 INSTALLERS_MODE_CID_EVENT: Final = 627
 INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
+# How long a guided operation waits for that report after typing the Program
+# Mode entry. Without it nothing more is sent: over the TPI a keystroke meant
+# for a Program Mode prompt means something else in normal mode.
+PROGRAM_MODE_ENTRY_TIMEOUT: Final = 10
 
 # CID "qualifier" digit (the first data field of a %03 event): 1 means a new
 # event/opening (e.g. a disarm), 3 means a new restore/closing (e.g. an

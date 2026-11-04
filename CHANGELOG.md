@@ -4,6 +4,13 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.7.0] - 2026-11-04
+
+### Changed
+
+- Every guided operation types the installer code and `800`, then waits up to 10 seconds for the panel to report Program Mode Entry (Contact ID 627) before it sends anything else. Without the report it stops and says so, so a wrong installer code, an armed panel or a `*98` lockout no longer receives the rest of the sequence. For `program_function_key` that keeps the `A` to `D` letter, which is the key's emergency function outside Program Mode, from reaching a panel in normal mode.
+- A guided operation is refused before anything is sent when its partition is armed or arming, or when the panel already reports Program Mode, and guided operations run one at a time.
+
 ## [0.6.0] - 2026-10-30
 
 ### Changed

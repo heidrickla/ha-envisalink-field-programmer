@@ -191,6 +191,9 @@ class PanelDialect(Protocol):
     def life_safety_zone_codes(self) -> frozenset[int]:
         """Zone-type codes that detect fire/CO (extra confirmation gate)."""
 
+    def program_mode_entry(self, installer_code: str) -> str:
+        """The keystrokes that open Program Mode; the wrapper starts with them."""
+
     def program_mode_wrapper(self, installer_code: str, action_keystrokes: str) -> str:
         """Wrap in-Program-Mode keystrokes with this family's entry + exit."""
 

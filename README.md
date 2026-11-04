@@ -170,6 +170,8 @@ Each operation has two front ends onto the same code: the entities and buttons o
 
 Every one of these always opens the panel's installer Program Mode (typing the installer code followed by `800`), which is why they require an installer code configured and an explicit confirmation -- the Confirm programming switch on the device, or `confirm: true` in the action; see [Safety](#safety-read-this).
 
+After `800` each one waits up to 10 seconds for the panel to report Program Mode Entry, Contact ID event 627, which the Envisalink forwards as a `%03` frame, and sends nothing more without it. Before typing anything it refuses when the partition is armed or arming, or when the panel already reports Program Mode.
+
 ### Where each keystroke comes from
 
 Pages are in the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3 10/12 Rev B. The VISTA-20P, 15P and 10P guides give the same commands; [Panel model support](#panel-model-support) lists the differences.
@@ -188,19 +190,20 @@ Pages are in the ADEMCO VISTA-21iP/VISTA-21iPSIA Programming Guide, K14488PRV3 1
 | `00` to `08`, then `*` | KEY "A" FUNC; `*` returns to the key prompt | Page 12, options 00 to 08 |
 | `0`, then `*` | Leave the function key menu for data field mode | Page 12 |
 
-The Envisalink carries each key as one `^03` keypress frame. Over that link a bare `A` to `D` is the key's emergency function, so the keystroke guard passes a letter only directly after `*57` in a sequence that opens Program Mode, and `send_keystrokes` never sends one.
+The Envisalink carries each key as one `^03` keypress frame. Over that link a bare `A` to `D` is the key's emergency function, so the keystroke guard passes a letter only directly after `*57` in a sequence that opens Program Mode, and `send_keystrokes` never sends one. The letter goes out only after the panel has reported Program Mode, so a wrong installer code, an armed panel or a `*98` lockout stops the sequence at `800`.
 
 ## Safety (read this)
 
 Opening Vista's installer Program Mode gives access to every data field on the panel, including fire-zone and UL-listing-relevant settings, and once inside, most functions (including disarm) are unavailable until you exit. At worst that means a physical power cycle to get out. Two important specifics:
 
 - Program Mode opens via `<installer code>800`, for example `4112800` with the factory-default code. A Vista panel has no `*8` menu; that sequence is the DSC one, and the Envisalink TPI spec's generic installer-mode warning describes it. See `programming.py`'s module docstring.
-- The TPI protocol cannot read back what is on the keypad display. Every field-programming operation here is blind: if a keystroke sequence has a bug, or the panel is in an unexpected state, there is no channel to detect it before it is too late. The device page shows you the field values you are about to send, and the result sensor shows what the module said about them. Nothing can show you what the panel did in response.
+- The TPI protocol cannot read back what is on the keypad display. Every field-programming operation here is blind: if a keystroke sequence has a bug, or the panel is in an unexpected state, there is no channel to detect it before it is too late. The device page shows you the field values you are about to send, and the result sensor shows what the module said about them. Nothing can show you what the panel did in response. The one step the panel does report is opening Program Mode (Contact ID 627), and every guided operation waits for it.
 
 Given that, this integration:
 
 - Routes every keystroke send, raw or guided, through a single guard (`custom_components/envisalink_field_programmer/programming.py`) that refuses any sequence matching the Program Mode trigger unless explicitly confirmed.
 - Requires an explicit confirmation for every guided write -- the Confirm programming switch on the device page, or `confirm: true` in the action -- because they always open Program Mode by design, plus an additional life-safety confirmation on a zone whenever the target zone type is fire or CO, because this integration cannot verify what a zone's current type is before overwriting it.
+- Types nothing past `<installer code>800` until the panel reports Program Mode Entry (Contact ID 627), and stops there when the report does not come within 10 seconds. Refuses before typing anything when the partition is armed or arming, or when Program Mode is already open, and runs one guided operation at a time.
 - Spends the confirmation on the device page after every button press, so one confirmation authorizes exactly one write.
 - Puts no raw keystroke field on the device page. The guided form is what is offered there; `send_keystrokes` exists for anything it does not cover, and carries its own confirmation.
 - Treats zone bypass (`toggle_zone_bypass`, `*1zz#`) as the one keystroke sequence that is always allowed without confirmation, because it is an ordinary end-user keypad function that never opens Program Mode.
@@ -425,7 +428,7 @@ The form is held in memory for as long as the entry is loaded. Reloading the ent
 | Limitation | Detail |
 |---|---|
 | One TPI client | The Envisalink serves one client at a time. See [above](#the-envisalink-only-accepts-one-tpi-client-at-a-time). |
-| No read-back | Nothing about the panel's programming can be read over TPI. Every field-programming action is blind and must be checked at the keypad. |
+| No read-back | Nothing about the panel's programming can be read over TPI. Past the Program Mode Entry report every field-programming action is blind and must be checked at the keypad. |
 | No entry-delay state | Exit delay is detected from the keypad's display text. Entry delay, "pending", is not represented, matching the reference `pyenvisalink` implementation. |
 | Zone state lags up to 30 seconds | That is the zone timer dump cadence. Partition state is immediate. |
 | Bypass state is optimistic | The panel does not say which zone was bypassed, so the switch assumes success and clears with the partition's bypass flag. |
@@ -462,10 +465,11 @@ What the automated test suite exercises (`pytest tests/`; the count is in the CI
 - Login handshake, keepalive, disconnect and reconnect, and one-keystroke-per-frame transmission, against an asyncio TCP server standing in for the Envisalink and speaking the same protocol (`tests/helpers.py::FakeEnvisalinkServer`), not a mocked transport.
 - State machine: icon-LED flag decoding into partition state (ready, armed mode, alarm, trouble, AC/battery), zone open/closed detection from the periodic zone timer dump, and CID-event-based installer-mode and last-armed/disarmed-user tracking.
 - Keystroke safety guard: every branch (valid characters, Program Mode detection with and without a known installer code, confirmation override).
+- Program Mode wait, against a fake panel that reports Contact ID 627 and 628: nothing after the entry goes out until the report arrives; a panel that never reports gets the entry alone and the action fails; an armed or arming partition, or a panel already in Program Mode, gets nothing; two operations take turns.
 - Field-programming keystroke translation: every builder function (zone programming for each residential model's zone layout under each Zone doubling setting, system timing including the extended-delay codes, function keys) checked against exact expected keystroke strings, both as pure unit tests and end to end against the fake TPI server.
 - Config flow with recovery from every error, reauth, options, entity creation, setup failure handling, disconnect and reconnect, action refusals, diagnostics redaction, and all three field-programming actions' confirm / confirm_life_safety / installer-code gates: against the real Home Assistant config-entry machinery via `pytest-homeassistant-custom-component`, still driven by the fake TPI server.
 
-Five behaviours are built from the TPI protocol reference and the programming guide. Check each on your own panel before relying on it:
+Six behaviours are built from the TPI protocol reference and the programming guide. Check each on your own panel before relying on it:
 
 | Behaviour | Built from | Check on your panel |
 |---|---|---|
@@ -473,6 +477,7 @@ Five behaviours are built from the TPI protocol reference and the programming gu
 | Zone bypass `*1zz#` | Standard Vista/Ademco keypad behaviour. | Bypassing a zone on your panel revision. |
 | Zone open/closed from `%FF` | Decode logic matching the reference `pyenvisalink` implementation. | Reading a zone that is genuinely open and one that is closed. |
 | Exit-delay detection | A substring check for "You may exit now" or "May Exit Now" against the keypad's free-text display. Fuller alpha-text parsing is not attempted (see `state_machine.py`), so entry-delay state is not represented, as in the reference implementation. | Watching an exit delay run on the panel. |
+| The Program Mode Entry report | The TPI reference's `%03` realtime Contact ID event, code 627 Program Mode Entry. | A guided operation that completes. Without the report it stops after `800` and says the panel did not report Program Mode. |
 | The field-programming keystroke sequences | The programming guide's documented prompt flow: `*56` zone prompt order, the `*57` function key prompts, numbered data field entry ([sources](#where-each-keystroke-comes-from)). | Programming a non-critical zone and reading the result at the keypad. |
 
 Test any field-programming change on a non-critical zone first and verify it at the physical keypad ([PROGRAMMING.md](PROGRAMMING.md#check-the-result-at-the-keypad)) before trusting it on a fire or security zone.

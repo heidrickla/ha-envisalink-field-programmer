@@ -170,6 +170,13 @@ async def async_send_guarded_keystrokes(
         dialect=dialect,
         allow_function_key=allow_function_key,
     )
+    await async_send_keystrokes(client, partition, keys)
+
+
+async def async_send_keystrokes(
+    client: EnvisalinkClient, partition: int, keys: str
+) -> None:
+    """Send ``keys`` already passed by :func:`validate_keystrokes`."""
     try:
         await client.send_keystrokes(partition, keys)
     except TPIError as err:
