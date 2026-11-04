@@ -267,9 +267,9 @@ async def _type_in_program_mode(
     """Type the entry, then each later key only while the panel reports Program Mode.
 
     Every key after the entry is written only while the panel's latest report
-    says Program Mode is open on the session the entry went out on. Only the
-    entry's last key can open Program Mode, so doubt starts at its write; an
-    ending without an exit report after that leaves a repair issue.
+    says Program Mode is open on the session the entry went out on. Once any
+    entry key may have reached the panel, an ending without an exit report
+    after the entry's last write leaves a repair issue.
     """
     session = coordinator.session_generation
     exits_at_entry: int | None = None
@@ -290,12 +290,16 @@ async def _type_in_program_mode(
             )
 
     try:
+        delivered = False
         try:
-            await type_keys(partition, entry_keys[:-1])
-            await type_keys(partition, entry_keys[-1], entry_written)
+            for key in entry_keys:
+                await type_keys(partition, key, entry_written)
+                delivered = True
         except TPICommandRefused:
-            # The module refused the key, so the entry never reached the panel.
-            exits_at_entry = None
+            # A refused first key left the panel untouched. A delivered prefix
+            # stays in the panel's input, where later keys can complete it.
+            if not delivered:
+                exits_at_entry = None
             raise
         if not await coordinator.async_wait_for_program_mode(
             True, PROGRAM_MODE_REPORT_TIMEOUT

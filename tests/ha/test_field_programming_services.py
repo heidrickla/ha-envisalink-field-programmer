@@ -858,18 +858,18 @@ async def test_an_exit_report_before_the_entry_settles_nothing(
     await _unload(hass, entry)
 
 
-@pytest.mark.parametrize("accepted", [0, 6])
-async def test_an_entry_key_the_module_refuses_leaves_no_repair(
-    hass, fake_server, accepted
-):
-    # The module answers 02 to one key of the entry, first or last: the entry
-    # never reached the panel, so Program Mode cannot have opened.
+@pytest.mark.parametrize(("accepted", "repair"), [(0, False), (1, True), (6, True)])
+async def test_an_entry_key_the_module_refuses(hass, fake_server, accepted, repair):
+    # The module answers 02 to one key of the entry. Refused first, nothing
+    # reached the panel. Refused later, the delivered prefix stays in the
+    # panel's input, where the next attempt's keys could complete the entry.
     entry = await _setup_entry(hass, fake_server)
     fake_server.scripted_responses["03"] = ["00"] * accepted + ["02"]
     with pytest.raises(HomeAssistantError, match="rejected"):
         await _program_key_a(hass, entry)
+    # Every frame the module received, the refused one included.
     assert _typed(fake_server) == "4112800"[: accepted + 1]
-    assert _issue(hass, entry) is None
+    assert (_issue(hass, entry) is not None) is repair
     await _unload(hass, entry)
 
 
