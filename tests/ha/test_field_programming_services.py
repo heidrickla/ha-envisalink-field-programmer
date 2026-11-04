@@ -789,3 +789,22 @@ async def test_other_keystrokes_wait_for_a_sequence_in_program_mode(hass, fake_s
     await raw
     assert _typed(fake_server) == "4112800*57A*1*03*0**99" + "1"
     await _unload(hass, entry)
+
+
+async def test_the_panel_reporting_the_exit_clears_the_repair(
+    hass, fake_server, monkeypatch
+):
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    with pytest.raises(HomeAssistantError):
+        await _program_key_a(hass, entry)
+    assert _issue(hass, entry) is not None
+    await fake_server.enter_program_mode()
+    await fake_server.push("03", "1628" + "01" + "000")
+    for _ in range(100):
+        if _issue(hass, entry) is None:
+            break
+        await asyncio.sleep(0.01)
+    assert _issue(hass, entry) is None
+    await _unload(hass, entry)
