@@ -43,7 +43,7 @@ from .const import (
 from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import VistaState
 from .panels import PanelFamily, get_dialect, get_model
-from .state_machine import apply_event
+from .state_machine import apply_event, is_program_mode_exit_report
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,6 +138,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # Bumped on every disconnect, so a key meant for one Program Mode
         # session is never typed into the session after a reconnect.
         self.session_generation = 0
+        # Count of Program Mode Exit reports (CID 628) seen.
+        self.program_mode_exit_reports = 0
         self._program_mode_changed: asyncio.Event | None = None
         self.program_mode_issue_id = f"{ISSUE_PROGRAM_MODE_UNKNOWN}_{entry.entry_id}"
         self._remove_stop_listener: Callable[[], None] | None = None
@@ -325,12 +327,16 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.last_event = event
         was_in_program_mode = self.data.system.installers_mode
         apply_event(self.data, event)
-        if self.data.system.installers_mode is not was_in_program_mode:
-            if self._program_mode_changed is not None:
-                self._program_mode_changed.set()
-            if not self.data.system.installers_mode:
-                # The panel itself reported Program Mode closed: no doubt is left.
-                ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
+        if is_program_mode_exit_report(event):
+            # The panel itself reported Program Mode closed: no doubt is left,
+            # whatever was believed before.
+            self.program_mode_exit_reports += 1
+            ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
+        if (
+            self.data.system.installers_mode is not was_in_program_mode
+            and self._program_mode_changed is not None
+        ):
+            self._program_mode_changed.set()
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:

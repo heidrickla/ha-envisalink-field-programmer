@@ -481,7 +481,7 @@ async def test_guided_action_reports_device_refusal_as_device_error(
     # fake server always acknowledges, so the client is made to refuse here.
     entry = await _setup_entry(hass, fake_server)
 
-    async def _refuse(self, partition, key):
+    async def _refuse(self, partition, key, guard=None):
         raise TPICommandError("Unknown Command")
 
     monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)
@@ -696,7 +696,8 @@ async def test_a_627_followed_at_once_by_628_sends_nothing_more(
     assert raised.value.translation_key == "program_mode_not_confirmed"
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == "4112800"
-    assert _issue(hass, entry) is not None
+    # Both reports came after the entry, and the latest says closed.
+    assert _issue(hass, entry) is None
     await _unload(hass, entry)
 
 
@@ -708,6 +709,8 @@ async def test_program_mode_closing_part_way_stops_the_next_key(hass, fake_serve
     assert raised.value.translation_key == "program_mode_lost"
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == "4112800*57"
+    # The panel reported Program Mode closed after the entry: no doubt is left.
+    assert _issue(hass, entry) is None
     await _unload(hass, entry)
 
 
@@ -806,5 +809,100 @@ async def test_the_panel_reporting_the_exit_clears_the_repair(
         if _issue(hass, entry) is None:
             break
         await asyncio.sleep(0.01)
+    assert _issue(hass, entry) is None
+    await _unload(hass, entry)
+
+
+async def test_an_exit_report_clears_the_repair_without_a_state_change(
+    hass, fake_server, monkeypatch
+):
+    # The 627 was never seen, so the coordinator never believed Program Mode
+    # open; the panel's 628 after *99 at the keypad still settles the doubt.
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    with pytest.raises(HomeAssistantError):
+        await _program_key_a(hass, entry)
+    assert _issue(hass, entry) is not None
+    assert not entry.runtime_data.data.system.installers_mode
+    await fake_server.push("03", "1628" + "01" + "000")
+    for _ in range(100):
+        if _issue(hass, entry) is None:
+            break
+        await asyncio.sleep(0.01)
+    assert _issue(hass, entry) is None
+    fake_server.program_mode_entry = "4112800"
+    await _program_key_a(hass, entry)
+    assert _typed(fake_server).endswith("4112800*57A*1*03*0**99")
+    await _unload(hass, entry)
+
+
+async def test_an_exit_report_before_the_entry_settles_nothing(
+    hass, fake_server, monkeypatch
+):
+    # Only a 628 after the entry went out says where this operation left the panel.
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    coordinator = entry.runtime_data
+    fake_server.program_mode_entry = None
+    await fake_server.push("03", "1628" + "01" + "000")
+    for _ in range(100):
+        if coordinator.program_mode_exit_reports:
+            break
+        await asyncio.sleep(0.01)
+    assert coordinator.program_mode_exit_reports == 1
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_not_confirmed"
+    assert _issue(hass, entry) is not None
+    await _unload(hass, entry)
+
+
+async def test_a_refused_first_key_leaves_no_repair(hass, fake_server, monkeypatch):
+    # The module refused the key, so nothing reached the panel.
+    entry = await _setup_entry(hass, fake_server)
+
+    async def _refuse(self, partition, key, guard=None):
+        raise TPICommandError("Unknown Command")
+
+    monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)
+    with pytest.raises(HomeAssistantError):
+        await _program_key_a(hass, entry)
+    assert _issue(hass, entry) is None
+    await _unload(hass, entry)
+
+
+async def test_program_mode_closing_while_a_key_waits_to_be_written(
+    hass, fake_server, monkeypatch
+):
+    # The check is made under the command lock, right before the write: a
+    # 628 read while the key waited for the lock stops it.
+    entry = await _setup_entry(hass, fake_server)
+    coordinator = entry.runtime_data
+    command_lock = coordinator.client._command_lock
+    held = asyncio.Event()
+    wait = coordinator.async_wait_for_program_mode
+
+    async def _then_hold_the_lock(is_open, timeout):
+        result = await wait(is_open, timeout)
+        if is_open:
+            await command_lock.acquire()
+            held.set()
+        return result
+
+    monkeypatch.setattr(coordinator, "async_wait_for_program_mode", _then_hold_the_lock)
+    call = hass.async_create_task(_program_key_a(hass, entry))
+    await asyncio.wait_for(held.wait(), 5)
+    await fake_server.push("03", "1628" + "01" + "000")
+    for _ in range(100):
+        if not coordinator.data.system.installers_mode:
+            break
+        await asyncio.sleep(0.01)
+    command_lock.release()
+    with pytest.raises(HomeAssistantError) as raised:
+        await call
+    assert raised.value.translation_key == "program_mode_lost"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == "4112800"
     assert _issue(hass, entry) is None
     await _unload(hass, entry)

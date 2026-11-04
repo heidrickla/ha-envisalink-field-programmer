@@ -19,7 +19,6 @@ keystrokes of their own.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
@@ -27,6 +26,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
+from .client import KeyTyper
 from .const import (
     CONF_ZONE_DOUBLING,
     DOMAIN,
@@ -259,21 +259,37 @@ def _require_partition_disarmed(
 
 async def _type_in_program_mode(
     coordinator: VistaConsoleCoordinator,
-    type_keys: Callable[[int, str], Awaitable[None]],
+    type_keys: KeyTyper,
     partition: int,
     entry_keys: str,
     rest: str,
 ) -> None:
     """Type the entry, then each later key only while the panel reports Program Mode.
 
-    Every key after the entry needs the panel's latest report to say Program
-    Mode is open on the session the entry went out on. Any ending other than
-    the panel reporting it closed again leaves a repair issue.
+    Every key after the entry is written only while the panel's latest report
+    says Program Mode is open on the session the entry went out on. An ending
+    without an exit report after the entry went out leaves a repair issue.
     """
     session = coordinator.session_generation
-    settled = False
+    exits_at_entry: int | None = None
+
+    def entry_written() -> None:
+        nonlocal exits_at_entry
+        exits_at_entry = coordinator.program_mode_exit_reports
+
+    def still_open() -> None:
+        if (
+            not coordinator.data.system.installers_mode
+            or coordinator.session_generation != session
+        ):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="program_mode_lost",
+                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
+            )
+
     try:
-        await type_keys(partition, entry_keys)
+        await type_keys(partition, entry_keys, entry_written)
         if not await coordinator.async_wait_for_program_mode(
             True, PROGRAM_MODE_REPORT_TIMEOUT
         ):
@@ -282,19 +298,7 @@ async def _type_in_program_mode(
                 translation_key="program_mode_not_confirmed",
                 translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
             )
-        for key in rest:
-            if (
-                not coordinator.data.system.installers_mode
-                or coordinator.session_generation != session
-            ):
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="program_mode_lost",
-                    translation_placeholders={
-                        "seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)
-                    },
-                )
-            await type_keys(partition, key)
+        await type_keys(partition, rest, still_open)
         if not await coordinator.async_wait_for_program_mode(
             False, PROGRAM_MODE_REPORT_TIMEOUT
         ):
@@ -303,9 +307,13 @@ async def _type_in_program_mode(
                 translation_key="program_mode_exit_not_confirmed",
                 translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
             )
-        settled = True
     finally:
-        if not settled:
+        # Nothing reached the wire, or the panel reported Program Mode closed
+        # after the entry went out: no doubt. Anything else is a repair.
+        if exits_at_entry is not None and not (
+            coordinator.program_mode_exit_reports > exits_at_entry
+            and not coordinator.data.system.installers_mode
+        ):
             coordinator.async_raise_program_mode_issue()
 
 

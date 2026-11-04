@@ -118,6 +118,16 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     )
 
 
+def is_program_mode_exit_report(event: TPIEvent) -> bool:
+    """The panel's Program Mode Exit report, Contact ID 628."""
+    if event.code != EVT_REALTIME_CID_EVENT:
+        return False
+    try:
+        return int(event.fields["cid_event"]) == INSTALLERS_MODE_EXIT_CID_EVENT
+    except KeyError, ValueError:
+        return False
+
+
 def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
     try:
         cid_event = int(event.fields["cid_event"])

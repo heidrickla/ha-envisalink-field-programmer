@@ -33,6 +33,7 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from .const import (
     CLOSE_TIMEOUT,
@@ -161,6 +162,14 @@ def build_event(code: str, data: str) -> TPIEvent:
 
 EventCallback = Callable[[TPIEvent], None]
 DisconnectCallback = Callable[[Exception | None], None]
+
+
+class KeyTyper(Protocol):
+    """Types keys on a partition; ``guard`` runs before each key's write."""
+
+    def __call__(
+        self, partition: int, keys: str, guard: Callable[[], None] | None = None
+    ) -> Awaitable[None]: ...
 
 
 class EnvisalinkClient:
@@ -401,7 +410,9 @@ class EnvisalinkClient:
             return None
         return raw.decode("ascii", errors="ignore").strip("\r\n")
 
-    async def _send(self, code: str, data: str = "") -> None:
+    async def _send(
+        self, code: str, data: str = "", guard: Callable[[], None] | None = None
+    ) -> None:
         """Send one command frame and wait for the EVL's acknowledgement.
 
         The EVL processes exactly one command at a time and answers every
@@ -411,13 +422,16 @@ class EnvisalinkClient:
         under the command lock -- write, await ack, retry on overrun --
         matching the reference `pyenvisalink` command queue. The trailing
         CRLF after the ``$`` terminator also matches that reference
-        implementation.
+        implementation. ``guard`` runs under the lock right before each write,
+        with no await between, and raises to stop the command.
         """
         payload = f"^{code},{data}$\r\n".encode("ascii")
         async with self._command_lock:
             for attempt in range(COMMAND_RETRY_ATTEMPTS + 1):
                 if self._writer is None:
                     raise TPIConnectionError("not connected")
+                if guard is not None:
+                    guard()
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
                 self._pending_ack_code = f"^{code}"
                 self._pending_ack = future
@@ -461,10 +475,12 @@ class EnvisalinkClient:
         """Ask the panel for the 256-char zone timer dump (``%FF`` reply)."""
         await self._send(CMD_DUMP_ZONE_TIMERS)
 
-    async def send_keypress(self, partition: int, key: str) -> None:
+    async def send_keypress(
+        self, partition: int, key: str, guard: Callable[[], None] | None = None
+    ) -> None:
         if len(key) != 1:
             raise ValueError("send_keypress sends exactly one character at a time")
-        await self._send(CMD_KEYPRESS, f"{partition},{key}")
+        await self._send(CMD_KEYPRESS, f"{partition},{key}", guard)
 
     async def send_keystrokes(self, partition: int, keys: str) -> None:
         """Send an arbitrary keystroke string, one character per frame.
@@ -479,11 +495,13 @@ class EnvisalinkClient:
             await type_keys(partition, keys)
 
     @contextlib.asynccontextmanager
-    async def keypad(self) -> AsyncIterator[Callable[[int, str], Awaitable[None]]]:
+    async def keypad(self) -> AsyncIterator[KeyTyper]:
         """Hold the keypad for one sequence; the yielded sender types into it."""
         async with self._keypad_lock:
             yield self._type_keys
 
-    async def _type_keys(self, partition: int, keys: str) -> None:
+    async def _type_keys(
+        self, partition: int, keys: str, guard: Callable[[], None] | None = None
+    ) -> None:
         for key in keys:
-            await self.send_keypress(partition, key)
+            await self.send_keypress(partition, key, guard)
