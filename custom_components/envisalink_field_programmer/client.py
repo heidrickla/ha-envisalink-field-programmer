@@ -91,6 +91,10 @@ class TPICommandError(TPIError):
     """Raised when the EVL rejects a command or never acknowledges it."""
 
 
+class TPICommandRefused(TPICommandError):
+    """The EVL answered with a refusal, so the command never reached the panel."""
+
+
 @dataclass
 class TPIEvent:
     """A single parsed frame received from the Envisalink."""
@@ -458,7 +462,7 @@ class EnvisalinkClient:
                     await asyncio.sleep(COMMAND_RETRY_DELAY * (2**attempt))
                     continue
                 meaning = TPI_RESPONSE_CODES.get(response, "unrecognized response code")
-                raise TPICommandError(
+                raise TPICommandRefused(
                     f"EVL rejected command ^{code}: response {response} ({meaning})"
                 )
 

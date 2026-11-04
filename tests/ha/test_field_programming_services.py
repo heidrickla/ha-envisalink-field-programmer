@@ -858,17 +858,28 @@ async def test_an_exit_report_before_the_entry_settles_nothing(
     await _unload(hass, entry)
 
 
-async def test_a_refused_first_key_leaves_no_repair(hass, fake_server, monkeypatch):
-    # The module refused the key, so nothing reached the panel.
+@pytest.mark.parametrize("accepted", [0, 6])
+async def test_an_entry_key_the_module_refuses_leaves_no_repair(
+    hass, fake_server, accepted
+):
+    # The module answers 02 to one key of the entry, first or last: the entry
+    # never reached the panel, so Program Mode cannot have opened.
     entry = await _setup_entry(hass, fake_server)
-
-    async def _refuse(self, partition, key, guard=None):
-        raise TPICommandError("Unknown Command")
-
-    monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)
-    with pytest.raises(HomeAssistantError):
+    fake_server.scripted_responses["03"] = ["00"] * accepted + ["02"]
+    with pytest.raises(HomeAssistantError, match="rejected"):
         await _program_key_a(hass, entry)
+    assert _typed(fake_server) == "4112800"[: accepted + 1]
     assert _issue(hass, entry) is None
+    await _unload(hass, entry)
+
+
+async def test_a_body_key_the_module_refuses_leaves_the_repair(hass, fake_server):
+    # Once the entry went out, a refusal later on leaves Program Mode open.
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.scripted_responses["03"] = ["00"] * 8 + ["02"]
+    with pytest.raises(HomeAssistantError, match="rejected"):
+        await _program_key_a(hass, entry)
+    assert _issue(hass, entry) is not None
     await _unload(hass, entry)
 
 

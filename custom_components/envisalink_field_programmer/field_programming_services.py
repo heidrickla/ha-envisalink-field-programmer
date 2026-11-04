@@ -26,7 +26,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
-from .client import KeyTyper
+from .client import KeyTyper, TPICommandRefused
 from .const import (
     CONF_ZONE_DOUBLING,
     DOMAIN,
@@ -267,8 +267,9 @@ async def _type_in_program_mode(
     """Type the entry, then each later key only while the panel reports Program Mode.
 
     Every key after the entry is written only while the panel's latest report
-    says Program Mode is open on the session the entry went out on. An ending
-    without an exit report after the entry went out leaves a repair issue.
+    says Program Mode is open on the session the entry went out on. Only the
+    entry's last key can open Program Mode, so doubt starts at its write; an
+    ending without an exit report after that leaves a repair issue.
     """
     session = coordinator.session_generation
     exits_at_entry: int | None = None
@@ -289,7 +290,13 @@ async def _type_in_program_mode(
             )
 
     try:
-        await type_keys(partition, entry_keys, entry_written)
+        try:
+            await type_keys(partition, entry_keys[:-1])
+            await type_keys(partition, entry_keys[-1], entry_written)
+        except TPICommandRefused:
+            # The module refused the key, so the entry never reached the panel.
+            exits_at_entry = None
+            raise
         if not await coordinator.async_wait_for_program_mode(
             True, PROGRAM_MODE_REPORT_TIMEOUT
         ):

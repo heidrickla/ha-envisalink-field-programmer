@@ -149,10 +149,16 @@ class FakeEnvisalinkServer:
                     # One write, so the client reads the acknowledgement and the
                     # panel's reports together, as one TCP segment can carry them.
                     out = ""
+                    response = "00"
                     if self.ack_commands:
                         code, _ = parsed
-                        out += f"^{code},{self._next_response(code)}$"
-                    out += "".join(f"%03,{r}$" for r in self._panel_reports(*parsed))
+                        response = self._next_response(code)
+                        out += f"^{code},{response}$"
+                    # A refused command never reaches the panel.
+                    if response == "00":
+                        out += "".join(
+                            f"%03,{r}$" for r in self._panel_reports(*parsed)
+                        )
                     if out:
                         writer.write(out.encode("ascii"))
                         await writer.drain()
