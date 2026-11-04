@@ -27,8 +27,10 @@ goes through, so that safety logic lives in exactly one place:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
@@ -170,15 +172,15 @@ async def async_send_guarded_keystrokes(
         dialect=dialect,
         allow_function_key=allow_function_key,
     )
-    await async_send_keystrokes(client, partition, keys)
-
-
-async def async_send_keystrokes(
-    client: EnvisalinkClient, partition: int, keys: str
-) -> None:
-    """Send ``keys`` already passed by :func:`validate_keystrokes`."""
-    try:
+    with keystrokes_not_accepted_as_error():
         await client.send_keystrokes(partition, keys)
+
+
+@contextlib.contextmanager
+def keystrokes_not_accepted_as_error() -> Iterator[None]:
+    """Report a transport or acknowledgement failure as a translated error."""
+    try:
+        yield
     except TPIError as err:
         # Surface transport/ack failures as a HomeAssistantError so an action
         # call, a button press and the result sensor all show the real reason

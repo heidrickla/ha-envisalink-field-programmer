@@ -39,6 +39,10 @@ class FakeEnvisalinkServer:
         # typed while open sends 628. None keeps the panel silent, as one with
         # a wrong installer code, armed, or locked out with *98 would be.
         self.program_mode_entry: str | None = "4112800"
+        self.report_exit = True
+        # More reports, keyed by what the typed keys end with, sent in the
+        # same write as the keypress's acknowledgement.
+        self.extra_reports: dict[str, str] = {}
         self.in_program_mode = False
         self._typed = ""
         # Connections accepted, connections still open, and connections whose
@@ -67,6 +71,12 @@ class FakeEnvisalinkServer:
             # which is how the reconnect tests simulate the module going
             # away -- would hang here. We only need the listening port freed
             # for the next test, which close() alone guarantees.
+
+    async def enter_program_mode(self) -> None:
+        """Open Program Mode as someone at the keypad would, and report it."""
+        self.in_program_mode = True
+        self._typed = ""
+        await self.push("03", "1627" + "01" + "000")
 
     async def push(self, code: str, data: str = "") -> None:
         """Send a "%CODE,DATA$" frame to the connected client."""
@@ -134,36 +144,39 @@ class FakeEnvisalinkServer:
                 buffer = frames.pop()
                 for raw_frame in frames:
                     parsed = self._record_frame(raw_frame)
-                    if parsed is not None and self.ack_commands:
+                    if parsed is None:
+                        continue
+                    # One write, so the client reads the acknowledgement and the
+                    # panel's reports together, as one TCP segment can carry them.
+                    out = ""
+                    if self.ack_commands:
                         code, _ = parsed
-                        writer.write(
-                            f"^{code},{self._next_response(code)}$".encode("ascii")
-                        )
+                        out += f"^{code},{self._next_response(code)}$"
+                    out += "".join(f"%03,{r}$" for r in self._panel_reports(*parsed))
+                    if out:
+                        writer.write(out.encode("ascii"))
                         await writer.drain()
-                    if parsed is not None:
-                        report = self._panel_report(*parsed)
-                        if report is not None:
-                            writer.write(f"%03,{report}$".encode("ascii"))
-                            await writer.drain()
         except asyncio.IncompleteReadError, ConnectionResetError:
             pass
 
-    def _panel_report(self, code: str, data: str) -> str | None:
-        """The CID event the panel reports after this keypress, if any."""
+    def _panel_reports(self, code: str, data: str) -> list[str]:
+        """The CID events the panel reports after this keypress."""
         if code != "03" or "," not in data:
-            return None
+            return []
         self._typed += data.split(",", 1)[1]
+        reports = [
+            r for end, r in self.extra_reports.items() if self._typed.endswith(end)
+        ]
         # qualifier, CID event, partition 01, zone or user 000
         if not self.in_program_mode and self.program_mode_entry is not None:
             if self._typed.endswith(self.program_mode_entry):
                 self.in_program_mode = True
-                self._typed = ""
-                return "1627" + "01" + "000"
+                reports.insert(0, "1627" + "01" + "000")
         elif self.in_program_mode and self._typed.endswith("*99"):
             self.in_program_mode = False
-            self._typed = ""
-            return "1628" + "01" + "000"
-        return None
+            if self.report_exit:
+                reports.append("1628" + "01" + "000")
+        return reports
 
     def _next_response(self, code: str) -> str:
         queue = self.scripted_responses.get(code)

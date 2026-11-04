@@ -18,8 +18,8 @@ keystrokes of their own.
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, callback
@@ -30,7 +30,7 @@ from homeassistant.helpers.service import async_register_admin_service
 from .const import (
     CONF_ZONE_DOUBLING,
     DOMAIN,
-    PROGRAM_MODE_ENTRY_TIMEOUT,
+    PROGRAM_MODE_REPORT_TIMEOUT,
     SERVICE_PROGRAM_FUNCTION_KEY,
     SERVICE_PROGRAM_ZONE,
     SERVICE_SET_SYSTEM_TIMING,
@@ -54,8 +54,8 @@ from .field_programming import (
 from .panels import GuidedOp, Verification, get_zone_layout
 from .programming import (
     KeystrokeGuardError,
-    async_send_keystrokes,
     get_loaded_coordinator,
+    keystrokes_not_accepted_as_error,
     validate_keystrokes,
 )
 
@@ -219,26 +219,35 @@ async def _send_program_mode_sequence(
         dialect=coordinator.dialect,
         allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
-    async with coordinator.program_mode_lock:
-        _require_panel_idle(coordinator, partition)
-        with coordinator.expect_program_mode_entry() as entered:
-            await async_send_keystrokes(coordinator.client, partition, entry_keys)
-            await _wait_for_program_mode(entered)
-        await async_send_keystrokes(
-            coordinator.client, partition, full_sequence[len(entry_keys) :]
-        )
+    with keystrokes_not_accepted_as_error():
+        async with coordinator.client.keypad() as type_keys:
+            _require_program_mode_closed(coordinator)
+            _require_partition_disarmed(coordinator, partition)
+            await _type_in_program_mode(
+                coordinator,
+                type_keys,
+                partition,
+                entry_keys,
+                full_sequence[len(entry_keys) :],
+            )
 
 
-def _require_panel_idle(coordinator: VistaConsoleCoordinator, partition: int) -> None:
-    """Refuse before typing anything into a panel that is armed or in Program Mode.
+def _require_program_mode_closed(coordinator: VistaConsoleCoordinator) -> None:
+    """Refuse while the panel reports Program Mode, or its state is in doubt.
 
-    Armed, the entry keys would be taken as a user code; already in Program
-    Mode, they would be typed as data into whatever field is showing.
+    Keys typed into an open Program Mode land in whatever field is showing.
     """
-    if coordinator.data.system.installers_mode:
+    if coordinator.data.system.installers_mode or coordinator.program_mode_unknown:
+        coordinator.async_raise_program_mode_issue()
         raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="program_mode_already_open"
+            translation_domain=DOMAIN, translation_key="program_mode_not_closed"
         )
+
+
+def _require_partition_disarmed(
+    coordinator: VistaConsoleCoordinator, partition: int
+) -> None:
+    """Refuse an armed or arming partition: it takes the entry as a user code."""
     state = coordinator.data.partitions.get(partition)
     if state is not None and (state.armed or state.exit_delay):
         raise ServiceValidationError(
@@ -248,17 +257,56 @@ def _require_panel_idle(coordinator: VistaConsoleCoordinator, partition: int) ->
         )
 
 
-async def _wait_for_program_mode(entered: asyncio.Event) -> None:
-    """Wait for the panel's Program Mode Entry report; without it send nothing more."""
+async def _type_in_program_mode(
+    coordinator: VistaConsoleCoordinator,
+    type_keys: Callable[[int, str], Awaitable[None]],
+    partition: int,
+    entry_keys: str,
+    rest: str,
+) -> None:
+    """Type the entry, then each later key only while the panel reports Program Mode.
+
+    Every key after the entry needs the panel's latest report to say Program
+    Mode is open on the session the entry went out on. Any ending other than
+    the panel reporting it closed again leaves a repair issue.
+    """
+    session = coordinator.session_generation
+    settled = False
     try:
-        async with asyncio.timeout(PROGRAM_MODE_ENTRY_TIMEOUT):
-            await entered.wait()
-    except TimeoutError:
-        raise HomeAssistantError(
-            translation_domain=DOMAIN,
-            translation_key="program_mode_not_confirmed",
-            translation_placeholders={"seconds": str(PROGRAM_MODE_ENTRY_TIMEOUT)},
-        ) from None
+        await type_keys(partition, entry_keys)
+        if not await coordinator.async_wait_for_program_mode(
+            True, PROGRAM_MODE_REPORT_TIMEOUT
+        ):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="program_mode_not_confirmed",
+                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
+            )
+        for key in rest:
+            if (
+                not coordinator.data.system.installers_mode
+                or coordinator.session_generation != session
+            ):
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="program_mode_lost",
+                    translation_placeholders={
+                        "seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)
+                    },
+                )
+            await type_keys(partition, key)
+        if not await coordinator.async_wait_for_program_mode(
+            False, PROGRAM_MODE_REPORT_TIMEOUT
+        ):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="program_mode_exit_not_confirmed",
+                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
+            )
+        settled = True
+    finally:
+        if not settled:
+            coordinator.async_raise_program_mode_issue()
 
 
 def zone_doubling_option(coordinator: VistaConsoleCoordinator) -> ZoneDoubling:

@@ -91,6 +91,10 @@ Program zone has more, each because the panel would ask a question the keystroke
 
 When the detail says the panel did not report Program Mode within 10 seconds, only the installer code and `800` went out: the integration waits for the panel's Program Mode Entry report (Contact ID 627) before typing the rest. The usual causes are a wrong installer code in the options, an armed partition, and a code locked out by leaving programming with `*98`. [PROGRAMMING.md](PROGRAMMING.md#getting-out-of-trouble) has the power-up method that opens Program Mode without the code.
 
+### A repair says "Program Mode may still be open"
+
+A programming operation ended without the panel reporting that Program Mode closed: no report after `800`, a report of Program Mode closing part-way, a dropped connection, or no report after `*99`. Guided programming is paused until the doubt is settled. Go to the keypad; if it shows a field number, press `*99` (never `*98`). Then open the repair under Settings, Repairs and submit it. The repair also clears itself when the panel reports leaving Program Mode.
+
 The sequence was sent and the module rejected it, or the session dropped part-way, so what reached the panel is unknown. Check the log and the `detail` attribute, then verify at the keypad before pressing anything again.
 
 ## Field programming

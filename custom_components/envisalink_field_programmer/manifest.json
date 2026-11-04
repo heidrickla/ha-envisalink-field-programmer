@@ -3,6 +3,7 @@
   "name": "Envisalink Field Programmer",
   "codeowners": ["@heidrickla"],
   "config_flow": true,
+  "dependencies": ["repairs"],
   "dhcp": [{ "macaddress": "001C2A*" }],
   "documentation": "https://github.com/heidrickla/ha-envisalink-field-programmer",
   "integration_type": "hub",

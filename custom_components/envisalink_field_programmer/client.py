@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 
 from .const import (
@@ -197,6 +197,10 @@ class EnvisalinkClient:
         # Serializes whole command round-trips (write + wait for ack), not
         # just the writes -- the EVL only processes one command at a time.
         self._command_lock = asyncio.Lock()
+        # Serializes whole keystroke sequences. A sequence that needs the
+        # keypad to itself (Program Mode, from the entry to *99) holds it
+        # through keypad(); every other sender waits for it.
+        self._keypad_lock = asyncio.Lock()
         self._pending_ack: asyncio.Future[str] | None = None
         self._pending_ack_code = ""
         self._buffer = ""
@@ -468,7 +472,18 @@ class EnvisalinkClient:
         This is the mechanism the panel uses for everything from zone bypass
         and arming to full installer field programming. There is no
         error-checking of panel state on the wire; see ``programming.py`` for
-        the safety guardrails built on top of this.
+        the safety guardrails built on top of this. Waits while another
+        sequence holds the keypad.
         """
+        async with self.keypad() as type_keys:
+            await type_keys(partition, keys)
+
+    @contextlib.asynccontextmanager
+    async def keypad(self) -> AsyncIterator[Callable[[int, str], Awaitable[None]]]:
+        """Hold the keypad for one sequence; the yielded sender types into it."""
+        async with self._keypad_lock:
+            yield self._type_keys
+
+    async def _type_keys(self, partition: int, keys: str) -> None:
         for key in keys:
             await self.send_keypress(partition, key)

@@ -334,7 +334,11 @@ rules:
       naming that cause, and clears it the moment the connection is back or
       the entry is deleted. Nothing else qualifies: a rejected password
       starts reauth, a wrong address is a reconfigure, and a refused command
-      is a per-action error, none of which should also be an issue.
+      is a per-action error, none of which should also be an issue. A second
+      issue, fixable, covers a guided programming operation that ended without
+      the panel reporting Program Mode closed: the keypad may still be in
+      Program Mode, which only someone at the keypad can see. It pauses guided
+      programming until the panel reports the exit or the user confirms it.
   stale-devices:
     status: exempt
     comment: |

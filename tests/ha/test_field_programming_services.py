@@ -481,10 +481,10 @@ async def test_guided_action_reports_device_refusal_as_device_error(
     # fake server always acknowledges, so the client is made to refuse here.
     entry = await _setup_entry(hass, fake_server)
 
-    async def _refuse(self, partition, keys):
+    async def _refuse(self, partition, key):
         raise TPICommandError("Unknown Command")
 
-    monkeypatch.setattr(EnvisalinkClient, "send_keystrokes", _refuse)
+    monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)
     with pytest.raises(HomeAssistantError, match="Unknown Command") as excinfo:
         await hass.services.async_call(
             DOMAIN,
@@ -580,7 +580,7 @@ async def test_nothing_follows_the_entry_until_the_panel_reports_program_mode(
     await asyncio.sleep(0.2)
     assert _typed(fake_server) == "4112800"
     assert not call.done()
-    await fake_server.push("03", "1627" + "01" + "000")
+    await fake_server.enter_program_mode()
     await call
     assert _typed(fake_server) == "4112800*57A*1*03*0**99"
     await _unload(hass, entry)
@@ -591,7 +591,7 @@ async def test_a_silent_panel_gets_nothing_after_the_entry(
 ):
     # A wrong installer code, an armed panel or a *98 lockout leaves the panel
     # in normal mode: no CID 627 arrives, and the sequence stops at 800.
-    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_ENTRY_TIMEOUT", 0.3)
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
     entry = await _setup_entry(hass, fake_server)
     fake_server.program_mode_entry = None
     with pytest.raises(HomeAssistantError) as raised:
@@ -599,6 +599,14 @@ async def test_a_silent_panel_gets_nothing_after_the_entry(
     assert not isinstance(raised.value, ServiceValidationError)
     assert raised.value.translation_key == "program_mode_not_confirmed"
     await asyncio.sleep(0.2)
+    assert _typed(fake_server) == "4112800"
+    # The panel may have opened Program Mode without reporting it: the next
+    # attempt is refused before anything is sent, until the doubt is settled.
+    assert _issue(hass, entry) is not None
+    with pytest.raises(ServiceValidationError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_not_closed"
+    await asyncio.sleep(0.1)
     assert _typed(fake_server) == "4112800"
     await _unload(hass, entry)
 
@@ -622,16 +630,24 @@ async def test_a_panel_already_in_program_mode_is_refused_before_anything_is_sen
 ):
     # Keys typed into an open Program Mode land in whatever field is showing.
     entry = await _setup_entry(hass, fake_server)
-    await fake_server.push("03", "1627" + "01" + "000")
+    await fake_server.enter_program_mode()
     for _ in range(100):
         if entry.runtime_data.data.system.installers_mode:
             break
         await asyncio.sleep(0.01)
     with pytest.raises(ServiceValidationError) as raised:
         await _program_key_a(hass, entry)
-    assert raised.value.translation_key == "program_mode_already_open"
+    assert raised.value.translation_key == "program_mode_not_closed"
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == ""
+    # A 628 the panel never sent would hold this forever: the repair gives the
+    # user's word at the keypad the same weight.
+    assert _issue(hass, entry) is not None
+    fake_server.in_program_mode = False  # the user pressed *99 at the keypad
+    await _confirm_repair(hass, entry)
+    assert not entry.runtime_data.data.system.installers_mode
+    await _program_key_a(hass, entry)
+    assert _typed(fake_server) == "4112800*57A*1*03*0**99"
     await _unload(hass, entry)
 
 
@@ -641,4 +657,135 @@ async def test_two_operations_take_turns_in_program_mode(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
     await asyncio.gather(_program_key_a(hass, entry), _program_key_a(hass, entry))
     assert _typed(fake_server) == "4112800*57A*1*03*0**99" * 2
+    await _unload(hass, entry)
+
+
+def _issue(hass, entry):
+    from homeassistant.helpers import issue_registry as ir
+
+    return ir.async_get(hass).async_get_issue(
+        DOMAIN, f"program_mode_unknown_{entry.entry_id}"
+    )
+
+
+async def _confirm_repair(hass, entry) -> None:
+    from homeassistant.components.repairs import repairs_flow_manager
+    from homeassistant.setup import async_setup_component
+
+    assert await async_setup_component(hass, "repairs", {})
+    manager = repairs_flow_manager(hass)
+    flow = await manager.async_init(
+        DOMAIN, data={"issue_id": f"program_mode_unknown_{entry.entry_id}"}
+    )
+    assert flow["step_id"] == "confirm"
+    result = await manager.async_configure(flow["flow_id"], {})
+    assert result["type"] == "create_entry"
+    assert _issue(hass, entry) is None
+
+
+async def test_a_627_followed_at_once_by_628_sends_nothing_more(
+    hass, fake_server, monkeypatch
+):
+    # The entry's report is only good while it is the panel's latest word: a
+    # 628 read in the same batch means normal mode, where A is the emergency.
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.extra_reports = {"4112800": "1628" + "01" + "000"}
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_not_confirmed"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == "4112800"
+    assert _issue(hass, entry) is not None
+    await _unload(hass, entry)
+
+
+async def test_program_mode_closing_part_way_stops_the_next_key(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.extra_reports = {"4112800*57": "1628" + "01" + "000"}
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_lost"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == "4112800*57"
+    await _unload(hass, entry)
+
+
+async def test_a_reconnect_after_the_entry_sends_nothing_more(hass, fake_server):
+    # Keys after the entry belong to the session the entry went out on.
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    call = hass.async_create_task(_program_key_a(hass, entry))
+    for _ in range(100):
+        if _typed(fake_server) == "4112800":
+            break
+        await asyncio.sleep(0.01)
+    entry.runtime_data.session_generation += 1
+    await fake_server.enter_program_mode()
+    with pytest.raises(HomeAssistantError) as raised:
+        await call
+    assert raised.value.translation_key == "program_mode_lost"
+    assert _typed(fake_server) == "4112800"
+    await _unload(hass, entry)
+
+
+async def test_a_disconnect_starts_a_new_session(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    coordinator = entry.runtime_data
+    before = coordinator.session_generation
+    await fake_server.stop()
+    for _ in range(200):
+        if coordinator.session_generation != before:
+            break
+        await asyncio.sleep(0.01)
+    assert coordinator.session_generation == before + 1
+    await _unload(hass, entry)
+
+
+async def test_a_missing_exit_report_is_an_error_and_a_repair(
+    hass, fake_server, monkeypatch
+):
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.report_exit = False
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_exit_not_confirmed"
+    assert _typed(fake_server) == "4112800*57A*1*03*0**99"
+    assert _issue(hass, entry) is not None
+    await _unload(hass, entry)
+
+
+async def test_a_clean_operation_leaves_no_repair(hass, fake_server):
+    entry = await _setup_entry(hass, fake_server)
+    await _program_key_a(hass, entry)
+    assert _issue(hass, entry) is None
+    assert not entry.runtime_data.data.system.installers_mode
+    await _unload(hass, entry)
+
+
+async def test_other_keystrokes_wait_for_a_sequence_in_program_mode(hass, fake_server):
+    # A raw send (or an arm, disarm or bypass) typed between the entry and
+    # *99 would land in a programming field: it waits for the keypad.
+    entry = await _setup_entry(hass, fake_server)
+    fake_server.program_mode_entry = None
+    call = hass.async_create_task(_program_key_a(hass, entry))
+    for _ in range(100):
+        if _typed(fake_server) == "4112800":
+            break
+        await asyncio.sleep(0.01)
+    raw = hass.async_create_task(
+        hass.services.async_call(
+            DOMAIN,
+            "send_keystrokes",
+            {"entry_id": entry.entry_id, "partition": 1, "keys": "1"},
+            blocking=True,
+        )
+    )
+    await asyncio.sleep(0.2)
+    assert _typed(fake_server) == "4112800"
+    await fake_server.enter_program_mode()
+    await call
+    await raw
+    assert _typed(fake_server) == "4112800*57A*1*03*0**99" + "1"
     await _unload(hass, entry)

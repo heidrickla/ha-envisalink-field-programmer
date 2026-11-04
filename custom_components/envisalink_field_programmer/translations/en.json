@@ -133,6 +133,18 @@
     "tpi_session_busy": {
       "title": "Envisalink at {host} is not answering",
       "description": "Home Assistant has not been able to reconnect to the Envisalink at {host} for several minutes, so {title} is unavailable.\n\nThe Envisalink admits one TPI client at a time. If another Home Assistant integration, the EyezOn portal, a phone app or a terminal session is connected to port 4025, it holds the only session and every reconnection here looks like an unreachable host.\n\nDisconnect the other client, or power-cycle the Envisalink, and this notice clears itself as soon as the connection comes back. If nothing else is connected, check the module's power and network link and that the address and port in this entry are still right."
+    },
+    "program_mode_unknown": {
+      "title": "{title}: Program Mode may still be open",
+      "description": "A programming operation ended without the panel reporting that Program Mode closed, so guided programming is paused.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Check the keypad",
+            "description": "A programming operation on {title} ended without the panel reporting that Program Mode closed. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming."
+          }
+        }
+      }
     }
   },
   "entity": {
@@ -349,14 +361,11 @@
     "opens_program_mode": {
       "message": "Refusing to send {keys}: on this panel that sequence opens installer Program Mode, which governs every data field including fire zones and UL-listing-relevant settings, and this protocol cannot read back what is on the keypad display. Set confirm_installer_risk to true if you intend it."
     },
-    "program_mode_already_open": {
-      "message": "The panel reports Program Mode is already open, so nothing was sent: keys typed now would land in whatever field is showing. Exit at the keypad with *99, then try again."
-    },
     "partition_armed": {
       "message": "Partition {partition} is armed or arming, so nothing was sent. Disarm it, then try again."
     },
     "program_mode_not_confirmed": {
-      "message": "The panel did not report Program Mode within {seconds} seconds of the installer code and 800, so nothing more was sent. Check the installer code, and that the panel is disarmed and not locked out with *98. If the keypad shows a Program Mode field, exit it with *99."
+      "message": "Only the installer code and 800 were sent: the panel did not report Program Mode within {seconds} seconds. Check the installer code, and that the panel is disarmed and not locked out with *98. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
     },
     "keystrokes_not_accepted": {
       "message": "The Envisalink did not accept the keystroke sequence: {error}"
@@ -408,6 +417,15 @@
     },
     "hardwire_zone_doubling_off": {
       "message": "Hardwire type zone doubling turns zones 9 to 16 into doubled zones, which changes how every one of them is programmed. Set Zone doubling to on in this integration's options first, then program the zone."
+    },
+    "program_mode_not_closed": {
+      "message": "Nothing was sent: the panel reports Program Mode open, or the last programming operation ended without the panel reporting it closed. Check the keypad and leave any field number showing with *99, then confirm it under Settings, Repairs."
+    },
+    "program_mode_lost": {
+      "message": "The sequence stopped part-way: the panel reported Program Mode closed, or the connection dropped. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
+    },
+    "program_mode_exit_not_confirmed": {
+      "message": "Every key was sent, but the panel did not report leaving Program Mode within {seconds} seconds of *99. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
     }
   }
 }

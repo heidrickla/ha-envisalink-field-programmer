@@ -555,10 +555,10 @@ async def test_a_refused_command_is_reported_as_a_failure(
     await _fill_zone_form(hass, entry)
     await _switch(hass, _entity_id(hass, entry, "switch", "program_confirm"), True)
 
-    async def _refuse(self, partition, keys):
+    async def _refuse(self, partition, key):
         raise TPICommandError("Unknown Command")
 
-    monkeypatch.setattr(EnvisalinkClient, "send_keystrokes", _refuse)
+    monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)
     with pytest.raises(HomeAssistantError) as raised:
         await _press(hass, _entity_id(hass, entry, "button", "program_zone"))
     assert not isinstance(raised.value, ServiceValidationError)
@@ -668,7 +668,7 @@ async def test_a_press_the_panel_never_confirms_is_reported_as_a_failure(
         field_programming_services,
     )
 
-    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_ENTRY_TIMEOUT", 0.3)
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
     entry = await _setup(hass, fake_server)
     fake_server.program_mode_entry = None
     await _fill_zone_form(hass, entry)

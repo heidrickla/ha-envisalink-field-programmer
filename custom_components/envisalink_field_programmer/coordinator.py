@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from typing import override
 
 from homeassistant.config_entries import ConfigEntry
@@ -32,6 +32,7 @@ from .client import EnvisalinkClient, TPIError, TPIEvent
 from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     DOMAIN,
+    ISSUE_PROGRAM_MODE_UNKNOWN,
     ISSUE_TPI_SESSION_BUSY,
     RECONNECT_BACKOFF_MAX,
     RECONNECT_BACKOFF_MIN,
@@ -134,10 +135,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # causes does not start a reconnect that would take the session back.
         self._session_released = False
         self.last_event: TPIEvent | None = None
-        # Program Mode sequences run one at a time, and each waits for the
-        # panel's own Program Mode Entry report before typing past the entry.
-        self.program_mode_lock = asyncio.Lock()
-        self._program_mode_entered: asyncio.Event | None = None
+        # Bumped on every disconnect, so a key meant for one Program Mode
+        # session is never typed into the session after a reconnect.
+        self.session_generation = 0
+        self._program_mode_changed: asyncio.Event | None = None
+        self.program_mode_issue_id = f"{ISSUE_PROGRAM_MODE_UNKNOWN}_{entry.entry_id}"
         self._remove_stop_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
@@ -275,29 +277,64 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # via async_set_updated_data() from _handle_event() as events arrive.
         return self.data
 
-    @contextlib.contextmanager
-    def expect_program_mode_entry(self) -> Iterator[asyncio.Event]:
-        """An event set when the panel next reports Program Mode Entry (CID 627)."""
-        entered = asyncio.Event()
-        self._program_mode_entered = entered
+    async def async_wait_for_program_mode(self, is_open: bool, timeout: float) -> bool:
+        """Wait until the panel's latest report says Program Mode is open, or closed."""
         try:
-            yield entered
-        finally:
-            self._program_mode_entered = None
+            async with asyncio.timeout(timeout):
+                while self.data.system.installers_mode is not is_open:
+                    changed = asyncio.Event()
+                    self._program_mode_changed = changed
+                    try:
+                        await changed.wait()
+                    finally:
+                        self._program_mode_changed = None
+        except TimeoutError:
+            return False
+        return True
+
+    @property
+    def program_mode_unknown(self) -> bool:
+        """A guided operation ended without the panel reporting Program Mode closed."""
+        issue = ir.async_get(self.hass).async_get_issue(
+            DOMAIN, self.program_mode_issue_id
+        )
+        return issue is not None
+
+    def async_raise_program_mode_issue(self) -> None:
+        """Hold guided programming until the panel or the user settles the doubt."""
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self.program_mode_issue_id,
+            data={"entry_id": self.entry.entry_id},
+            is_fixable=True,
+            is_persistent=True,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=ISSUE_PROGRAM_MODE_UNKNOWN,
+            translation_placeholders={"title": self.entry.title},
+        )
+
+    def async_confirm_program_mode_closed(self) -> None:
+        """The user checked the keypad and Program Mode is closed."""
+        self.data.system.installers_mode = False
+        ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
+        self.async_set_updated_data(self.data)
 
     def _handle_event(self, event: TPIEvent) -> None:
         self.last_event = event
         was_in_program_mode = self.data.system.installers_mode
         apply_event(self.data, event)
-        if (
-            self._program_mode_entered is not None
-            and self.data.system.installers_mode
-            and not was_in_program_mode
-        ):
-            self._program_mode_entered.set()
+        if self.data.system.installers_mode is not was_in_program_mode:
+            if self._program_mode_changed is not None:
+                self._program_mode_changed.set()
+            if not self.data.system.installers_mode:
+                # The panel itself reported Program Mode closed: no doubt is left.
+                ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:
+        self.session_generation += 1
         self.data.system.connected = False
         self.async_set_updated_data(self.data)
         if self._shutting_down or self._session_released:

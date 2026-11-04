@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     DEFAULT_PANEL_MODEL,
     DOMAIN,
+    ISSUE_PROGRAM_MODE_UNKNOWN,
     ISSUE_TPI_SESSION_BUSY,
 )
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
@@ -155,8 +156,9 @@ async def async_unload_entry(
 async def async_remove_entry(
     hass: HomeAssistant, entry: VistaConsoleConfigEntry
 ) -> None:
-    """Take this entry's repair issue with it when the entry is deleted."""
-    ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_TPI_SESSION_BUSY}_{entry.entry_id}")
+    """Take this entry's repair issues with it when the entry is deleted."""
+    for issue in (ISSUE_TPI_SESSION_BUSY, ISSUE_PROGRAM_MODE_UNKNOWN):
+        ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry.entry_id}")
 
 
 async def _async_update_listener(

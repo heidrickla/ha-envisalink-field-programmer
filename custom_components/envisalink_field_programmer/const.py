@@ -79,6 +79,9 @@ RECONNECT_FAILURES_BEFORE_ISSUE: Final = 5
 
 # Repair issues. tools/validate_local.py pins strings.json against this list.
 ISSUE_TPI_SESSION_BUSY: Final = "tpi_session_busy"
+# Raised when a guided operation ends without the panel reporting Program
+# Mode closed again, and cleared by that report or by the user's word.
+ISSUE_PROGRAM_MODE_UNKNOWN: Final = "program_mode_unknown"
 
 # ---------------------------------------------------------------------------
 # TPI wire protocol -- Honeywell/Ademco Envisalink (EVL-3/EVL-4)
@@ -182,10 +185,11 @@ ICON_LED_BITS: Final[dict[str, int]] = {
 # coordinator detects it.
 INSTALLERS_MODE_CID_EVENT: Final = 627
 INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
-# How long a guided operation waits for that report after typing the Program
-# Mode entry. Without it nothing more is sent: over the TPI a keystroke meant
-# for a Program Mode prompt means something else in normal mode.
-PROGRAM_MODE_ENTRY_TIMEOUT: Final = 10
+# How long a guided operation waits for each report: 627 after typing the
+# Program Mode entry, 628 after *99. Over the TPI a keystroke meant for a
+# Program Mode prompt means something else in normal mode, so without the 627
+# nothing more is sent.
+PROGRAM_MODE_REPORT_TIMEOUT: Final = 10
 
 # CID "qualifier" digit (the first data field of a %03 event): 1 means a new
 # event/opening (e.g. a disarm), 3 means a new restore/closing (e.g. an
