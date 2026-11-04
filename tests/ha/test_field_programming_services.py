@@ -917,3 +917,14 @@ async def test_program_mode_closing_while_a_key_waits_to_be_written(
     assert _typed(fake_server) == "4112800"
     assert _issue(hass, entry) is None
     await _unload(hass, entry)
+
+
+async def test_a_send_that_fails_before_any_write_leaves_no_repair(hass, fake_server):
+    # Nothing reached the module, let alone the panel.
+    entry = await _setup_entry(hass, fake_server)
+    entry.runtime_data.client._writer = None
+    with pytest.raises(HomeAssistantError):
+        await _program_key_a(hass, entry)
+    assert _typed(fake_server) == ""
+    assert _issue(hass, entry) is None
+    await _unload(hass, entry)
