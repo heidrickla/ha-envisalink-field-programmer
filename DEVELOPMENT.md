@@ -83,6 +83,8 @@ Observed on 2026-09-16: `212 passed` for the full suite, `81 passed, 1 skipped` 
 
 Logos are pinned to 512x256 and 1024x512 rather than to the home-assistant/brands shortest-side range, which accepts a pair at a different aspect from the sibling integrations. Run the validator before a push.
 
+`tools/gates.sh` runs the same four steps one per call on Linux or WSL (`tests`, `mypy`, `ruff`, `validate`), with `PYTHON` naming the interpreter that has the harness, so each can be recorded and rerun on its own: `PYTHON=~/venvs/efp/bin/python tools/gates.sh tests`.
+
 ## hassfest and HACS validation locally
 
 `hassfest` (Home Assistant's manifest/structure validator) lives in `home-assistant/core`'s `script/hassfest/`, not in the `homeassistant` PyPI package. A local run needs core checked out at the tag matching the installed `homeassistant` version: hassfest tracks core's tip, and a skewed pair fails inside hassfest's own `model.py`.
