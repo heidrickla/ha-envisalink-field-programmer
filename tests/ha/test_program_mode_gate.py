@@ -271,10 +271,12 @@ async def test_a_partition_the_panel_does_not_have_is_not_programmed(
     await unload_entry(hass, entry)
 
 
-async def test_every_tracked_partition_is_checked_before_programming(hass, fake_server):
+@pytest.mark.parametrize("flag", ["armed", "exit_delay"])
+async def test_every_tracked_partition_is_checked_before_programming(
+    hass, fake_server, flag
+):
     entry = await _setup(hass, fake_server, num_partitions=2)
-    await fake_server.push("00", "2," + ARMED_AWAY)
-    await _until(lambda: entry.runtime_data.data.partitions[2].armed)
+    setattr(entry.runtime_data.data.partitions[2], flag, True)
     with pytest.raises(ServiceValidationError) as raised:
         await _program_key_a(hass, entry)
     assert raised.value.translation_key == "partition_armed"
