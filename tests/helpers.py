@@ -22,9 +22,14 @@ class FakeEnvisalinkServer:
         # Like the real EVL, acknowledge every command with "^<code>,00$".
         # Tests can disable this to simulate an unresponsive EVL, or script
         # specific responses per command code (each entry consumed once,
-        # then back to "00") to simulate buffer overruns / rejections.
+        # then back to "00") to simulate buffer overruns / rejections. A None
+        # entry holds that acknowledgement back until release_held_acks().
         self.ack_commands = True
-        self.scripted_responses: dict[str, list[str]] = {}
+        self.scripted_responses: dict[str, list[str | None]] = {}
+        self._held_acks: list[str] = []
+        # Close the connection, unanswered, once the typed keys end with this:
+        # the module dropping the session part-way through a sequence.
+        self.drop_on: str | None = None
         # Stands in for the real module's single TPI session: while this is
         # above zero the server sends the login prompt, reads the password and
         # then closes without answering, which is exactly what the hardware
@@ -77,6 +82,13 @@ class FakeEnvisalinkServer:
         self.in_program_mode = True
         self._typed = ""
         await self.push("03", "1627" + "01" + "000")
+
+    async def release_held_acks(self) -> None:
+        """Send the acknowledgements held back by None responses, late."""
+        assert self._writer is not None
+        held, self._held_acks = self._held_acks, []
+        self._writer.write("".join(held).encode("ascii"))
+        await self._writer.drain()
 
     async def push(self, code: str, data: str = "") -> None:
         """Send a "%CODE,DATA$" frame to the connected client."""
@@ -146,14 +158,25 @@ class FakeEnvisalinkServer:
                     parsed = self._record_frame(raw_frame)
                     if parsed is None:
                         continue
+                    if self.drop_on is not None and parsed[0] == "03":
+                        typed = self._typed + parsed[1].split(",", 1)[-1]
+                        if typed.endswith(self.drop_on):
+                            self._typed = typed
+                            writer.close()
+                            return
                     # One write, so the client reads the acknowledgement and the
                     # panel's reports together, as one TCP segment can carry them.
                     out = ""
-                    response = "00"
+                    response: str | None = "00"
                     if self.ack_commands:
                         code, _ = parsed
                         response = self._next_response(code)
-                        out += f"^{code},{response}$"
+                        if response is None:
+                            # Held back, but the panel still got the key.
+                            self._held_acks.append(f"^{code},00$")
+                            response = "00"
+                        else:
+                            out += f"^{code},{response}$"
                     # A refused command never reaches the panel.
                     if response == "00":
                         out += "".join(
@@ -184,7 +207,7 @@ class FakeEnvisalinkServer:
                 reports.append("1628" + "01" + "000")
         return reports
 
-    def _next_response(self, code: str) -> str:
+    def _next_response(self, code: str) -> str | None:
         queue = self.scripted_responses.get(code)
         if queue:
             return queue.pop(0)

@@ -168,6 +168,12 @@ EventCallback = Callable[[TPIEvent], None]
 DisconnectCallback = Callable[[Exception | None], None]
 
 
+def _retrieve_result(future: asyncio.Future[str]) -> None:
+    """Mark an owed ack's outcome as seen; nobody may be left awaiting it."""
+    if not future.cancelled():
+        future.exception()
+
+
 class KeyTyper(Protocol):
     """Types keys on a partition; ``guard`` runs before each key's write."""
 
@@ -431,6 +437,7 @@ class EnvisalinkClient:
         """
         payload = f"^{code},{data}$\r\n".encode("ascii")
         async with self._command_lock:
+            await self._settle_owed_ack()
             for attempt in range(COMMAND_RETRY_ATTEMPTS + 1):
                 if self._writer is None:
                     raise TPIConnectionError("not connected")
@@ -443,14 +450,21 @@ class EnvisalinkClient:
                     self._writer.write(payload)
                     await self._writer.drain()
                     try:
-                        response = await asyncio.wait_for(future, self._ack_timeout)
+                        # Shielded, so a caller that stops waiting leaves the
+                        # ack owed rather than free to answer the next command.
+                        response = await asyncio.wait_for(
+                            asyncio.shield(future), self._ack_timeout
+                        )
                     except TimeoutError as err:
                         raise TPICommandError(
                             f"no acknowledgement for command ^{code} within {self._ack_timeout}s"
                         ) from err
                 finally:
-                    self._pending_ack = None
-                    self._pending_ack_code = ""
+                    if future.done():
+                        self._pending_ack = None
+                        self._pending_ack_code = ""
+                    else:
+                        future.add_done_callback(_retrieve_result)
                 if response == RESPONSE_ACCEPTED:
                     return
                 if (
@@ -465,6 +479,28 @@ class EnvisalinkClient:
                 raise TPICommandRefused(
                     f"EVL rejected command ^{code}: response {response} ({meaning})"
                 )
+
+    async def _settle_owed_ack(self) -> None:
+        """Wait out the ack of a command whose caller stopped waiting for it.
+
+        An ack names only its command code, so one still owed would be taken
+        as the next command's own. One that never comes leaves every later ack
+        unmatched, so the session is closed and the reconnect starts afresh.
+        """
+        owed = self._pending_ack
+        if owed is not None and not owed.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(owed), self._ack_timeout)
+            except TimeoutError as err:
+                await self.disconnect()
+                raise TPIConnectionError(
+                    "the Envisalink never acknowledged an earlier command; "
+                    "the session was closed"
+                ) from err
+            except TPIError:
+                pass
+        self._pending_ack = None
+        self._pending_ack_code = ""
 
     # -- Outbound commands ------------------------------------------------
 

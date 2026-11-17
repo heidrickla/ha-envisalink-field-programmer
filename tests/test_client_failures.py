@@ -7,6 +7,7 @@ tiny server that answers with exactly the bytes being tested.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 
 import pytest
@@ -20,6 +21,8 @@ TPIAuthError = client_module.TPIAuthError
 TPIConnectionError = client_module.TPIConnectionError
 TPISessionBusyError = client_module.TPISessionBusyError
 TPIProtocolError = client_module.TPIProtocolError
+TPIError = client_module.TPIError
+TPICommandError = client_module.TPICommandError
 
 Handler = Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
 
@@ -249,3 +252,74 @@ async def test_a_keypress_is_one_character_at_a_time():
     )
     with pytest.raises(ValueError, match="one character"):
         await client.send_keypress(1, "12")
+
+
+@pytest.mark.parametrize("abandon", ["timeout", "cancel"])
+async def test_an_abandoned_command_s_ack_is_not_taken_by_the_next(abandon):
+    # Acknowledgements carry no sequence number. A keypress given up before
+    # its ack must not lend that ack to the next keypress, which would then
+    # count as delivered while the module was still busy with the first.
+    server = FakeEnvisalinkServer()
+    await server.start()
+    server.scripted_responses["03"] = [None, None]
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        server.port,
+        "user",
+        event_callback=lambda event: None,
+        ack_timeout=0.3,
+    )
+    try:
+        await client.connect()
+        first = asyncio.ensure_future(client.send_keypress(1, "1"))
+        if abandon == "timeout":
+            with pytest.raises(TPICommandError):
+                await first
+        else:
+            await asyncio.sleep(0.05)
+            first.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first
+        second = asyncio.ensure_future(client.send_keypress(1, "2"))
+        await asyncio.sleep(0.05)
+        # The first key's ack arrives late; the second key's ack is held.
+        await server.release_held_acks()
+        await asyncio.sleep(0.1)
+        assert not (second.done() and second.exception() is None), (
+            "the second key took the first key's acknowledgement"
+        )
+        second.cancel()
+        with contextlib.suppress(asyncio.CancelledError, TPIError):
+            await second
+    finally:
+        await client.disconnect()
+        await server.stop()
+
+
+async def test_an_ack_that_never_comes_ends_the_session():
+    # Every later ack would be one behind, so the session is closed and the
+    # next command fails instead of being matched to the wrong answer.
+    server = FakeEnvisalinkServer()
+    await server.start()
+    server.scripted_responses["03"] = [None]
+    lost: list[Exception | None] = []
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        server.port,
+        "user",
+        event_callback=lambda event: None,
+        disconnect_callback=lost.append,
+        ack_timeout=0.2,
+    )
+    try:
+        await client.connect()
+        with pytest.raises(TPICommandError):
+            await client.send_keypress(1, "1")
+        with pytest.raises(TPIConnectionError, match="never acknowledged"):
+            await client.send_keypress(1, "2")
+        assert not client.connected
+        assert len(lost) == 1
+        assert [d for c, d in server.received if c == "03"] == ["1,1"]
+    finally:
+        await client.disconnect()
+        await server.stop()
