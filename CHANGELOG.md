@@ -4,6 +4,22 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.8.1] - 2026-11-17
+
+### Fixed
+
+- A partition's arm state is unknown until a keypad report arrives on the current session, and the integration now asks for it: on setup, resume and every reconnect it changes the module's default partition to each tracked partition in turn (`^01`) and returns it to partition 1. A press that needs a report asks again and waits up to 5 seconds; if none comes it is refused with the partition named and what to do next. The alarm panel entity reads unknown until its partition reports. Whether a real Envisalink answers `^01` with a keypad report is unverified.
+- A 627 is attributed to the operation only when its own keys explain it: a guided operation with its whole entry sent while the state is its own doubt, or an installer operation that has begun a key write. A second 627 ends a guided operation's binding, and any other 627 leaves the state open with no owner.
+- A doubt raised for an operation whose keys never went out (the send failed before any write, or the first key was refused) is dropped when the operation ends, so no repair issue appears for it.
+- A repair flow carries the revision of the state it was opened for as well as the generation. One opened for an older state aborts as stale, one submitted while an operation holds the keypad says so, and one submitted after the doubt ended says it is settled, each with its own wording.
+- The doubt save reads the stored record back inside the save chain, and a newer record from a later save no longer counts as a failed save.
+- The refusal and repair text no longer says the panel was opened by something else; it says keys may have gone out.
+
+### Changed
+
+- The transition table in PROGRAM_MODE_STATE.md is first in the file and has one row per event, with the rules for attributing a 627, dropping an unsent doubt and confirming a repair stated in it. The table-driven test checks the rows against the table and every event and mode pair for coverage.
+- The interleaving property test starts the integration through its own setup, answers partition requests, compares the integration's Program Mode and 627 history with the model after every step, and submits repairs opened earlier.
+
 ## [0.8.0] - 2026-11-17
 
 ### Changed
