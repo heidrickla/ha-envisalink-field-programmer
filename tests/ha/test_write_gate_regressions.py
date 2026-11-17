@@ -124,6 +124,53 @@ async def test_a_late_report_during_release_cannot_authorize_a_new_key(
     await unload_entry(hass, entry)
 
 
+async def test_a_key_waits_while_a_less_cautious_state_save_is_pending(
+    hass, fake_server, monkeypatch
+) -> None:
+    entry = await _setup(hass, fake_server)
+    coordinator = entry.runtime_data
+    async with coordinator.async_keypad(1, KeypadUse.INSTALLER) as keypad:
+        await keypad("1")
+        await fake_server.push("03", "162701000")
+        await _until(lambda: coordinator.program_mode is ProgramMode.OPEN)
+
+        saving = asyncio.Event()
+        release = asyncio.Event()
+        original = Store.async_save
+
+        async def hold_closed(self, data):
+            if isinstance(data, dict) and data.get("mode") == "closed":
+                saving.set()
+                await release.wait()
+            await original(self, data)
+
+        monkeypatch.setattr(Store, "async_save", hold_closed)
+        await fake_server.push("03", "162801000")
+        try:
+            await asyncio.wait_for(saving.wait(), timeout=1)
+            with pytest.raises(HomeAssistantError):
+                await keypad("2")
+            assert _typed(fake_server) == "1"
+        finally:
+            release.set()
+    await unload_entry(hass, entry)
+
+
+async def test_disconnected_client_cannot_write_with_a_fresh_report(
+    hass, fake_server, monkeypatch
+) -> None:
+    entry = await _setup(hass, fake_server)
+    coordinator = entry.runtime_data
+    monkeypatch.setattr(
+        type(coordinator.client), "connected", property(lambda _: False)
+    )
+    async with coordinator.async_keypad(1) as keypad:
+        with pytest.raises(HomeAssistantError):
+            await keypad("1")
+    assert _typed(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
 async def test_no_key_sent_is_durable_before_closed_is_visible(
     hass, fake_server, monkeypatch
 ) -> None:
