@@ -283,6 +283,10 @@ class EnvisalinkClient:
                 await self._close_writer(writer)
             raise
 
+        # An ack owed on the last session never comes on this one.
+        self._abort_pending_ack("the session ended before the acknowledgement")
+        self._pending_ack = None
+        self._pending_ack_code = ""
         self._reader = reader
         self._writer = writer
         self._buffer = ""

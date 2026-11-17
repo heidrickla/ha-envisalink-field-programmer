@@ -323,3 +323,37 @@ async def test_an_ack_that_never_comes_ends_the_session():
     finally:
         await client.disconnect()
         await server.stop()
+
+
+async def test_an_ack_owed_on_a_lost_session_is_not_waited_for_on_the_next():
+    # A command written after the module dropped the socket is never
+    # answered; the session that replaces it owes nothing.
+    server = FakeEnvisalinkServer()
+    await server.start()
+    lost: list[Exception | None] = []
+    client = EnvisalinkClient(
+        "127.0.0.1",
+        server.port,
+        "user",
+        event_callback=lambda event: None,
+        disconnect_callback=lost.append,
+        ack_timeout=0.3,
+    )
+    try:
+        await client.connect()
+        assert server._writer is not None
+        server._writer.close()
+        for _ in range(100):
+            if lost:
+                break
+            await asyncio.sleep(0.01)
+        assert len(lost) == 1
+        with pytest.raises((TPIError, OSError)):
+            await client.send_keypress(1, "1")
+        await client.connect()
+        await asyncio.wait_for(client.keep_alive(), 0.2)
+        assert client.connected
+        assert server.connections == 2
+    finally:
+        await client.disconnect()
+        await server.stop()
