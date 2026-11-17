@@ -201,6 +201,20 @@ async def test_a_deleted_issue_wakes_the_entry_s_state(hass, fake_server, monkey
     await unload_entry(hass, entry)
 
 
+async def test_a_doubt_is_written_to_disk_as_a_repair_a_restart_restores(
+    hass, fake_server, monkeypatch
+):
+    # Home Assistant restores only a persistent issue as an active, fixable
+    # repair; any other comes back inactive and cannot be confirmed.
+    entry = await _setup(hass, fake_server)
+    await _leave_in_doubt(hass, fake_server, entry, monkeypatch, "no_627")
+    stored = _issue(hass, entry).to_json()
+    assert stored["is_persistent"] is True
+    assert stored["is_fixable"] is True
+    assert stored["data"] == {"entry_id": entry.entry_id}
+    await unload_entry(hass, entry)
+
+
 async def _program_zone(hass, entry, partition: int) -> None:
     await hass.services.async_call(
         DOMAIN,
