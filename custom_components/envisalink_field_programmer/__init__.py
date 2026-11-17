@@ -11,6 +11,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .client import TPIAuthError, TPIError
@@ -159,6 +160,9 @@ async def async_remove_entry(
     """Take this entry's repair issues with it when the entry is deleted."""
     for issue in (ISSUE_TPI_SESSION_BUSY, ISSUE_PROGRAM_MODE_UNKNOWN):
         ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry.entry_id}")
+    await Store[dict[str, object]](
+        hass, 1, f"{DOMAIN}.program_mode.{entry.entry_id}"
+    ).async_remove()
 
 
 async def _async_update_listener(

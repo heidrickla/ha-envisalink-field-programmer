@@ -225,6 +225,7 @@ async def _send_program_mode_sequence(
         async with coordinator.async_keypad(
             PROGRAM_MODE_KEYPAD_PARTITION, KeypadUse.PROGRAMMING
         ) as keypad:
+            keypad.entry_length = len(entry_keys)
             await _type_in_program_mode(
                 coordinator, keypad, entry_keys, full_sequence[len(entry_keys) :]
             )

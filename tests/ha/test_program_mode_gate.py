@@ -18,7 +18,6 @@ from custom_components.envisalink_field_programmer.const import DOMAIN
 from custom_components.envisalink_field_programmer.models import ProgramMode
 
 from .conftest import setup_entry, unload_entry
-from .test_field_programming_services import _confirm_repair
 from .test_program_mode_recovery import (
     COMPLETE,
     _disarm,
@@ -167,11 +166,10 @@ async def test_an_armed_report_mid_operation_neither_stops_it_nor_settles_it(
     await unload_entry(hass, entry)
 
 
-async def test_a_repair_confirmed_while_the_entry_sets_up_leaves_no_doubt(
+async def test_a_repair_confirmed_while_the_entry_sets_up_keeps_doubt(
     hass, fake_server, monkeypatch
 ):
-    # The repair flow only tells a loaded entry; Home Assistant deletes the
-    # issue either way, and the issue is the one record of the doubt.
+    # An unloaded entry cannot safely settle the durable doubt.
     entry = await _setup(hass, fake_server)
     await _leave_in_doubt(hass, fake_server, entry, monkeypatch, "no_627")
     await hass.config_entries.async_unload(entry.entry_id)
@@ -179,25 +177,35 @@ async def test_a_repair_confirmed_while_the_entry_sets_up_leaves_no_doubt(
     real_connect = EnvisalinkClient.connect_with_retry
 
     async def confirm_then_connect(self, delay):
-        await _confirm_repair(hass, entry)
+        from homeassistant.components.repairs import repairs_flow_manager
+
+        manager = repairs_flow_manager(hass)
+        flow = await manager.async_init(
+            DOMAIN, data={"issue_id": f"program_mode_unknown_{entry.entry_id}"}
+        )
+        result = await manager.async_configure(flow["flow_id"], {})
+        assert result["type"] == "abort"
         await real_connect(self, delay)
 
     monkeypatch.setattr(EnvisalinkClient, "connect_with_retry", confirm_then_connect)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     before = _typed(fake_server)
-    await _disarm(hass, entry)
-    assert _typed(fake_server) == before + "12341"
-    assert entry.runtime_data.data.system.program_mode is ProgramMode.CLOSED
+    with pytest.raises(ServiceValidationError):
+        await _disarm(hass, entry)
+    assert _typed(fake_server) == before
+    assert entry.runtime_data.data.system.program_mode is ProgramMode.DOUBT
     await unload_entry(hass, entry)
 
 
-async def test_a_deleted_issue_wakes_the_entry_s_state(hass, fake_server, monkeypatch):
+async def test_a_deleted_issue_does_not_change_the_state(
+    hass, fake_server, monkeypatch
+):
     entry = await _setup(hass, fake_server)
     await _leave_in_doubt(hass, fake_server, entry, monkeypatch, "no_627")
     ir.async_delete_issue(hass, DOMAIN, f"program_mode_unknown_{entry.entry_id}")
     await hass.async_block_till_done()
-    assert entry.runtime_data.data.system.program_mode is ProgramMode.CLOSED
+    assert entry.runtime_data.data.system.program_mode is ProgramMode.DOUBT
     await unload_entry(hass, entry)
 
 
@@ -211,7 +219,9 @@ async def test_a_doubt_is_written_to_disk_as_a_repair_a_restart_restores(
     stored = _issue(hass, entry).to_json()
     assert stored["is_persistent"] is True
     assert stored["is_fixable"] is True
-    assert stored["data"] == {"entry_id": entry.entry_id}
+    assert stored["data"]["entry_id"] == entry.entry_id
+    assert stored["data"]["generation"]
+    assert stored["data"]["saw_627"] is False
     await unload_entry(hass, entry)
 
 

@@ -8,7 +8,7 @@ DOMAIN: Final = "envisalink_field_programmer"
 
 # tools/validate_local.py pins this against manifest.json and pyproject.toml,
 # so a release bump that misses one of the three fails before the push.
-VERSION: Final = "0.7.0"
+VERSION: Final = "0.8.0"
 
 # Action names. Registered once in async_setup; tools/validate_local.py pins
 # services.yaml against this list.

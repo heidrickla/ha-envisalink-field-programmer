@@ -19,9 +19,10 @@ from .coordinator import VistaConsoleConfigEntry
 class ProgramModeClosedFlow(ConfirmRepairFlow):
     """The user checks the keypad, leaves Program Mode with *99, and confirms."""
 
-    def __init__(self, entry_id: str) -> None:
+    def __init__(self, entry_id: str, generation: str) -> None:
         super().__init__()
         self._entry_id = entry_id
+        self._generation = generation
 
     @override
     async def async_step_confirm(
@@ -31,8 +32,16 @@ class ProgramModeClosedFlow(ConfirmRepairFlow):
             entry: VistaConsoleConfigEntry | None = (
                 self.hass.config_entries.async_get_entry(self._entry_id)
             )
-            if entry is not None and entry.state is ConfigEntryState.LOADED:
-                entry.runtime_data.async_confirm_program_mode_closed()
+            if entry is None or entry.state is not ConfigEntryState.LOADED:
+                return self.async_abort(reason="entry_not_loaded")
+            try:
+                await entry.runtime_data.async_confirm_program_mode_closed(
+                    self._generation
+                )
+            except ValueError as err:
+                if "keypad" in str(err):
+                    return self.async_abort(reason="operation_in_progress")
+                return self.async_abort(reason="stale_repair")
         return await super().async_step_confirm(user_input)
 
 
@@ -41,5 +50,5 @@ async def async_create_fix_flow(
 ) -> RepairsFlow:
     """The confirm flow for this integration's one fixable issue."""
     if issue_id.startswith(f"{ISSUE_PROGRAM_MODE_UNKNOWN}_") and data:
-        return ProgramModeClosedFlow(str(data["entry_id"]))
+        return ProgramModeClosedFlow(str(data["entry_id"]), str(data["generation"]))
     raise ValueError(f"{DOMAIN} has no repair flow for {issue_id}")

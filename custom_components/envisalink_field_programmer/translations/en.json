@@ -138,6 +138,11 @@
       "title": "{title}: Program Mode may still be open",
       "description": "The panel reported Program Mode open, or keys that open it went out and the panel has not reported it closed since, so guided programming, arming, disarming and bypass are paused.",
       "fix_flow": {
+        "abort": {
+          "entry_not_loaded": "The entry is not loaded. Reload it, then reopen this repair.",
+          "operation_in_progress": "A programming operation still holds the keypad. Wait for it to finish, then reopen this repair.",
+          "stale_repair": "This repair belongs to an older Program Mode doubt. Reopen the current repair."
+        },
         "step": {
           "confirm": {
             "title": "Check the keypad",
@@ -364,6 +369,9 @@
     "partition_not_configured": {
       "message": "Nothing was sent: this entry tracks {count} partition(s), so partition {partition} has no reported state here. If the panel has it, raise the partition count with Reconfigure on the entry."
     },
+    "partition_report_pending": {
+      "message": "Nothing was sent: waiting for the panel's fresh arm-state report for partition {partition} after the connection changed."
+    },
     "partition_armed": {
       "message": "Partition {partition} is armed or arming, so nothing was sent. Program Mode needs every partition disarmed: disarm it, then try again."
     },
@@ -429,6 +437,9 @@
     },
     "program_mode_not_closed": {
       "message": "Nothing was sent: the panel reports Program Mode open, or the last programming operation ended without the panel reporting it closed. Check the keypad and leave any field number showing with *99, then confirm it under Settings, Repairs."
+    },
+    "program_mode_storage_failed": {
+      "message": "Nothing was sent: Home Assistant could not verify that the Program Mode doubt was saved. Check storage and try again."
     },
     "program_mode_lost": {
       "message": "The sequence stopped part-way: the panel's Program Mode report changed while it was typing (closed, opened by something else, or the connection dropped). Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."

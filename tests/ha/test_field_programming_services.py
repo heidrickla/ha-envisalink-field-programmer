@@ -934,12 +934,15 @@ async def test_program_mode_closing_while_a_key_waits_to_be_written(
     await _unload(hass, entry)
 
 
-async def test_a_send_that_fails_before_any_write_leaves_no_repair(hass, fake_server):
-    # Nothing reached the module, let alone the panel.
+async def test_a_send_that_fails_before_any_write_keeps_the_durable_doubt(
+    hass, fake_server
+):
+    # The doubt was made durable before the first key phase. A transport
+    # failure is not a panel report that it is closed.
     entry = await _setup_entry(hass, fake_server)
     entry.runtime_data.client._writer = None
     with pytest.raises(HomeAssistantError):
         await _program_key_a(hass, entry)
     assert _typed(fake_server) == ""
-    assert _issue(hass, entry) is None
+    assert _issue(hass, entry) is not None
     await _unload(hass, entry)

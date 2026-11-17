@@ -4,6 +4,14 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.8.0] - 2026-11-17
+
+### Changed
+
+- Program Mode has one transition function and a durable state record. A doubt is saved to this integration's own storage and the save completes before an operation's first key. Its generation and whether a 627 was seen survive disconnects, reloads and restarts. A repair confirms only its own generation while the keypad is idle; an in-progress doubt becomes a visible repair when the operation ends.
+- Every partition's arm state is unknown after a disconnect or reload until that partition reports again. Guided entry waits for a fresh report and refuses an armed or arming partition.
+- Progress counts keystrokes the module acknowledged with `00`, including when a command was retried after an overrun.
+
 ## [0.7.0] - 2026-11-04
 
 ### Changed
@@ -15,8 +23,7 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 
 ### Added
 
-- One Program Mode state, closed, open or in doubt. The repair issue "Program Mode may still be open" is its one record: no issue means closed, whatever removed it, so the state survives a reload or restart and a repair submitted while the entry sets up or reloads leaves no doubt behind. A 627 records open and a 628 records closed, the latest report winning. A tracked partition reporting armed settles a doubt, unless a guided operation or confirmed installer send that raised it still holds the keypad, and never closes an open Program Mode; reports from a partition the entry does not track change nothing. The first key of a guided operation or of a confirmed `send_keystrokes` records doubt before the keypad is released; a dropped connection turns open into doubt. Submitting the repair after a check at the keypad closes it.
-- Home Assistant writes its issue registry to disk up to 10 seconds after a change, or 3 minutes while it is still starting, and offers integrations no immediate save, so a crash in that window can lose a doubt raised in it. After such a crash, check the keypad before arming or programming.
+- At 0.7.0 the repair issue held Program Mode uncertainty across reloads. Version 0.8.0 replaces that safety store with integration-owned durable state and a generation-checked repair flow.
 
 ### Fixed
 

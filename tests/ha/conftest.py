@@ -23,6 +23,7 @@ Two things here are unusual and both are deliberate:
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -123,6 +124,19 @@ async def setup_entry(
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
+    # The fake panel supplies a fresh idle keypad report at initial connect.
+    # Tests of an unreported partition use a coordinator without this helper.
+    for partition in range(1, int(entry.data["num_partitions"]) + 1):
+        await fake_server.push("00", f"{partition},1008,0,00,READY")
+    for _ in range(100):
+        if len(entry.runtime_data._fresh_partitions) == int(
+            entry.data["num_partitions"]
+        ):
+            break
+        await asyncio.sleep(0.001)
+    assert len(entry.runtime_data._fresh_partitions) == int(
+        entry.data["num_partitions"]
+    )
     return entry
 
 

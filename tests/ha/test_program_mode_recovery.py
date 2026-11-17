@@ -157,13 +157,15 @@ WRITERS = {
 }
 
 
-async def _enable_bypass_switch(hass, entry) -> None:
+async def _enable_bypass_switch(hass, fake_server, entry) -> None:
     registry = er.async_get(hass)
     registry.async_update_entity(
         _entity_id(hass, "switch", entry, "zone_1_bypass"), disabled_by=None
     )
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
+    await fake_server.push("00", "1,1008,0,00,READY")
+    await _until(lambda: 1 in entry.runtime_data._fresh_partitions)
 
 
 @pytest.mark.parametrize("kind", ["no_628", "no_627"])
@@ -174,7 +176,7 @@ async def test_no_writer_types_into_a_program_mode_left_in_doubt(
     # The keypad lock ends with the operation; the doubt does not. A key typed
     # now lands in whatever programming field the panel is showing.
     entry = await _setup(hass, fake_server)
-    await _enable_bypass_switch(hass, entry)
+    await _enable_bypass_switch(hass, fake_server, entry)
     await _leave_in_doubt(hass, fake_server, entry, monkeypatch, kind)
     before = _typed(fake_server)
     with pytest.raises(ServiceValidationError) as raised:
@@ -190,7 +192,7 @@ async def test_no_writer_types_into_a_program_mode_opened_at_the_keypad(
     hass, fake_server, writer
 ):
     entry = await _setup(hass, fake_server)
-    await _enable_bypass_switch(hass, entry)
+    await _enable_bypass_switch(hass, fake_server, entry)
     await fake_server.enter_program_mode()
     await _until(lambda: entry.runtime_data.data.system.installers_mode)
     with pytest.raises(ServiceValidationError) as raised:
@@ -357,18 +359,19 @@ async def test_a_late_627_after_a_completed_operation_pauses_programming(
     await unload_entry(hass, entry)
 
 
-async def test_duplicated_reports_do_not_change_the_outcome(hass, fake_server):
+async def test_a_second_627_invalidates_the_operation_s_menu(hass, fake_server):
     entry = await _setup(hass, fake_server)
     fake_server.extra_reports = {
         "4112800": "1627" + "01" + "000",
         "4112800*57A": "1627" + "01" + "000",
     }
-    await _program_key_a(hass, entry)
+    with pytest.raises(HomeAssistantError) as raised:
+        await _program_key_a(hass, entry)
+    assert raised.value.translation_key == "program_mode_lost"
+    assert _typed(fake_server) == "4112800"
+    assert _issue(hass, entry) is not None
     await fake_server.push("03", "1628" + "01" + "000")
-    await asyncio.sleep(0.1)
-    assert _typed(fake_server) == COMPLETE
-    assert _issue(hass, entry) is None
-    assert not entry.runtime_data.data.system.installers_mode
+    await _until(lambda: _issue(hass, entry) is None)
     await unload_entry(hass, entry)
 
 

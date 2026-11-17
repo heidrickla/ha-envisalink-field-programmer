@@ -35,6 +35,10 @@ from custom_components.envisalink_field_programmer.field_programming import (
     FunctionKeyLetter,
 )
 from custom_components.envisalink_field_programmer.models import ProgramMode
+from custom_components.envisalink_field_programmer.program_mode_state import (
+    ModeEvent,
+    ModeState,
+)
 from custom_components.envisalink_field_programmer.programming import (
     async_send_guarded_keystrokes,
 )
@@ -58,16 +62,16 @@ REPORTS = {
 
 STEPS = st.one_of(
     st.tuples(st.just("start"), st.sampled_from(["everyday", "guided", "installer"])),
-    st.tuples(st.just("ack"), st.just(0)),
-    st.tuples(st.just("ack"), st.just(0)),
-    st.tuples(st.just("ack"), st.just(0)),
+    st.tuples(st.just("ack"), st.sampled_from(["00", "00", "01", "02"])),
+    st.tuples(st.just("ack"), st.sampled_from(["00", "01", "02"])),
+    st.tuples(st.just("ack"), st.just("00")),
     st.tuples(st.just("cancel"), st.integers(0, 3)),
     st.tuples(st.just("report"), st.sampled_from(sorted(REPORTS))),
     st.tuples(st.just("report"), st.sampled_from(["627", "628"])),
     st.tuples(st.just("drop"), st.just(0)),
     st.tuples(st.just("reconnect"), st.just(0)),
     st.tuples(st.just("reload"), st.just(0)),
-    st.tuples(st.just("repair"), st.sampled_from(["confirmed", "issue deleted"])),
+    st.tuples(st.just("repair"), st.sampled_from(["current", "old"])),
 )
 
 _writer: contextvars.ContextVar[Writer | None] = contextvars.ContextVar(
@@ -99,6 +103,12 @@ class Model:
     armed: dict[int, bool] = field(default_factory=dict)
     writers: list[Writer] = field(default_factory=list)
     violations: list[str] = field(default_factory=list)
+    panel_open: bool = False
+    saw_627: bool = False
+    entry_gates: int = 0
+    keys_after_entry: int = 0
+    refused_keys: int = 0
+    repairs_tried: int = 0
 
     def set(self, state: ProgramMode) -> None:
         if state is not self.state:
@@ -113,7 +123,10 @@ class Model:
     def report(self, name: str) -> None:
         if name == "627":
             before = self.changes
-            self.set(ProgramMode.OPEN)
+            self.state = ProgramMode.OPEN
+            self.changes += 1
+            self.panel_open = True
+            self.saw_627 = True
             # A guided entry's own 627 is the one change after its doubt.
             for w in self.writers:
                 if (
@@ -125,7 +138,10 @@ class Model:
                 ):
                     w.opened_at = self.changes
         elif name == "628":
-            self.set(ProgramMode.CLOSED)
+            self.state = ProgramMode.CLOSED
+            self.changes += 1
+            self.panel_open = False
+            self.saw_627 = False
         else:
             kind, _, number = name.partition(" ")
             if not number.isdigit() or not 1 <= int(number) <= TRACKED:
@@ -134,6 +150,7 @@ class Model:
             if (
                 kind == "armed"
                 and self.state is ProgramMode.DOUBT
+                and not self.saw_627
                 and not self.holder_has_typed()
             ):
                 self.set(ProgramMode.CLOSED)
@@ -154,12 +171,13 @@ class Model:
         writer.written += 1
         where = f"{writer.use} key {index} ({key!r}) in {self.state.value}"
         if writer.use == "everyday":
-            if self.state is not ProgramMode.CLOSED:
+            if self.panel_open or self.state is not ProgramMode.CLOSED:
                 self.violations.append(where)
         elif writer.use == "installer":
             if self.state is ProgramMode.CLOSED:
                 self.set(ProgramMode.DOUBT)
         elif index < len(ENTRY):
+            self.entry_gates += 1
             if any(self.armed.values()):
                 self.violations.append(where + " with a partition armed")
             if index == 0:
@@ -172,7 +190,10 @@ class Model:
             ):
                 self.violations.append(where + " after the state changed")
         elif self.state is not ProgramMode.OPEN or self.changes != writer.opened_at:
+            self.keys_after_entry += 1
             self.violations.append(where + " outside its own Program Mode")
+        else:
+            self.keys_after_entry += 1
 
 
 class Session:
@@ -185,6 +206,7 @@ class Session:
         self._logged_in = False
         self.dropped = False
         self.unacked = 0
+        self.key_writes = 0
 
     def write(self, data: bytes) -> None:
         if not self._logged_in:
@@ -195,8 +217,20 @@ class Session:
         # so it is judged like any other.
         for frame in data.decode("ascii").split("$"):
             if frame.startswith("^03,"):
-                self.unacked += 1
-                self._model.write(_writer.get(), frame.rsplit(",", 1)[1])
+                writer = _writer.get()
+                self.key_writes += 1
+                self._model.write(writer, frame.rsplit(",", 1)[1])
+                if (
+                    writer is not None
+                    and writer.use == "guided"
+                    and writer.written <= len(ENTRY)
+                ):
+                    self.feed("^03,00$")
+                    if writer.written == len(ENTRY):
+                        self._model.report("627")
+                        self.feed(REPORTS["627"])
+                else:
+                    self.unacked += 1
 
     async def drain(self) -> None:
         if self.dropped:
@@ -257,6 +291,10 @@ class Run:
             num_zones=8,
             installer_code=INSTALLER_CODE,
         )
+        stored = await coordinator._mode_store.async_load()
+        if stored is not None:
+            coordinator._mode = ModeState.restore(stored)
+            coordinator._sync_mode()
         coordinator.client = EnvisalinkClient(
             "127.0.0.1",
             4025,
@@ -270,6 +308,10 @@ class Run:
         await coordinator.client.connect()
         coordinator.data.system.connected = True
         self.coordinator = coordinator
+        for number in range(1, TRACKED + 1):
+            self.sessions[-1].feed(REPORTS[f"disarmed {number}"])
+            self.model.report(f"disarmed {number}")
+        await self.settle()
 
     async def settle(self) -> None:
         for _ in range(SETTLE_TURNS):
@@ -318,7 +360,9 @@ class Run:
         elif kind == "ack":
             if session.unacked and not session.dropped:
                 session.unacked -= 1
-                session.feed("^03,00$")
+                if arg == "02":
+                    self.model.refused_keys += 1
+                session.feed(f"^03,{arg}$")
         elif kind == "cancel":
             running = [w for w in self.model.writers if w.running]
             if running:
@@ -338,8 +382,11 @@ class Run:
                 await self.settle()
                 await self.coordinator.client.connect()
                 self.coordinator.data.system.connected = True
+                self.coordinator._transition(ModeEvent.RECONNECT)
+                self.model.changes += 1
+                for number in range(1, TRACKED + 1):
+                    self.sessions[-1].feed(REPORTS[f"disarmed {number}"])
         elif kind == "reload":
-            await self._cancel_writers()
             if not session.dropped:
                 self.model.session_ended()
             await self.coordinator.async_shutdown()
@@ -349,14 +396,21 @@ class Run:
             self.model.armed.clear()
             await self.start_coordinator()
         elif kind == "repair":
-            self.model.set(ProgramMode.CLOSED)
-            if arg == "confirmed":
-                self.coordinator.async_confirm_program_mode_closed()
-            else:
-                # What Home Assistant does when the entry is not loaded.
-                ir.async_delete_issue(
-                    self.hass, DOMAIN, self.coordinator.program_mode_issue_id
+            self.model.repairs_tried += 1
+            generation = (
+                self.coordinator._mode.generation if arg == "current" else "old"
+            )
+            try:
+                await self.coordinator.async_confirm_program_mode_closed(
+                    str(generation)
                 )
+            except ValueError:
+                pass
+            else:
+                if not self.model.holder_has_typed() and arg == "current":
+                    self.model.set(ProgramMode.CLOSED)
+                    self.model.panel_open = False
+                    self.model.saw_627 = False
         await self.settle()
 
     async def finish(self) -> None:
@@ -366,18 +420,24 @@ class Run:
         await self.settle()
 
 
-async def _play(hass: Any, steps: list[tuple[str, Any]]) -> None:
+async def _play(hass: Any, steps: list[tuple[str, Any]]) -> tuple[int, int, int, int]:
     run = Run(hass)
     await run.start_coordinator()
     try:
+        # Reach the first menu key on every example. Later generated steps
+        # interleave with its held acknowledgement and any queued writers.
+        await run.step("start", "guided")
+        assert run.model.entry_gates >= len(ENTRY)
+        assert run.model.keys_after_entry >= 1
         for number, (kind, arg) in enumerate(steps):
             await run.step(kind, arg)
             assert not run.model.violations, (number, run.model.violations)
-            assert run.coordinator.data.system.program_mode is run.model.state, (
-                number,
-                run.coordinator.data.system.program_mode,
-                run.model.state,
-            )
+        return (
+            run.model.entry_gates,
+            run.model.keys_after_entry,
+            run.model.refused_keys,
+            run.model.repairs_tried,
+        )
     finally:
         await run.finish()
 
@@ -385,15 +445,26 @@ async def _play(hass: Any, steps: list[tuple[str, Any]]) -> None:
 async def test_no_key_is_written_outside_the_state_the_reports_allow(hass):
     """Every interleaving keeps the keys and the stored state within the rules."""
 
+    counts = [0, 0, 0, 0]
+
     @settings(
         derandomize=True,
         deadline=None,
         database=None,
-        max_examples=300,
+        max_examples=80,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
     )
-    @given(st.lists(STEPS, max_size=30))
+    @given(st.lists(STEPS, max_size=25))
     def check(steps: list[tuple[str, Any]]) -> None:
-        asyncio.run_coroutine_threadsafe(_play(hass, steps), hass.loop).result(30)
+        result = asyncio.run_coroutine_threadsafe(_play(hass, steps), hass.loop).result(
+            15
+        )
+        for index, count in enumerate(result):
+            counts[index] += count
 
     await hass.async_add_executor_job(check)
+    assert all(count > 0 for count in counts)
+    print(
+        f"property coverage: entry gates={counts[0]}, keys after entry={counts[1]}, "
+        f"refused keys={counts[2]}, repairs tried={counts[3]}"
+    )

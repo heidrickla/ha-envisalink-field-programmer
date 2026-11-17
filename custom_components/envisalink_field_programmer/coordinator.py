@@ -20,12 +20,14 @@ import logging
 import re
 from collections.abc import AsyncIterator, Callable
 from typing import override
+from uuid import uuid4
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .client import EnvisalinkClient, KeyTyper, TPICommandRefused, TPIError, TPIEvent
@@ -44,6 +46,7 @@ from .const import (
 from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import KeypadUse, ProgramMode, VistaState
 from .panels import PanelFamily, get_dialect, get_model
+from .program_mode_state import ModeEvent, ModeState, transition
 from .state_machine import ProgramModeReport, apply_event, program_mode_report
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,7 +80,9 @@ class HeldKeypad:
         self._type_keys = type_keys
         self.use = use
         self.written = 0
-        self.accepted = False
+        self.operation_id = str(uuid4())
+        self.entry_length = 0
+        self.entry_sent = 0
         # The coordinator's change count when this sequence's own key raised
         # the doubt, and when the panel reported this sequence's entry open.
         self.raised_at: int | None = None
@@ -90,7 +95,7 @@ class HeldKeypad:
             except TPICommandRefused:
                 self._coordinator._key_refused(self)
                 raise
-            self.accepted = True
+            self.written += 1
 
     def _gate(self) -> None:
         self._coordinator._before_key(self)
@@ -181,23 +186,19 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # causes does not start a reconnect that would take the session back.
         self._session_released = False
         self.last_event: TPIEvent | None = None
-        # The repair issue is the one record that Program Mode is not known
-        # closed; memory adds only whether this session's panel reported it
-        # open. Every change to either bumps the change count, which a held
-        # sequence compares to tell its own state from a later one.
         self.program_mode_issue_id = f"{ISSUE_PROGRAM_MODE_UNKNOWN}_{entry.entry_id}"
-        self._open_reported = False
-        self.program_mode_changes = 0
+        self._mode_store: Store[dict[str, object]] = Store(
+            hass, 1, f"{DOMAIN}.program_mode.{entry.entry_id}"
+        )
+        self._mode = ModeState()
+        self._mode_save_task: asyncio.Task[None] | None = None
+        self._fresh_partitions: set[int] = set()
         self._program_mode_changed: asyncio.Event | None = None
         # The sequence that has typed installer or guided keys and still holds
         # the keypad: an armed report does not settle a doubt it raised.
         self._typing_holder: HeldKeypad | None = None
+        self._keypad_holder: HeldKeypad | None = None
         self.data.system.program_mode = self.program_mode
-        self._remove_issue_listener: Callable[[], None] | None = hass.bus.async_listen(
-            ir.EVENT_REPAIRS_ISSUE_REGISTRY_UPDATED, self._handle_issue_update
-        )
-        # A setup that fails before shutdown still runs the entry's unload hooks.
-        entry.async_on_unload(self._stop_issue_listener)
         self._remove_stop_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
@@ -213,6 +214,16 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         Assistant's retry would also recover, five seconds later and with a
         failed entry in between.
         """
+        stored = await self._mode_store.async_load()
+        if stored is not None:
+            self._mode = transition(ModeState.restore(stored), ModeEvent.RELOAD)
+        elif ir.async_get(self.hass).async_get_issue(
+            DOMAIN, self.program_mode_issue_id
+        ):
+            self._mode = ModeState.restore({"mode": "doubt"})
+        self._sync_mode()
+        if self._mode.mode is not ProgramMode.CLOSED:
+            await self._mode_store.async_save(self._mode.stored())
         await self.client.connect_with_retry(SETUP_RETRY_DELAY)
         self.data.system.connected = True
         self.async_clear_connection_issue()
@@ -319,7 +330,6 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         if self._remove_stop_listener is not None:
             self._remove_stop_listener()
             self._remove_stop_listener = None
-        self._stop_issue_listener()
         tasks = (self._periodic_task, self._reconnect_task)
         self._periodic_task = None
         self._reconnect_task = None
@@ -329,6 +339,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             # own open, and only letting the cancellation land closes it.
             await _cancel_and_wait(task)
         await self.client.disconnect()
+        await self._await_mode_saved()
 
     @override
     async def _async_update_data(self) -> VistaState:
@@ -338,13 +349,12 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     @property
     def program_mode(self) -> ProgramMode:
-        """Program Mode as stored: no issue means closed, whatever removed it."""
-        if (
-            ir.async_get(self.hass).async_get_issue(DOMAIN, self.program_mode_issue_id)
-            is None
-        ):
-            return ProgramMode.CLOSED
-        return ProgramMode.OPEN if self._open_reported else ProgramMode.DOUBT
+        """Current state from the single owner."""
+        return self._mode.mode
+
+    @property
+    def program_mode_changes(self) -> int:
+        return self._mode.revision
 
     async def async_wait_for_program_mode(self, is_open: bool, timeout: float) -> bool:
         """Wait until the stored state says Program Mode is open, or closed."""
@@ -362,23 +372,60 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             return False
         return True
 
-    def _set_program_mode(self, mode: ProgramMode) -> None:
-        """Store a Program Mode change in the repair issue, then publish it.
-
-        The issue outlives a reload or restart, and a new coordinator that
-        finds it starts in doubt.
-        """
-        if mode is self.program_mode:
+    def _transition(
+        self,
+        event: ModeEvent,
+        *,
+        operation_id: str | None = None,
+        generation: str | None = None,
+        entry_complete: bool = False,
+        holding: bool = False,
+        installer: bool = False,
+        everyday: bool = False,
+    ) -> None:
+        """Apply the only state transition and publish its result."""
+        new = transition(
+            self._mode,
+            event,
+            operation_id=operation_id,
+            generation=generation,
+            entry_complete=entry_complete,
+            holding=holding,
+            installer=installer,
+            everyday=everyday,
+        )
+        if new == self._mode:
             return
-        self._open_reported = mode is ProgramMode.OPEN
-        if mode is ProgramMode.CLOSED:
+        self._mode = new
+        self._sync_mode()
+        previous = self._mode_save_task
+
+        async def save() -> None:
+            if previous is not None:
+                await previous
+            await self._mode_store.async_save(new.stored())
+
+        self._mode_save_task = self.hass.async_create_task(save())
+
+    async def _await_mode_saved(self) -> None:
+        if self._mode_save_task is not None:
+            await self._mode_save_task
+
+    def _sync_mode(self) -> None:
+        """Mirror the authoritative state to the issue and entities."""
+        mode = self._mode
+        if mode.mode is ProgramMode.CLOSED or self._typing_holder is not None:
             ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
         else:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
                 self.program_mode_issue_id,
-                data={"entry_id": self.entry.entry_id},
+                data={
+                    "entry_id": self.entry.entry_id,
+                    "generation": mode.generation,
+                    "saw_627": mode.saw_627,
+                },
                 is_fixable=True,
                 is_persistent=True,
                 issue_domain=DOMAIN,
@@ -386,33 +433,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 translation_key=ISSUE_PROGRAM_MODE_UNKNOWN,
                 translation_placeholders={"title": self.entry.title},
             )
-        self._publish_program_mode()
-
-    def _publish_program_mode(self) -> None:
-        """Count a change of the stored state, show it, and wake its waiters."""
-        self.program_mode_changes += 1
-        self.data.system.program_mode = self.program_mode
+        self.data.system.program_mode = mode.mode
         if self._program_mode_changed is not None:
             self._program_mode_changed.set()
         self.async_set_updated_data(self.data)
-
-    @callback
-    def _handle_issue_update(
-        self, event: Event[ir.EventIssueRegistryUpdatedData]
-    ) -> None:
-        # Home Assistant deletes the issue when its repair is confirmed, and
-        # tells only a loaded entry; the stored state follows the issue.
-        if (
-            event.data["domain"] == DOMAIN
-            and event.data["issue_id"] == self.program_mode_issue_id
-            and self.program_mode is not self.data.system.program_mode
-        ):
-            self._publish_program_mode()
-
-    def _stop_issue_listener(self) -> None:
-        if self._remove_issue_listener is not None:
-            self._remove_issue_listener()
-            self._remove_issue_listener = None
 
     @contextlib.asynccontextmanager
     async def async_keypad(
@@ -435,11 +459,60 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     },
                 )
             keypad = HeldKeypad(self, partition, use, type_keys)
+            self._keypad_holder = keypad
             try:
+                if use is KeypadUse.EVERYDAY:
+                    try:
+                        self._transition(
+                            ModeEvent.OPERATION_START,
+                            operation_id=keypad.operation_id,
+                            everyday=True,
+                        )
+                    except ValueError as err:
+                        raise ServiceValidationError(
+                            translation_domain=DOMAIN,
+                            translation_key="program_mode_not_closed",
+                        ) from err
+                if use is not KeypadUse.EVERYDAY:
+                    if use is KeypadUse.PROGRAMMING:
+                        if self.program_mode is not ProgramMode.CLOSED:
+                            raise ServiceValidationError(
+                                translation_domain=DOMAIN,
+                                translation_key="program_mode_not_closed",
+                            )
+                        self._require_disarmed(part_way=False)
+                    self._typing_holder = keypad
+                    was_closed = self.program_mode is ProgramMode.CLOSED
+                    self._transition(
+                        ModeEvent.OPERATION_START,
+                        operation_id=keypad.operation_id,
+                        installer=use is KeypadUse.INSTALLER,
+                    )
+                    if was_closed:
+                        keypad.raised_at = self.program_mode_changes
+                    expected_store = self._mode.stored()
+                    await self._await_mode_saved()
+                    if await self._mode_store.async_load() != expected_store:
+                        raise HomeAssistantError(
+                            translation_domain=DOMAIN,
+                            translation_key="program_mode_storage_failed",
+                        )
                 yield keypad
             finally:
                 if self._typing_holder is keypad:
+                    self._transition(
+                        ModeEvent.OPERATION_END,
+                        operation_id=keypad.operation_id,
+                    )
                     self._typing_holder = None
+                    self._sync_mode()
+                elif use is KeypadUse.EVERYDAY:
+                    self._transition(
+                        ModeEvent.OPERATION_END,
+                        operation_id=keypad.operation_id,
+                        everyday=True,
+                    )
+                self._keypad_holder = None
 
     def _before_key(self, keypad: HeldKeypad) -> None:
         """The Program Mode gate, run right before each key's write.
@@ -462,33 +535,33 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     translation_domain=DOMAIN, translation_key="program_mode_not_closed"
                 )
         elif keypad.use is KeypadUse.INSTALLER:
-            if mode is ProgramMode.CLOSED:
-                self._set_program_mode(ProgramMode.DOUBT)
-                keypad.raised_at = self.program_mode_changes
-            self._typing_holder = keypad
+            if self._mode.operation_id != keypad.operation_id:
+                self._program_mode_lost()
         elif keypad.opened_at is None:
-            if keypad.raised_at is None:
-                if mode is not ProgramMode.CLOSED:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="program_mode_not_closed",
-                    )
-            elif (
+            if (
                 mode is not ProgramMode.DOUBT
+                or self._mode.operation_id != keypad.operation_id
                 or self.program_mode_changes != keypad.raised_at
             ):
                 self._program_mode_lost()
             self._require_disarmed(part_way=keypad.written > 0)
-            if keypad.raised_at is None:
-                self._set_program_mode(ProgramMode.DOUBT)
-                keypad.raised_at = self.program_mode_changes
-            self._typing_holder = keypad
+            if keypad.entry_sent == keypad.written:
+                keypad.entry_sent += 1
         elif (
             mode is not ProgramMode.OPEN
             or self.program_mode_changes != keypad.opened_at
+            or self._mode.operation_id != keypad.operation_id
         ):
             self._program_mode_lost()
-        keypad.written += 1
+        transition(
+            self._mode,
+            ModeEvent.KEY_WRITE,
+            operation_id=keypad.operation_id
+            if keypad.use is not KeypadUse.EVERYDAY
+            else None,
+            entry_complete=keypad.opened_at is not None,
+            installer=keypad.use is KeypadUse.INSTALLER,
+        )
 
     def _bind_open_program_mode(self, keypad: HeldKeypad) -> None:
         # The entry's own 627 is the one change after the doubt its first key
@@ -497,6 +570,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             self.program_mode is not ProgramMode.OPEN
             or keypad.raised_at is None
             or self.program_mode_changes != keypad.raised_at + 1
+            or self._mode.operation_id != keypad.operation_id
         ):
             self._program_mode_lost()
         keypad.opened_at = self.program_mode_changes
@@ -505,11 +579,13 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # A refusal before any key was taken left the panel untouched; a
         # delivered prefix stays in its input.
         if (
-            not keypad.accepted
+            keypad.written == 0
             and keypad.raised_at is not None
-            and keypad.raised_at == self.program_mode_changes
+            and not self._mode.saw_627
         ):
-            self._set_program_mode(ProgramMode.CLOSED)
+            self._transition(
+                ModeEvent.KEY_REFUSED, operation_id=keypad.operation_id, holding=False
+            )
 
     @staticmethod
     def _program_mode_lost() -> None:
@@ -526,53 +602,73 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         governs the whole panel, not one partition.
         """
         for number, state in sorted(self.data.partitions.items()):
-            if not (state.armed or state.exit_delay):
-                continue
-            placeholders = {"partition": str(number)}
-            if part_way:
-                raise HomeAssistantError(
+            if number not in self._fresh_partitions:
+                raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key="partition_armed_part_way",
+                    translation_key="partition_report_pending",
+                    translation_placeholders={"partition": str(number)},
+                )
+            if state.armed or state.exit_delay:
+                placeholders = {"partition": str(number)}
+                if part_way:
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="partition_armed_part_way",
+                        translation_placeholders=placeholders,
+                    )
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="partition_armed",
                     translation_placeholders=placeholders,
                 )
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="partition_armed",
-                translation_placeholders=placeholders,
-            )
 
-    def async_confirm_program_mode_closed(self) -> None:
-        """The user checked the keypad and Program Mode is closed."""
-        self._set_program_mode(ProgramMode.CLOSED)
+    async def async_confirm_program_mode_closed(self, generation: str) -> None:
+        """Accept only the current, idle repair and persist its settlement."""
+        self._transition(
+            ModeEvent.REPAIR_CONFIRM,
+            generation=generation,
+            holding=self._keypad_holder is not None,
+        )
+        await self._await_mode_saved()
 
     def _handle_event(self, event: TPIEvent) -> None:
         self.last_event = event
         apply_event(self.data, event)
         report = program_mode_report(event, self.num_partitions)
         if report is ProgramModeReport.OPENED:
-            self._set_program_mode(ProgramMode.OPEN)
+            holder = self._typing_holder
+            owns_entry = (
+                holder is not None
+                and holder.use is KeypadUse.PROGRAMMING
+                and holder.entry_length > 0
+                and holder.entry_sent == holder.entry_length
+                and holder.written >= holder.entry_length - 1
+                and self._mode.mode in (ProgramMode.DOUBT, ProgramMode.OPEN)
+                and self._mode.operation_id == holder.operation_id
+            )
+            self._transition(ModeEvent.OPEN_REPORT, entry_complete=owns_entry)
         elif report is ProgramModeReport.CLOSED:
-            self._set_program_mode(ProgramMode.CLOSED)
-        elif (
-            report is ProgramModeReport.ARMED
-            and self.program_mode is ProgramMode.DOUBT
-            and self._typing_holder is None
-        ):
-            # Unproven until the hardware test: a Vista shows no armed bits in
-            # Program Mode. So an armed report settles only a doubt, and not
-            # while a sequence that typed installer keys holds the keypad.
-            self._set_program_mode(ProgramMode.CLOSED)
+            self._transition(ModeEvent.CLOSE_REPORT)
+        elif report is ProgramModeReport.ARMED:
+            self._transition(
+                ModeEvent.ARMED_REPORT, holding=self._keypad_holder is not None
+            )
+        elif event.code == "%00":
+            self._transition(ModeEvent.DISARMED_REPORT)
+        if event.code == "%00":
+            # A %00 partition report makes only that partition fresh.
+            try:
+                partition = int(event.fields["partition"])
+            except KeyError, ValueError, TypeError:
+                partition = 0
+            if partition in self.data.partitions:
+                self._fresh_partitions.add(partition)
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:
         self.data.system.connected = False
-        if self.program_mode is ProgramMode.OPEN:
-            # The open report belonged to the session that just ended.
-            self._set_program_mode(ProgramMode.DOUBT)
-        else:
-            # Still a change: a held sequence's keys belong to the session its
-            # entry went out on.
-            self._publish_program_mode()
+        self._fresh_partitions.clear()
+        self._transition(ModeEvent.DISCONNECT)
         if self._shutting_down or self._session_released:
             # Deliberate: the entry is going away, or the reconfigure flow is
             # borrowing the module's one session and will hand it back.
@@ -631,6 +727,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 self._failed_reconnects = 0
                 self._backoff = RECONNECT_BACKOFF_MIN
                 self.data.system.connected = True
+                self._transition(ModeEvent.RECONNECT)
                 self.async_clear_connection_issue()
                 _LOGGER.info("Reconnected to the Envisalink at %s", self._host)
                 try:

@@ -531,7 +531,7 @@ async def test_diagnostics_redact_every_code(hass, fake_server):
     assert diagnostics["config_entry"]["options"]["installer_code"] == "**REDACTED**"
     assert diagnostics["config_entry"]["options"]["user_code"] == "**REDACTED**"
     assert set(diagnostics["zones"]) == {"1", "2", "3", "4"}
-    assert diagnostics["last_event"]["name"] == "dump_zone_timers_ack"
+    assert diagnostics["last_event"]["name"] == "keypad_update"
     text = str(diagnostics)
     assert "4112" not in text
     assert "1234" not in text

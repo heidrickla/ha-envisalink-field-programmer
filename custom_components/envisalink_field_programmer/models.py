@@ -81,13 +81,8 @@ class PartitionState:
 class ProgramMode(Enum):
     """Whether the panel's installer Program Mode may be open.
 
-    The coordinator stores it as one repair issue: no issue is CLOSED.
-    OPEN: the issue exists and this session's panel reported 627 last.
-    DOUBT: the issue exists otherwise: this integration typed installer keys,
-    the session ended after an open report, or a reload found the issue.
-    CLOSED: the panel reported the exit (628), a tracked partition reported
-    armed during a doubt no running sequence raised, or the repair removed
-    the issue.
+    The coordinator's transition function owns this state. The integration's
+    storage is authoritative; a repair issue mirrors an ended uncertainty.
     """
 
     CLOSED = "closed"
