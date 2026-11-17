@@ -3,8 +3,8 @@ send_keystrokes:
   description: >-
     Send a raw ECP keystroke string to a partition, as if typed on a keypad.
     Refused if the sequence looks like it opens installer Program Mode
-    (installer code followed by 800) unless confirm_installer_risk is set to
-    true. Prefer program_zone / set_system_timing / program_function_key for
+    (installer code followed by 800), or while Program Mode is open or in
+    doubt, unless confirm_installer_risk is set to true. Prefer program_zone / set_system_timing / program_function_key for
     guided, validated field programming -- this service is for anything they
     don't cover. Read the integration's README safety section first.
   fields:
@@ -33,8 +33,8 @@ send_keystrokes:
     confirm_installer_risk:
       name: Confirm installer risk
       description: >-
-        Must be true to send a sequence that opens Program Mode. Only set
-        this if you understand the panel can lock out until power-cycled,
+        Must be true to send a sequence that opens Program Mode, or to type
+        into one that is open or in doubt. Only set this if you understand the panel can lock out until power-cycled,
         that Program Mode governs fire-zone and UL-listing-relevant
         settings, and that the TPI protocol can't confirm what's actually on
         the keypad display.

@@ -19,8 +19,8 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 
 ### Fixed
 
-- Arm, disarm, zone bypass and `send_keystrokes` are refused while the panel reports Program Mode open or a guided operation left it in doubt. Before, the keypad was held only while the operation ran, so after a failed one their keys landed in whatever programming field the panel was showing. A `send_keystrokes` call with `confirm_installer_risk` still goes through, as the way to type `*99` from Home Assistant.
-- A command whose acknowledgement the integration stopped waiting for, after a timeout or a cancelled call, holds the next command until that acknowledgement arrives. Before, the late acknowledgement was taken as the next key's, which then counted as delivered while the Envisalink was still busy. One that never arrives closes the session, which reconnects.
+- Arm, disarm, zone bypass and `send_keystrokes` are refused while the panel reports Program Mode open or a guided operation left it in doubt, so none of their keys lands in a programming field after a failed operation. A `send_keystrokes` call with `confirm_installer_risk` still goes through, as the way to type `*99` from Home Assistant.
+- A command whose acknowledgement the integration stopped waiting for, after a timeout or a cancelled call, holds the next command until that acknowledgement arrives, so each acknowledgement is matched to the command it answers. One that never arrives closes the session, which reconnects; a new session owes nothing from the last.
 
 ## [0.6.0] - 2026-10-30
 

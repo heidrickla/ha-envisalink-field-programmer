@@ -265,6 +265,8 @@ async def test_the_module_dropping_the_session_part_way_stops_the_operation(
         await _disarm(hass, entry)
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == "4112800*57"
+    # Neither lock outlived the dropped session.
+    await asyncio.wait_for(coordinator.client.keep_alive(), 2)
     await unload_entry(hass, entry)
 
 
@@ -346,4 +348,32 @@ async def test_duplicated_reports_do_not_change_the_outcome(hass, fake_server):
     assert _typed(fake_server) == COMPLETE
     assert _issue(hass, entry) is None
     assert not entry.runtime_data.data.system.installers_mode
+    await unload_entry(hass, entry)
+
+
+async def test_writers_queued_behind_a_failing_operation_are_refused(
+    hass, fake_server, monkeypatch
+):
+    # They queue while nothing is in doubt; the check that counts is the one
+    # made when each gets the keypad, after the operation has failed.
+    monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
+    entry = await _setup(hass, fake_server)
+    fake_server.program_mode_entry = None
+    fake_server.report_exit = False
+    first = hass.async_create_task(_program_key_a(hass, entry))
+    await _until(lambda: _typed(fake_server) == "4112800")
+    assert _issue(hass, entry) is None
+    disarm = hass.async_create_task(_disarm(hass, entry))
+    second = hass.async_create_task(_program_key_a(hass, entry))
+    await asyncio.sleep(0.05)
+    await fake_server.enter_program_mode()
+    with pytest.raises(HomeAssistantError) as raised:
+        await first
+    assert raised.value.translation_key == "program_mode_exit_not_confirmed"
+    for queued in (disarm, second):
+        with pytest.raises(ServiceValidationError) as raised:
+            await queued
+        assert raised.value.translation_key == "program_mode_not_closed"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == COMPLETE
     await unload_entry(hass, entry)

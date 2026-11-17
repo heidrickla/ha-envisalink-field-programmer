@@ -235,14 +235,14 @@ Every action except `toggle_zone_bypass` needs an administrator when a signed-in
 
 ### `envisalink_field_programmer.send_keystrokes`
 
-Send a raw ECP keystroke string to a partition, as if typed on a keypad. Refused if the sequence looks like it opens installer Program Mode unless `confirm_installer_risk` is true. Prefer the guided actions; this is for anything they do not cover.
+Send a raw ECP keystroke string to a partition, as if typed on a keypad. Refused if the sequence looks like it opens installer Program Mode, or while Program Mode is open or in doubt, unless `confirm_installer_risk` is true. Prefer the guided actions; this is for anything they do not cover.
 
 | Field | Required | Description |
 |---|---|---|
 | `entry_id` | yes | Config entry to send to. |
 | `partition` | yes | Partition number, 1 to 8. |
 | `keys` | yes | Keystrokes: digits, `*` and `#` only. |
-| `confirm_installer_risk` | no, default `false` | Must be `true` to send a sequence that opens Program Mode. |
+| `confirm_installer_risk` | no, default `false` | Must be `true` to send a sequence that opens Program Mode, or to type into one that is open or in doubt. |
 
 ### `envisalink_field_programmer.toggle_zone_bypass`
 
