@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.helpers import issue_registry as ir
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -454,6 +454,7 @@ async def test_no_key_is_written_outside_the_state_the_reports_allow(hass):
         max_examples=80,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
     )
+    @example([("report", "627"), ("ack", "00")])
     @given(st.lists(STEPS, max_size=25))
     def check(steps: list[tuple[str, Any]]) -> None:
         result = asyncio.run_coroutine_threadsafe(_play(hass, steps), hass.loop).result(
