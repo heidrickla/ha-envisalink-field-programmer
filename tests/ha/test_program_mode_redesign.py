@@ -118,6 +118,10 @@ async def test_open_report_survives_disconnect_then_armed_report(
         lambda: (
             fake_server.connections >= 2
             and entry.runtime_data.data.system.connected
+            # Reconnect's partition request can otherwise overwrite the
+            # armed frame injected below after this predicate succeeds.
+            and entry.runtime_data._reconnect_task is not None
+            and entry.runtime_data._reconnect_task.done()
             and not fake_server._writer.is_closing()
         )
     )
