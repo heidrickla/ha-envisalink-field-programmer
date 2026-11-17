@@ -93,11 +93,11 @@ When the detail says the panel did not report Program Mode within 10 seconds, on
 
 ### An action is refused because the entry does not track that partition
 
-Every keystroke send names a partition, and one above the entry's partition count is refused before any key, since nothing reports its arm state here. If the panel has that partition, raise the count with Reconfigure on the entry. Whether a tracked partition reports its state while the panel sits idle, before the first keypad update after a connect, is checked in the hardware test; until then the armed refusal relies on the last report received.
+Arm, disarm, bypass and `send_keystrokes` name a partition, and one above the entry's partition count is refused before any key, since nothing reports its arm state here. If the panel has that partition, raise the count with Reconfigure on the entry. Whether a tracked partition reports its state while the panel sits idle, before the first keypad update after a connect, is checked in the hardware test; until then the armed refusal relies on the last report received.
 
 ### A repair says "Program Mode may still be open"
 
-A programming operation ended without the panel reporting that Program Mode closed: no report after `800`, a report of Program Mode closing part-way, a dropped connection, or no report after `*99`. Guided programming, arming, disarming, bypass and `send_keystrokes` are refused until the doubt is settled, since their keys would land in a programming field. Go to the keypad; if it shows a field number, press `*99` (never `*98`). Then open the repair under Settings, Repairs and submit it. The repair also clears itself when the panel reports leaving Program Mode.
+Program Mode may be open: the panel reported it open (Contact ID 627), or keys that open it went out (a guided operation, or `send_keystrokes` with `confirm_installer_risk`) and the panel has not reported it closed since. The repair is stored, so it survives a reload or restart. Guided programming, arming, disarming, bypass and unconfirmed `send_keystrokes` are refused until it is settled, since their keys would land in a programming field. Go to the keypad; if it shows a field number, press `*99` (never `*98`). Then open the repair under Settings, Repairs and submit it. The repair also clears itself when the panel reports leaving Program Mode (Contact ID 628) or reports a partition armed.
 
 The sequence was sent and the module rejected it, or the session dropped part-way, so what reached the panel is unknown. Check the log and the `detail` attribute, then verify at the keypad before pressing anything again.
 

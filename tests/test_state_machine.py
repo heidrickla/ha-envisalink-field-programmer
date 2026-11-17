@@ -13,6 +13,7 @@ from tests import pure
 build_event = pure.load("client").build_event
 ICON_LED_BITS = pure.load("const").ICON_LED_BITS
 VistaState = pure.load("models").VistaState
+ProgramMode = pure.load("models").ProgramMode
 apply_event = pure.load("state_machine").apply_event
 
 
@@ -196,3 +197,18 @@ def test_a_zone_timer_dump_with_a_corrupt_chunk_keeps_the_other_zones():
     apply_event(state, build_event("%FF", "zzzz" + "FEFF"))
     assert state.zone(1).open is False  # untouched, still the default
     assert state.zone(2).open is True
+
+
+def test_the_latest_program_mode_report_wins_and_an_armed_partition_closes_it():
+    # A Vista cannot arm with Program Mode open; a 627 after that reopens it.
+    state = _state()
+    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
+    assert state.system.program_mode is ProgramMode.OPEN
+    # Icon LEDs: armed away (bit 2) and AC present (bit 3).
+    apply_event(state, build_event("%00", "1,000C,0,00,ARMED AWAY"))
+    assert state.system.program_mode is ProgramMode.CLOSED
+    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
+    assert state.system.program_mode is ProgramMode.OPEN
+    # A disarmed report says nothing about Program Mode.
+    apply_event(state, build_event("%00", "1,1008,0,00,READY"))
+    assert state.system.program_mode is ProgramMode.OPEN

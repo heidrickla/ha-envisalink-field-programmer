@@ -10,18 +10,18 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 
 - Every guided operation types the installer code and `800`, then waits up to 10 seconds for the panel to report Program Mode Entry (Contact ID 627) before it sends anything else. Without the report it stops and says so, so a wrong installer code, an armed panel or a `*98` lockout no longer receives the rest of the sequence. For `program_function_key` that keeps the `A` to `D` letter, which is the key's emergency function outside Program Mode, from reaching a panel in normal mode.
 - Each key after the entry goes out only while the panel's latest report says Program Mode is open on the same connection, and after `*99` the operation waits for the panel to report leaving it (Contact ID 628).
-- A guided operation is refused before anything is sent when its partition is armed or arming, or when Program Mode is open or in doubt.
+- A guided operation is refused before anything is sent when any partition is armed or arming, or when Program Mode is open or in doubt. It types on the keypad of partition 1; the partition being programmed is data at the `*56` or `*57` PARTITION prompt.
 - A guided operation holds the keypad from the entry to `*99`: arm, disarm, bypass and `send_keystrokes` wait for it, so none of their keys lands in a programming field.
 
 ### Added
 
-- A repair issue, "Program Mode may still be open", raised when a guided operation ends without the panel reporting Program Mode closed. It pauses guided programming until the panel reports the exit, or until its confirm flow is submitted after a check at the keypad.
+- One Program Mode state, closed, open or in doubt, stored as the repair issue "Program Mode may still be open" so that it survives a reload or restart. A 627 records open; a 628 or a partition reporting armed records closed, the latest report winning; the first key of a guided operation or of a confirmed `send_keystrokes` records doubt before the keypad is released; a dropped connection turns open into doubt. Submitting the repair after a check at the keypad closes it.
 
 ### Fixed
 
-- Arm, disarm, zone bypass and `send_keystrokes` are refused while the panel reports Program Mode open or a guided operation left it in doubt, so none of their keys lands in a programming field after a failed operation. A `send_keystrokes` call with `confirm_installer_risk` still goes through, as the way to type `*99` from Home Assistant.
-- Every keystroke send to a partition above the entry's partition count is refused before any key, since nothing reports that partition's arm state here: the guided operations, arm, disarm, bypass and `send_keystrokes`.
-- A command whose acknowledgement the integration stopped waiting for, after a timeout or a cancelled call, holds the next command until that acknowledgement arrives, so each acknowledgement is matched to the command it answers. One that never arrives closes the session, which reconnects; a new session owes nothing from the last.
+- Arm, disarm, zone bypass and unconfirmed `send_keystrokes` are refused unless Program Mode is closed, so none of their keys lands in a programming field. A `send_keystrokes` call with `confirm_installer_risk` still goes through, as the way to type `*99` from Home Assistant.
+- Arm, disarm, bypass and `send_keystrokes` to a partition above the entry's partition count are refused before any key, since nothing reports that partition's arm state here.
+- A command whose acknowledgement the integration stopped waiting for, after a timeout or a cancelled call, holds the next command until that acknowledgement arrives, so each acknowledgement is matched to the command it answers. One that never arrives closes the session, which reconnects; a new session owes nothing from the last. No error is logged when an owed acknowledgement is failed with its session.
 
 ## [0.6.0] - 2026-10-30
 

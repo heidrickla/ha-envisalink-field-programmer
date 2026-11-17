@@ -190,6 +190,10 @@ INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
 # Program Mode prompt means something else in normal mode, so without the 627
 # nothing more is sent.
 PROGRAM_MODE_REPORT_TIMEOUT: Final = 10
+# The keypad partition the guided operations type on. Program Mode governs the
+# whole panel and the partition being programmed is answered as data at the
+# *56/*57 PARTITION prompt; every entry tracks partition 1, so its keypad does.
+PROGRAM_MODE_KEYPAD_PARTITION: Final = 1
 
 # CID "qualifier" digit (the first data field of a %03 event): 1 means a new
 # event/opening (e.g. a disarm), 3 means a new restore/closing (e.g. an

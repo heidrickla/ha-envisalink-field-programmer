@@ -23,6 +23,7 @@ physical keypad rather than through this integration.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 
 @dataclass
@@ -77,12 +78,43 @@ class PartitionState:
         return self.last_disarmed_by_user or self.last_armed_by_user
 
 
+class ProgramMode(Enum):
+    """Whether the panel's installer Program Mode may be open.
+
+    OPEN: the panel's latest report on this session says open (CID 627).
+    DOUBT: not known closed, after this integration typed installer keys, a
+    reconnect after an open report, or a reload that found the doubt stored.
+    CLOSED: the panel reported the exit (628), an armed partition, or the user
+    confirmed it at the keypad.
+    """
+
+    CLOSED = "closed"
+    OPEN = "open"
+    DOUBT = "doubt"
+
+
+class KeypadUse(Enum):
+    """What a keystroke sequence is, which decides the Program Mode rules for it."""
+
+    # Arm, disarm, bypass, an unconfirmed raw send: only while Program Mode is closed.
+    EVERYDAY = "everyday"
+    # A guided operation: only while closed, and its keys leave Program Mode in doubt.
+    PROGRAMMING = "programming"
+    # A raw send confirmed as installer work: in any state, and its keys leave doubt.
+    INSTALLER = "installer"
+
+
 @dataclass
 class SystemState:
     """Whole-system, non-partition-specific state."""
 
     connected: bool = False
-    installers_mode: bool = False
+    program_mode: ProgramMode = ProgramMode.CLOSED
+
+    @property
+    def installers_mode(self) -> bool:
+        """Program Mode is open or may be: keys typed now could land in a field."""
+        return self.program_mode is not ProgramMode.CLOSED
 
 
 @dataclass

@@ -86,7 +86,9 @@ program_zone:
           mode: box
     partition:
       name: Partition
-      description: Partition number (1-3).
+      description: >-
+        Partition number (1-3) the zone belongs to, answered at the PARTITION
+        prompt. The keys themselves go to partition 1's keypad.
       required: true
       selector:
         number:
@@ -201,7 +203,8 @@ set_system_timing:
       name: Partition
       description: >-
         Partition to program (1-8). Only used by panels with partition-specific
-        timing fields (commercial VISTA 09-12); ignored for residential.
+        timing fields (commercial VISTA 09-12); ignored for residential. The
+        keys themselves go to partition 1's keypad.
       required: false
       default: 1
       selector:
@@ -249,7 +252,9 @@ program_function_key:
           options: ["A", "B", "C", "D"]
     partition:
       name: Partition
-      description: Partition number (1-3) this key will act on.
+      description: >-
+        Partition number (1-3) this key will act on, answered at the PARTITION
+        prompt. The keys themselves go to partition 1's keypad.
       required: true
       selector:
         number:

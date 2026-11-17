@@ -24,6 +24,7 @@ from custom_components.envisalink_field_programmer.client import (
     TPICommandError,
 )
 from custom_components.envisalink_field_programmer.const import DOMAIN
+from custom_components.envisalink_field_programmer.models import ProgramMode
 
 from .conftest import setup_entry, unload_entry
 
@@ -824,7 +825,7 @@ async def test_an_exit_report_clears_the_repair_without_a_state_change(
     with pytest.raises(HomeAssistantError):
         await _program_key_a(hass, entry)
     assert _issue(hass, entry) is not None
-    assert not entry.runtime_data.data.system.installers_mode
+    assert entry.runtime_data.data.system.program_mode is ProgramMode.DOUBT
     await fake_server.push("03", "1628" + "01" + "000")
     for _ in range(100):
         if _issue(hass, entry) is None:
@@ -847,10 +848,10 @@ async def test_an_exit_report_before_the_entry_settles_nothing(
     fake_server.program_mode_entry = None
     await fake_server.push("03", "1628" + "01" + "000")
     for _ in range(100):
-        if coordinator.program_mode_exit_reports:
+        if coordinator.last_event is not None and coordinator.last_event.code == "%03":
             break
         await asyncio.sleep(0.01)
-    assert coordinator.program_mode_exit_reports == 1
+    assert coordinator.last_event.fields["cid_event"] == "628"
     with pytest.raises(HomeAssistantError) as raised:
         await _program_key_a(hass, entry)
     assert raised.value.translation_key == "program_mode_not_confirmed"

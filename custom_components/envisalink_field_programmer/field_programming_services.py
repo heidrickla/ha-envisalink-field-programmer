@@ -26,16 +26,16 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
-from .client import KeyTyper, TPICommandRefused
 from .const import (
     CONF_ZONE_DOUBLING,
     DOMAIN,
+    PROGRAM_MODE_KEYPAD_PARTITION,
     PROGRAM_MODE_REPORT_TIMEOUT,
     SERVICE_PROGRAM_FUNCTION_KEY,
     SERVICE_PROGRAM_ZONE,
     SERVICE_SET_SYSTEM_TIMING,
 )
-from .coordinator import VistaConsoleCoordinator
+from .coordinator import KeypadTyper, VistaConsoleCoordinator
 from .entity import programming_entity_display_name
 from .field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
@@ -51,6 +51,7 @@ from .field_programming import (
     build_function_key_keystrokes,
     build_zone_program_keystrokes,
 )
+from .models import KeypadUse, ProgramMode
 from .panels import GuidedOp, Verification, get_zone_layout
 from .programming import (
     KeystrokeGuardError,
@@ -196,7 +197,6 @@ def _require_verified_or_ack(
 
 async def _send_program_mode_sequence(
     coordinator: VistaConsoleCoordinator,
-    partition: int,
     action_keystrokes: str,
     *,
     op: GuidedOp,
@@ -220,54 +220,48 @@ async def _send_program_mode_sequence(
         allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
     with keystrokes_not_accepted_as_error():
-        async with coordinator.async_keypad(partition) as type_keys:
-            _require_partition_disarmed(coordinator, partition)
+        async with coordinator.async_keypad(
+            PROGRAM_MODE_KEYPAD_PARTITION, KeypadUse.PROGRAMMING
+        ) as type_keys:
+            _require_disarmed(coordinator)
             await _type_in_program_mode(
-                coordinator,
-                type_keys,
-                partition,
-                entry_keys,
-                full_sequence[len(entry_keys) :],
+                coordinator, type_keys, entry_keys, full_sequence[len(entry_keys) :]
             )
 
 
-def _require_partition_disarmed(
-    coordinator: VistaConsoleCoordinator, partition: int
-) -> None:
-    """Refuse an armed or arming partition: it takes the entry as a user code."""
-    state = coordinator.data.partitions.get(partition)
-    if state is not None and (state.armed or state.exit_delay):
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="partition_armed",
-            translation_placeholders={"partition": str(partition)},
-        )
+def _require_disarmed(coordinator: VistaConsoleCoordinator) -> None:
+    """Refuse while any partition is armed or arming.
+
+    The keypad would take the entry as a user code, and Program Mode governs
+    the whole panel, not one partition.
+    """
+    for number, state in sorted(coordinator.data.partitions.items()):
+        if state.armed or state.exit_delay:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="partition_armed",
+                translation_placeholders={"partition": str(number)},
+            )
 
 
 async def _type_in_program_mode(
     coordinator: VistaConsoleCoordinator,
-    type_keys: KeyTyper,
-    partition: int,
+    type_keys: KeypadTyper,
     entry_keys: str,
     rest: str,
 ) -> None:
     """Type the entry, then each later key only while the panel reports Program Mode.
 
     Every key after the entry is written only while the panel's latest report
-    says Program Mode is open on the session the entry went out on. Once any
-    entry key may have reached the panel, an ending without an exit report
-    after the entry's last write leaves a repair issue.
+    says Program Mode is open on the session the entry went out on. The keypad
+    leaves Program Mode in doubt from the first key written; only the panel's
+    exit report, or the user's confirmation, settles it.
     """
     session = coordinator.session_generation
-    exits_at_entry: int | None = None
-
-    def entry_written() -> None:
-        nonlocal exits_at_entry
-        exits_at_entry = coordinator.program_mode_exit_reports
 
     def still_open() -> None:
         if (
-            not coordinator.data.system.installers_mode
+            coordinator.data.system.program_mode is not ProgramMode.OPEN
             or coordinator.session_generation != session
         ):
             raise HomeAssistantError(
@@ -276,43 +270,24 @@ async def _type_in_program_mode(
                 translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
             )
 
-    try:
-        delivered = False
-        try:
-            for key in entry_keys:
-                await type_keys(partition, key, entry_written)
-                delivered = True
-        except TPICommandRefused:
-            # A refused first key left the panel untouched. A delivered prefix
-            # stays in the panel's input, where later keys can complete it.
-            if not delivered:
-                exits_at_entry = None
-            raise
-        if not await coordinator.async_wait_for_program_mode(
-            True, PROGRAM_MODE_REPORT_TIMEOUT
-        ):
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="program_mode_not_confirmed",
-                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
-            )
-        await type_keys(partition, rest, still_open)
-        if not await coordinator.async_wait_for_program_mode(
-            False, PROGRAM_MODE_REPORT_TIMEOUT
-        ):
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="program_mode_exit_not_confirmed",
-                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
-            )
-    finally:
-        # Nothing reached the wire, or the panel reported Program Mode closed
-        # after the entry went out: no doubt. Anything else is a repair.
-        if exits_at_entry is not None and not (
-            coordinator.program_mode_exit_reports > exits_at_entry
-            and not coordinator.data.system.installers_mode
-        ):
-            coordinator.async_raise_program_mode_issue()
+    await type_keys(entry_keys)
+    if not await coordinator.async_wait_for_program_mode(
+        True, PROGRAM_MODE_REPORT_TIMEOUT
+    ):
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="program_mode_not_confirmed",
+            translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
+        )
+    await type_keys(rest, still_open)
+    if not await coordinator.async_wait_for_program_mode(
+        False, PROGRAM_MODE_REPORT_TIMEOUT
+    ):
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="program_mode_exit_not_confirmed",
+            translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
+        )
 
 
 def zone_doubling_option(coordinator: VistaConsoleCoordinator) -> ZoneDoubling:
@@ -385,7 +360,6 @@ async def async_program_zone(
         ) from err
     await _send_program_mode_sequence(
         coordinator,
-        program.partition,
         keystrokes,
         op=GuidedOp.ZONE,
         confirm_unverified=confirm_unverified_model,
@@ -429,7 +403,6 @@ async def async_set_system_timing(
         ) from err
     await _send_program_mode_sequence(
         coordinator,
-        partition,
         keystrokes,
         op=GuidedOp.TIMING,
         confirm_unverified=confirm_unverified_model,
@@ -448,7 +421,6 @@ async def async_program_function_key(
     keystrokes = build_function_key_keystrokes(key, partition, action)
     await _send_program_mode_sequence(
         coordinator,
-        partition,
         keystrokes,
         op=GuidedOp.FUNCTION_KEY,
         confirm_unverified=confirm_unverified_model,

@@ -45,6 +45,7 @@ from homeassistant.helpers.service import async_register_admin_service
 
 from .client import TPIError
 from .const import DOMAIN, SERVICE_SEND_KEYSTROKES, SERVICE_TOGGLE_ZONE_BYPASS
+from .models import KeypadUse
 from .panels import PanelDialect, get_dialect
 
 if TYPE_CHECKING:
@@ -177,9 +178,10 @@ async def async_send_guarded_keystrokes(
     )
     with keystrokes_not_accepted_as_error():
         async with coordinator.async_keypad(
-            partition, into_program_mode=allow_installer_mode
+            partition,
+            KeypadUse.INSTALLER if allow_installer_mode else KeypadUse.EVERYDAY,
         ) as type_keys:
-            await type_keys(partition, keys)
+            await type_keys(keys)
 
 
 @contextlib.contextmanager

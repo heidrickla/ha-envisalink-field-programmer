@@ -136,12 +136,12 @@
     },
     "program_mode_unknown": {
       "title": "{title}: Program Mode may still be open",
-      "description": "A programming operation ended without the panel reporting that Program Mode closed, so guided programming, arming, disarming and bypass are paused.",
+      "description": "The panel reported Program Mode open, or keys that open it went out and the panel has not reported it closed since, so guided programming, arming, disarming and bypass are paused.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Check the keypad",
-            "description": "A programming operation on {title} ended without the panel reporting that Program Mode closed. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming, arming, disarming and bypass."
+            "description": "Program Mode on {title} may be open: the panel reported it open, or keys that open it went out and the panel has not reported it closed since. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming, arming, disarming and bypass."
           }
         }
       }
@@ -365,7 +365,7 @@
       "message": "Nothing was sent: this entry tracks {count} partition(s), so partition {partition} has no reported state here. If the panel has it, raise the partition count with Reconfigure on the entry."
     },
     "partition_armed": {
-      "message": "Partition {partition} is armed or arming, so nothing was sent. Disarm it, then try again."
+      "message": "Partition {partition} is armed or arming, so nothing was sent. Program Mode needs every partition disarmed: disarm it, then try again."
     },
     "program_mode_not_confirmed": {
       "message": "Only the installer code and 800 were sent: the panel did not report Program Mode within {seconds} seconds. Check the installer code, and that the panel is disarmed and not locked out with *98. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."

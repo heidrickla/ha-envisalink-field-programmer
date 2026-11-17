@@ -18,8 +18,8 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import AsyncIterator, Callable
-from typing import override
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Protocol, override
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -28,7 +28,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .client import EnvisalinkClient, KeyTyper, TPIError, TPIEvent
+from .client import EnvisalinkClient, TPICommandRefused, TPIError, TPIEvent
 from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     DOMAIN,
@@ -41,9 +41,9 @@ from .const import (
     ZONE_TIMER_DUMP_INTERVAL,
 )
 from .field_programming import ProgrammingForm, ProgrammingResult
-from .models import VistaState
+from .models import KeypadUse, ProgramMode, VistaState
 from .panels import PanelFamily, get_dialect, get_model
-from .state_machine import apply_event, is_program_mode_exit_report
+from .state_machine import apply_event
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +53,14 @@ _USER_CODE = re.compile(r"[0-9]{4}")
 _DSC_USER_CODE = re.compile(r"[0-9]{4}|[0-9]{6}")
 
 type VistaConsoleConfigEntry = ConfigEntry[VistaConsoleCoordinator]
+
+
+class KeypadTyper(Protocol):
+    """Types keys on the held partition; ``guard`` runs before each key's write."""
+
+    def __call__(
+        self, keys: str, guard: Callable[[], None] | None = None
+    ) -> Awaitable[None]: ...
 
 
 async def _cancel_and_wait(task: asyncio.Task[None] | None) -> None:
@@ -139,10 +147,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # Bumped on every disconnect, so a key meant for one Program Mode
         # session is never typed into the session after a reconnect.
         self.session_generation = 0
-        # Count of Program Mode Exit reports (CID 628) seen.
-        self.program_mode_exit_reports = 0
         self._program_mode_changed: asyncio.Event | None = None
         self.program_mode_issue_id = f"{ISSUE_PROGRAM_MODE_UNKNOWN}_{entry.entry_id}"
+        if ir.async_get(hass).async_get_issue(DOMAIN, self.program_mode_issue_id):
+            # Stored by an earlier coordinator: not known closed.
+            self.data.system.program_mode = ProgramMode.DOUBT
         self._remove_stop_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
@@ -282,9 +291,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     async def async_wait_for_program_mode(self, is_open: bool, timeout: float) -> bool:
         """Wait until the panel's latest report says Program Mode is open, or closed."""
+        target = ProgramMode.OPEN if is_open else ProgramMode.CLOSED
         try:
             async with asyncio.timeout(timeout):
-                while self.data.system.installers_mode is not is_open:
+                while self.data.system.program_mode is not target:
                     changed = asyncio.Event()
                     self._program_mode_changed = changed
                     try:
@@ -295,39 +305,47 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             return False
         return True
 
-    @property
-    def program_mode_unknown(self) -> bool:
-        """A guided operation ended without the panel reporting Program Mode closed."""
-        issue = ir.async_get(self.hass).async_get_issue(
-            DOMAIN, self.program_mode_issue_id
-        )
-        return issue is not None
+    def _set_program_mode(self, mode: ProgramMode) -> None:
+        self.data.system.program_mode = mode
+        self._program_mode_set()
 
-    def async_raise_program_mode_issue(self) -> None:
-        """Hold guided programming until the panel or the user settles the doubt."""
-        ir.async_create_issue(
-            self.hass,
-            DOMAIN,
-            self.program_mode_issue_id,
-            data={"entry_id": self.entry.entry_id},
-            is_fixable=True,
-            is_persistent=True,
-            issue_domain=DOMAIN,
-            severity=ir.IssueSeverity.ERROR,
-            translation_key=ISSUE_PROGRAM_MODE_UNKNOWN,
-            translation_placeholders={"title": self.entry.title},
-        )
+    def _program_mode_set(self) -> None:
+        """Store the Program Mode state in the repair issue, and wake its waiters.
+
+        The issue is the stored form: it outlives a reload or restart, and a
+        new coordinator that finds it starts in doubt.
+        """
+        if self.data.system.program_mode is ProgramMode.CLOSED:
+            ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
+        else:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self.program_mode_issue_id,
+                data={"entry_id": self.entry.entry_id},
+                is_fixable=True,
+                is_persistent=True,
+                issue_domain=DOMAIN,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key=ISSUE_PROGRAM_MODE_UNKNOWN,
+                translation_placeholders={"title": self.entry.title},
+            )
+        if self._program_mode_changed is not None:
+            self._program_mode_changed.set()
+        self.async_set_updated_data(self.data)
 
     @contextlib.asynccontextmanager
     async def async_keypad(
-        self, partition: int, *, into_program_mode: bool = False
-    ) -> AsyncIterator[KeyTyper]:
+        self, partition: int, use: KeypadUse = KeypadUse.EVERYDAY
+    ) -> AsyncIterator[KeypadTyper]:
         """Hold the keypad for one sequence on ``partition``, or refuse it.
 
         Every keystroke writer takes the keypad here. A partition above the
-        entry's count is refused: nothing reports its state. So is any sequence
-        while Program Mode is open or in doubt, where a key would land in a
-        programming field, unless the caller acknowledged installer work.
+        entry's count is refused: nothing reports its state. Unless Program
+        Mode is closed, only installer work types, since any other key would
+        land in a programming field. A sequence that opens or types into
+        Program Mode leaves it in doubt from its first written key, before the
+        keypad is released, until the panel reports the exit.
         """
         async with self.client.keypad() as type_keys:
             if not 1 <= partition <= self.num_partitions:
@@ -339,41 +357,70 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                         "count": str(self.num_partitions),
                     },
                 )
-            if not into_program_mode and (
-                self.data.system.installers_mode or self.program_mode_unknown
+            if (
+                use is not KeypadUse.INSTALLER
+                and self.data.system.program_mode is not ProgramMode.CLOSED
             ):
-                self.async_raise_program_mode_issue()
                 raise ServiceValidationError(
                     translation_domain=DOMAIN, translation_key="program_mode_not_closed"
                 )
-            yield type_keys
+            doubt_raised = False
+            accepted = False
+
+            async def type_on_partition(
+                keys: str, guard: Callable[[], None] | None = None
+            ) -> None:
+                nonlocal doubt_raised, accepted
+
+                def before_write() -> None:
+                    nonlocal doubt_raised
+                    if guard is not None:
+                        guard()
+                    if (
+                        use is not KeypadUse.EVERYDAY
+                        and self.data.system.program_mode is ProgramMode.CLOSED
+                    ):
+                        doubt_raised = True
+                        self._set_program_mode(ProgramMode.DOUBT)
+
+                for key in keys:
+                    try:
+                        await type_keys(partition, key, before_write)
+                    except TPICommandRefused:
+                        # A refusal before any key was taken left the panel
+                        # untouched; a delivered prefix stays in its input.
+                        if (
+                            doubt_raised
+                            and not accepted
+                            and self.data.system.program_mode is ProgramMode.DOUBT
+                        ):
+                            self._set_program_mode(ProgramMode.CLOSED)
+                        raise
+                    accepted = True
+
+            yield type_on_partition
 
     def async_confirm_program_mode_closed(self) -> None:
         """The user checked the keypad and Program Mode is closed."""
-        self.data.system.installers_mode = False
-        ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
-        self.async_set_updated_data(self.data)
+        self._set_program_mode(ProgramMode.CLOSED)
 
     def _handle_event(self, event: TPIEvent) -> None:
         self.last_event = event
-        was_in_program_mode = self.data.system.installers_mode
+        before = self.data.system.program_mode
         apply_event(self.data, event)
-        if is_program_mode_exit_report(event):
-            # The panel itself reported Program Mode closed: no doubt is left,
-            # whatever was believed before.
-            self.program_mode_exit_reports += 1
-            ir.async_delete_issue(self.hass, DOMAIN, self.program_mode_issue_id)
-        if (
-            self.data.system.installers_mode is not was_in_program_mode
-            and self._program_mode_changed is not None
-        ):
-            self._program_mode_changed.set()
-        self.async_set_updated_data(self.data)
+        if self.data.system.program_mode is not before:
+            self._program_mode_set()
+        else:
+            self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:
         self.session_generation += 1
         self.data.system.connected = False
-        self.async_set_updated_data(self.data)
+        if self.data.system.program_mode is ProgramMode.OPEN:
+            # The open report belonged to the session that just ended.
+            self._set_program_mode(ProgramMode.DOUBT)
+        else:
+            self.async_set_updated_data(self.data)
         if self._shutting_down or self._session_released:
             # Deliberate: the entry is going away, or the reconfigure flow is
             # borrowing the module's one session and will hand it back.

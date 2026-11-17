@@ -15,7 +15,12 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
 from custom_components.envisalink_field_programmer import field_programming_services
+from custom_components.envisalink_field_programmer.client import (
+    TPICommandError,
+    TPIConnectionError,
+)
 from custom_components.envisalink_field_programmer.const import DOMAIN
+from custom_components.envisalink_field_programmer.models import ProgramMode
 
 from .conftest import setup_entry, unload_entry
 
@@ -74,14 +79,24 @@ async def _until(predicate, tries: int = 300) -> None:
     raise AssertionError("condition never held")
 
 
-async def _leave_in_doubt(hass, fake_server, entry, monkeypatch) -> None:
-    """A guided operation whose *99 the panel never reports: Program Mode in doubt."""
+async def _leave_in_doubt(
+    hass, fake_server, entry, monkeypatch, kind: str = "no_628"
+) -> None:
+    """A guided operation that leaves Program Mode in doubt.
+
+    no_628: the panel reported 627, then never reported the exit after *99.
+    no_627: the panel never reported anything, so only the doubt holds writers.
+    """
     monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
-    fake_server.report_exit = False
+    if kind == "no_628":
+        fake_server.report_exit = False
+    else:
+        fake_server.program_mode_entry = None
     with pytest.raises(HomeAssistantError):
         await _program_key_a(hass, entry)
     assert _issue(hass, entry) is not None
     fake_server.report_exit = True
+    fake_server.program_mode_entry = "4112800"
 
 
 async def _disarm(hass, entry) -> None:
@@ -151,15 +166,16 @@ async def _enable_bypass_switch(hass, entry) -> None:
     await hass.async_block_till_done()
 
 
+@pytest.mark.parametrize("kind", ["no_628", "no_627"])
 @pytest.mark.parametrize("writer", WRITERS)
 async def test_no_writer_types_into_a_program_mode_left_in_doubt(
-    hass, fake_server, monkeypatch, writer
+    hass, fake_server, monkeypatch, writer, kind
 ):
     # The keypad lock ends with the operation; the doubt does not. A key typed
     # now lands in whatever programming field the panel is showing.
     entry = await _setup(hass, fake_server)
     await _enable_bypass_switch(hass, entry)
-    await _leave_in_doubt(hass, fake_server, entry, monkeypatch)
+    await _leave_in_doubt(hass, fake_server, entry, monkeypatch, kind)
     before = _typed(fake_server)
     with pytest.raises(ServiceValidationError) as raised:
         await WRITERS[writer](hass, entry)
@@ -258,6 +274,8 @@ async def test_the_module_dropping_the_session_part_way_stops_the_operation(
     await _until(
         lambda: fake_server.connections == 2 and coordinator.data.system.connected
     )
+    # The open report belonged to the dropped session.
+    assert coordinator.data.system.program_mode is ProgramMode.DOUBT
     # The panel sits in the *57 menu; nothing may type into it from the new session.
     with pytest.raises(ServiceValidationError):
         await _program_key_a(hass, entry)
@@ -290,6 +308,9 @@ async def test_a_key_whose_ack_never_comes_stops_the_operation(
     assert not keepalive.done()
     await fake_server.release_held_acks()
     await asyncio.wait_for(keepalive, 2)
+    async with asyncio.timeout(2):
+        async with coordinator.client.keypad():
+            pass
     await unload_entry(hass, entry)
 
 
@@ -354,19 +375,22 @@ async def test_duplicated_reports_do_not_change_the_outcome(hass, fake_server):
 async def test_writers_queued_behind_a_failing_operation_are_refused(
     hass, fake_server, monkeypatch
 ):
-    # They queue while nothing is in doubt; the check that counts is the one
-    # made when each gets the keypad, after the operation has failed.
+    # They queue while Program Mode is closed, the first operation holding the
+    # keypad but not yet written; the check that counts is the one made when
+    # each gets the keypad, after the operation has failed.
     monkeypatch.setattr(field_programming_services, "PROGRAM_MODE_REPORT_TIMEOUT", 0.3)
     entry = await _setup(hass, fake_server)
-    fake_server.program_mode_entry = None
+    command_lock = entry.runtime_data.client._command_lock
+    await command_lock.acquire()
     fake_server.report_exit = False
     first = hass.async_create_task(_program_key_a(hass, entry))
-    await _until(lambda: _typed(fake_server) == "4112800")
-    assert _issue(hass, entry) is None
+    await asyncio.sleep(0.05)
     disarm = hass.async_create_task(_disarm(hass, entry))
     second = hass.async_create_task(_program_key_a(hass, entry))
     await asyncio.sleep(0.05)
-    await fake_server.enter_program_mode()
+    assert _issue(hass, entry) is None
+    assert _typed(fake_server) == ""
+    command_lock.release()
     with pytest.raises(HomeAssistantError) as raised:
         await first
     assert raised.value.translation_key == "program_mode_exit_not_confirmed"
@@ -409,6 +433,31 @@ async def _timing_on_2(hass, entry) -> None:
     )
 
 
+GUIDED_ON_PARTITION_2 = {
+    "program_function_key": (
+        lambda hass, entry: _program_key_a(hass, entry, 2),
+        "4112800*57A*2*03*0**99",
+    ),
+    "program_zone": (_program_zone_2, "4112800*56"),
+    "set_system_timing": (_timing_on_2, "4112800*3445**99"),
+}
+
+
+@pytest.mark.parametrize("op", GUIDED_ON_PARTITION_2)
+async def test_a_guided_operation_programs_another_partition_from_the_entry_s_keypad(
+    hass, fake_server, op
+):
+    # The partition at the *56 or *57 PARTITION prompt is data; Program Mode is
+    # opened and typed on the entry's keypad, partition 1.
+    entry = await _setup(hass, fake_server)
+    call, expected = GUIDED_ON_PARTITION_2[op]
+    await call(hass, entry)
+    assert _typed(fake_server).startswith(expected)
+    assert {d.split(",", 1)[0] for c, d in fake_server.received if c == "03"} == {"1"}
+    assert _issue(hass, entry) is None
+    await unload_entry(hass, entry)
+
+
 async def _raw_send_on_2(hass, entry) -> None:
     await hass.services.async_call(
         DOMAIN,
@@ -428,9 +477,6 @@ async def _disarm_2(hass, entry) -> None:
 
 
 UNTRACKED_PARTITION_WRITERS = {
-    "program_function_key": lambda hass, entry: _program_key_a(hass, entry, 2),
-    "program_zone": _program_zone_2,
-    "set_system_timing": _timing_on_2,
     "send_keystrokes": _raw_send_on_2,
     "disarm": _disarm_2,
 }
@@ -449,4 +495,95 @@ async def test_a_partition_the_entry_does_not_track_gets_nothing(
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == ""
     assert _issue(hass, entry) is None
+    await unload_entry(hass, entry)
+
+
+async def test_a_confirmed_raw_send_leaves_program_mode_in_doubt(hass, fake_server):
+    # It may have opened Program Mode, and the panel's 627 can come late or
+    # never: a disarm right after it must not be typed into a field.
+    entry = await _setup(hass, fake_server)
+    fake_server.program_mode_entry = None
+    await hass.services.async_call(
+        DOMAIN,
+        "send_keystrokes",
+        {
+            "entry_id": entry.entry_id,
+            "partition": 1,
+            "keys": "4112800",
+            "confirm_installer_risk": True,
+        },
+        blocking=True,
+    )
+    with pytest.raises(ServiceValidationError) as raised:
+        await _disarm(hass, entry)
+    assert raised.value.translation_key == "program_mode_not_closed"
+    assert _typed(fake_server) == "4112800"
+    assert _issue(hass, entry) is not None
+    await unload_entry(hass, entry)
+
+
+async def test_a_program_mode_reported_open_survives_a_reload(hass, fake_server):
+    entry = await _setup(hass, fake_server)
+    await fake_server.enter_program_mode()
+    await _until(lambda: entry.runtime_data.data.system.installers_mode)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    with pytest.raises(ServiceValidationError) as raised:
+        await _disarm(hass, entry)
+    assert raised.value.translation_key == "program_mode_not_closed"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
+async def test_an_armed_report_settles_the_doubt(hass, fake_server, monkeypatch):
+    # A Vista cannot arm with Program Mode open, so an armed partition is the
+    # panel saying Program Mode is closed.
+    entry = await _setup(hass, fake_server)
+    await _leave_in_doubt(hass, fake_server, entry, monkeypatch, "no_627")
+    before = _typed(fake_server)
+    # Icon LEDs: armed away (bit 2) and AC present (bit 3).
+    await fake_server.push("00", "1,000C,0,00,ARMED AWAY")
+    await _until(lambda: entry.runtime_data.data.partition(1).armed)
+    await _disarm(hass, entry)
+    assert _typed(fake_server) == before + "12341"
+    assert _issue(hass, entry) is None
+    await unload_entry(hass, entry)
+
+
+async def test_a_627_after_an_armed_report_holds_writers_again(hass, fake_server):
+    # The latest report wins: a 627 that follows the armed report records open.
+    entry = await _setup(hass, fake_server)
+    await fake_server.push("00", "1,000C,0,00,ARMED AWAY")
+    await _until(lambda: entry.runtime_data.data.partition(1).armed)
+    await fake_server.push("03", "1627" + "01" + "000")
+    await _until(lambda: _issue(hass, entry) is not None)
+    with pytest.raises(ServiceValidationError):
+        await _disarm(hass, entry)
+    assert _typed(fake_server) == ""
+    await unload_entry(hass, entry)
+
+
+async def test_a_session_closed_for_a_missing_ack_logs_no_error(
+    hass, fake_server, monkeypatch
+):
+    # The owed ack is failed when its session goes; nothing may log that as
+    # an unhandled error.
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN",
+        0.05,
+    )
+    entry = await _setup(hass, fake_server)
+    coordinator = entry.runtime_data
+    monkeypatch.setattr(coordinator.client, "_ack_timeout", 0.2)
+    fake_server.scripted_responses["00"] = [None]
+    with pytest.raises(TPICommandError):
+        await coordinator.client.keep_alive()
+    with pytest.raises(TPIConnectionError):
+        await coordinator.client.keep_alive()
+    await _until(
+        lambda: fake_server.connections == 2 and coordinator.data.system.connected
+    )
+    await _disarm(hass, entry)
+    assert _typed(fake_server) == "12341"
     await unload_entry(hass, entry)

@@ -36,7 +36,7 @@ from .const import (
     INSTALLERS_MODE_CID_EVENT,
     INSTALLERS_MODE_EXIT_CID_EVENT,
 )
-from .models import VistaState
+from .models import ProgramMode, VistaState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,19 +113,13 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     armed_stay = flags["armed_stay"]
     zero_entry_delay = flags["armed_zero_entry_delay"]
     partition.armed = armed_away or armed_stay
+    if partition.armed:
+        # A Vista cannot arm with Program Mode open; the latest report wins,
+        # so a 627 that comes after this records open again.
+        state.system.program_mode = ProgramMode.CLOSED
     partition.arm_state = _arm_state_from_flags(
         armed_away, armed_stay, zero_entry_delay
     )
-
-
-def is_program_mode_exit_report(event: TPIEvent) -> bool:
-    """The panel's Program Mode Exit report, Contact ID 628."""
-    if event.code != EVT_REALTIME_CID_EVENT:
-        return False
-    try:
-        return int(event.fields["cid_event"]) == INSTALLERS_MODE_EXIT_CID_EVENT
-    except KeyError, ValueError:
-        return False
 
 
 def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
@@ -135,10 +129,10 @@ def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
         return
 
     if cid_event == INSTALLERS_MODE_CID_EVENT:
-        state.system.installers_mode = True
+        state.system.program_mode = ProgramMode.OPEN
         return
     if cid_event == INSTALLERS_MODE_EXIT_CID_EVENT:
-        state.system.installers_mode = False
+        state.system.program_mode = ProgramMode.CLOSED
         return
 
     if cid_event not in ARM_DISARM_CID_EVENTS:
