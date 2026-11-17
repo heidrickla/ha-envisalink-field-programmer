@@ -249,8 +249,15 @@ async def test_installer_send_holds_doubt_against_an_armed_report(
     await fake_server.push("00", "1,000C,0,00,ARMED AWAY")
     await _until(lambda: entry.runtime_data.data.partitions[1].armed)
     assert entry.runtime_data.program_mode is ProgramMode.DOUBT
+    assert _issue(hass, entry) is None
     await fake_server.release_held_acks()
     await send
+    issue = _issue(hass, entry)
+    assert issue is not None
+    await entry.runtime_data.async_confirm_program_mode_closed(
+        str(issue.data["generation"])
+    )
+    assert entry.runtime_data.program_mode is ProgramMode.CLOSED
     await unload_entry(hass, entry)
 
 
