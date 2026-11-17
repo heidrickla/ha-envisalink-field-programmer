@@ -124,19 +124,26 @@ async def setup_entry(
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    # The fake panel supplies a fresh idle keypad report at initial connect.
-    # Tests of an unreported partition use a coordinator without this helper.
-    for partition in range(1, int(entry.data["num_partitions"]) + 1):
-        await fake_server.push("00", f"{partition},1008,0,00,READY")
-    for _ in range(100):
-        if len(entry.runtime_data._fresh_partitions) == int(
-            entry.data["num_partitions"]
-        ):
-            break
-        await asyncio.sleep(0.001)
-    assert len(entry.runtime_data._fresh_partitions) == int(
-        entry.data["num_partitions"]
-    )
+    # Nothing is pushed here: the coordinator asks the panel for each
+    # partition's report when the session is established, and the fake panel
+    # answers for the partitions it has. A test of a missing report turns the
+    # answers off before calling this.
+    if fake_server.answer_partition_requests:
+        panel_has = {
+            n
+            for n in range(1, int(entry.data["num_partitions"]) + 1)
+            if n <= fake_server.panel_partitions
+        }
+        for _ in range(100):
+            fresh = {
+                n
+                for n, partition in entry.runtime_data.data.partitions.items()
+                if partition.fresh
+            }
+            if fresh == panel_has:
+                break
+            await asyncio.sleep(0.001)
+        assert fresh == panel_has
     return entry
 
 

@@ -164,8 +164,7 @@ async def _enable_bypass_switch(hass, fake_server, entry) -> None:
     )
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
-    await fake_server.push("00", "1,1008,0,00,READY")
-    await _until(lambda: 1 in entry.runtime_data._fresh_partitions)
+    await _until(lambda: entry.runtime_data.data.partitions[1].fresh)
 
 
 @pytest.mark.parametrize("kind", ["no_628", "no_627"])

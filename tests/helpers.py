@@ -50,6 +50,16 @@ class FakeEnvisalinkServer:
         self.extra_reports: dict[str, str] = {}
         self.in_program_mode = False
         self._typed = ""
+        # How the panel answers ^01,<n> (change default partition): with a
+        # keypad update for partition n if the panel has it. Whether a real
+        # EnvisaLink does this is unverified; a test of a quiet module or a
+        # panel with fewer partitions than the entry counts turns it off or
+        # lowers panel_partitions.
+        self.answer_partition_requests = True
+        self.panel_partitions = 8
+        self.partition_report = "1008,0,00,READY"
+        self.partition_requests: list[int] = []
+        self.default_partition = 1
         # Connections accepted, connections still open, and connections whose
         # handler has finished, so a test can assert a disconnect landed.
         self.connections = 0
@@ -182,6 +192,7 @@ class FakeEnvisalinkServer:
                         out += "".join(
                             f"%03,{r}$" for r in self._panel_reports(*parsed)
                         )
+                        out += self._partition_answer(*parsed)
                     if out:
                         writer.write(out.encode("ascii"))
                         await writer.drain()
@@ -206,6 +217,17 @@ class FakeEnvisalinkServer:
             if self.report_exit:
                 reports.append("1628" + "01" + "000")
         return reports
+
+    def _partition_answer(self, code: str, data: str) -> str:
+        """The keypad update the panel sends when the default partition changes."""
+        if code != "01" or not data.isdigit():
+            return ""
+        partition = int(data)
+        self.partition_requests.append(partition)
+        self.default_partition = partition
+        if not self.answer_partition_requests or partition > self.panel_partitions:
+            return ""
+        return f"%00,{partition},{self.partition_report}$"
 
     def _next_response(self, code: str) -> str | None:
         queue = self.scripted_responses.get(code)

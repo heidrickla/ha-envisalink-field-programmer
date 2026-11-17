@@ -93,6 +93,7 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     flags = _decode_icon_flags(str(event.fields.get("icon_led_hex", "")))
     alpha = str(event.fields.get("alpha", ""))
 
+    partition.fresh = True
     partition.ready = flags["ready"]
     partition.alarm = flags["alarm"]
     partition.alarm_in_memory = flags["alarm_in_memory"]

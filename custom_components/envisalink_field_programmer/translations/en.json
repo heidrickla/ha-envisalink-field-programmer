@@ -136,17 +136,18 @@
     },
     "program_mode_unknown": {
       "title": "{title}: Program Mode may still be open",
-      "description": "The panel reported Program Mode open, or keys that open it went out and the panel has not reported it closed since, so guided programming, arming, disarming and bypass are paused.",
+      "description": "The panel reported Program Mode open, or keys that open it may have gone out, and the panel has not reported it closed since, so guided programming, arming, disarming and bypass are paused.",
       "fix_flow": {
         "abort": {
           "entry_not_loaded": "The entry is not loaded. Reload it, then reopen this repair.",
-          "operation_in_progress": "A programming operation still holds the keypad. Wait for it to finish, then reopen this repair.",
-          "stale_repair": "This repair belongs to an older Program Mode doubt. Reopen the current repair."
+          "operation_in_progress": "A keypad sequence (programming, arming, disarming or bypass) still holds the keypad. Wait for it to finish, then reopen this repair.",
+          "stale_repair": "Program Mode state has changed since this repair was opened, so it was not applied. If a Program Mode repair is still listed under Settings, Repairs, open that one.",
+          "already_settled": "Program Mode is already settled: the panel reported it closed or an earlier confirmation was applied. There is nothing to confirm."
         },
         "step": {
           "confirm": {
             "title": "Check the keypad",
-            "description": "Program Mode on {title} may be open: the panel reported it open, or keys that open it went out and the panel has not reported it closed since. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming, arming, disarming and bypass."
+            "description": "Program Mode on {title} may be open: the panel reported it open, or keys that open it may have gone out, and the panel has not reported it closed since. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming, arming, disarming and bypass."
           }
         }
       }
@@ -370,7 +371,7 @@
       "message": "Nothing was sent: this entry tracks {count} partition(s), so partition {partition} has no reported state here. If the panel has it, raise the partition count with Reconfigure on the entry."
     },
     "partition_report_pending": {
-      "message": "Nothing was sent: waiting for the panel's fresh arm-state report for partition {partition} after the connection changed."
+      "message": "Nothing was sent: the panel has not reported partition {partition} since the connection was established, so its arm state is unknown. The integration asked for the report and none came. The module sends one when that partition's keypad display changes, for example when a key is pressed at the keypad, so check the keypad and try again. If the panel has no partition {partition}, lower the partition count with Reconfigure under Settings, Devices & services."
     },
     "partition_armed": {
       "message": "Partition {partition} is armed or arming, so nothing was sent. Program Mode needs every partition disarmed: disarm it, then try again."
@@ -442,7 +443,7 @@
       "message": "Nothing was sent: Home Assistant could not verify that the Program Mode doubt was saved. Check storage and try again."
     },
     "program_mode_lost": {
-      "message": "The sequence stopped part-way: the panel's Program Mode report changed while it was typing (closed, opened by something else, or the connection dropped). Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
+      "message": "The sequence stopped part-way: the panel's Program Mode report changed while it was typing (the panel reported it closed, or reported it open when this sequence had not caused that, or the connection dropped). Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
     },
     "program_mode_opened": {
       "message": "The keys stopped part-way: the panel reported Program Mode open while they were being typed, so the rest was not sent. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."

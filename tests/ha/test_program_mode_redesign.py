@@ -148,8 +148,14 @@ async def test_partition_armed_during_outage_is_refused_after_reconnect(
         "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN",
         0.05,
     )
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.PARTITION_REPORT_TIMEOUT",
+        0.2,
+    )
     entry = await _setup(hass, fake_server)
     coordinator = entry.runtime_data
+    # The panel stays quiet through the outage, so the partition is unknown.
+    fake_server.answer_partition_requests = False
     fake_server.drop_on = "1"
     with pytest.raises(HomeAssistantError):
         await async_send_guarded_keystrokes(coordinator, 1, "1")
@@ -256,7 +262,7 @@ async def test_installer_send_holds_doubt_against_an_armed_report(
     issue = _issue(hass, entry)
     assert issue is not None
     await entry.runtime_data.async_confirm_program_mode_closed(
-        str(issue.data["generation"])
+        str(issue.data["generation"]), int(issue.data["revision"])
     )
     assert entry.runtime_data.program_mode is ProgramMode.CLOSED
     await unload_entry(hass, entry)

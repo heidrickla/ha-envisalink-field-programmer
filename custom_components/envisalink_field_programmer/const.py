@@ -8,7 +8,7 @@ DOMAIN: Final = "envisalink_field_programmer"
 
 # tools/validate_local.py pins this against manifest.json and pyproject.toml,
 # so a release bump that misses one of the three fails before the push.
-VERSION: Final = "0.8.0"
+VERSION: Final = "0.8.1"
 
 # Action names. Registered once in async_setup; tools/validate_local.py pins
 # services.yaml against this list.
@@ -190,6 +190,9 @@ INSTALLERS_MODE_EXIT_CID_EVENT: Final = 628
 # Program Mode prompt means something else in normal mode, so without the 627
 # nothing more is sent.
 PROGRAM_MODE_REPORT_TIMEOUT: Final = 10
+# How long a keypad use that needs a partition's arm state waits for the
+# panel's report after asking for it, before it refuses and says what is missing.
+PARTITION_REPORT_TIMEOUT: Final = 5
 # The keypad partition the guided operations type on. Program Mode governs the
 # whole panel and the partition being programmed is answered as data at the
 # *56/*57 PARTITION prompt; every entry tracks partition 1, so its keypad does.

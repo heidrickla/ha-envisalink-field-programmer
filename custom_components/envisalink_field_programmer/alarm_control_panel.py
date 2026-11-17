@@ -87,6 +87,9 @@ class VistaPartitionAlarmPanel(VistaConsoleEntity, AlarmControlPanelEntity):
         # enough to port (see state_machine.py's module docstring; even the
         # reference `pyenvisalink` implementation leaves it unhandled).
         partition = self._partition
+        if not partition.fresh:
+            # Nothing has reported this partition on this session.
+            return None
         if partition.alarm:
             return AlarmControlPanelState.TRIGGERED
         if partition.exit_delay:

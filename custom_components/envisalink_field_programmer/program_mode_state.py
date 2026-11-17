@@ -12,6 +12,7 @@ from .models import ProgramMode
 class ModeEvent(Enum):
     OPERATION_START = "operation_start"
     KEY_WRITE = "key_write"
+    NO_KEY_SENT = "no_key_sent"
     OPEN_REPORT = "627"
     CLOSE_REPORT = "628"
     ARMED_REPORT = "armed"
@@ -21,7 +22,41 @@ class ModeEvent(Enum):
     RELOAD = "reload"
     REPAIR_CONFIRM = "repair_confirm"
     OPERATION_END = "operation_end"
-    KEY_REFUSED = "key_refused"
+
+
+class Refusal(Enum):
+    """Why an event was refused; a caller picks its message from this."""
+
+    NOT_CLOSED = "not_closed"
+    HELD = "held"
+    NOT_OWNER = "not_owner"
+    ENTRY_AFTER_OPEN = "entry_after_open"
+    MENU_BEFORE_OPEN = "menu_before_open"
+    SETTLED = "settled"
+    STALE = "stale"
+
+
+class ModeRefusal(ValueError):
+    """A key or confirmation the table refuses."""
+
+    def __init__(self, reason: Refusal) -> None:
+        super().__init__(reason.value)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class Holder:
+    """What the keypad's holder has sent, as far as it bears on who owns a 627."""
+
+    operation_id: str
+    installer: bool
+    # A guided operation's entry: its length, the keys whose write has begun,
+    # and the keys the module has acknowledged.
+    entry_length: int = 0
+    entry_sent: int = 0
+    written: int = 0
+    # An installer operation: the keys whose write has begun.
+    attempted: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,31 +91,52 @@ class ModeState:
         )
 
 
+def explains_open_report(state: ModeState, holder: Holder | None) -> bool:
+    """Whether the holder's own keys account for a 627 that just arrived.
+
+    A guided operation explains only the first 627 after its own doubt, once
+    its entry is all sent. An installer operation explains any 627 once it has
+    begun a key, since a confirmed send may type anything.
+    """
+    if holder is None or state.operation_id != holder.operation_id:
+        return False
+    if holder.installer:
+        return holder.attempted > 0
+    return (
+        state.mode is ProgramMode.DOUBT
+        and holder.entry_length > 0
+        and holder.entry_sent == holder.entry_length
+        and holder.written >= holder.entry_length - 1
+    )
+
+
 def transition(
     state: ModeState,
     event: ModeEvent,
     *,
     operation_id: str | None = None,
     generation: str | None = None,
+    revision: int | None = None,
     entry_complete: bool = False,
     holding: bool = False,
     installer: bool = False,
     everyday: bool = False,
+    holder: Holder | None = None,
 ) -> ModeState:
-    """Fold one event; rejected keys and stale confirmations raise ValueError."""
+    """Fold one event; rejected keys and stale confirmations raise ModeRefusal."""
     next_revision = state.revision + 1
     if event is ModeEvent.OPERATION_START:
         if operation_id is None:
             raise ValueError("operation id required")
         if everyday:
             if state.mode is not ProgramMode.CLOSED:
-                raise ValueError("Program Mode is not closed")
+                raise ModeRefusal(Refusal.NOT_CLOSED)
             return state
         if state.operation_id is not None and state.operation_id != operation_id:
-            raise ValueError("another operation holds the keypad")
+            raise ModeRefusal(Refusal.HELD)
         if state.mode is not ProgramMode.CLOSED:
             if not installer:
-                raise ValueError("Program Mode is not closed")
+                raise ModeRefusal(Refusal.NOT_CLOSED)
             return replace(state, operation_id=operation_id, revision=next_revision)
         return ModeState(
             ProgramMode.DOUBT, str(uuid4()), operation_id, False, next_revision
@@ -88,16 +144,26 @@ def transition(
     if event is ModeEvent.KEY_WRITE:
         if operation_id is None:
             if state.mode is not ProgramMode.CLOSED:
-                raise ValueError("Program Mode is not closed")
+                raise ModeRefusal(Refusal.NOT_CLOSED)
         elif state.operation_id != operation_id:
-            raise ValueError("this operation does not own Program Mode")
+            raise ModeRefusal(Refusal.NOT_OWNER)
         elif not installer and state.mode is ProgramMode.OPEN and not entry_complete:
-            raise ValueError("entry key after Program Mode opened")
+            raise ModeRefusal(Refusal.ENTRY_AFTER_OPEN)
         elif not installer and state.mode is ProgramMode.DOUBT and entry_complete:
-            raise ValueError("menu key before this operation's 627")
+            raise ModeRefusal(Refusal.MENU_BEFORE_OPEN)
+        return state
+    if event is ModeEvent.NO_KEY_SENT:
+        if (
+            state.mode is ProgramMode.DOUBT
+            and operation_id is not None
+            and state.operation_id == operation_id
+            and state.generation == generation
+            and not state.saw_627
+        ):
+            return ModeState(revision=next_revision)
         return state
     if event is ModeEvent.OPEN_REPORT:
-        owner = state.operation_id if entry_complete else None
+        owner = state.operation_id if explains_open_report(state, holder) else None
         return ModeState(
             ProgramMode.OPEN,
             state.generation or str(uuid4()),
@@ -126,11 +192,11 @@ def transition(
         return replace(state, revision=next_revision)
     if event is ModeEvent.REPAIR_CONFIRM:
         if holding or state.operation_id is not None:
-            raise ValueError("An operation is still using the keypad")
-        if state.mode is ProgramMode.CLOSED or generation != state.generation:
-            raise ValueError(
-                "This repair is stale; open the current Program Mode repair"
-            )
+            raise ModeRefusal(Refusal.HELD)
+        if state.mode is ProgramMode.CLOSED:
+            raise ModeRefusal(Refusal.SETTLED)
+        if generation != state.generation or revision != state.revision:
+            raise ModeRefusal(Refusal.STALE)
         return ModeState(revision=next_revision)
     if event is ModeEvent.OPERATION_END:
         if everyday:
@@ -150,13 +216,4 @@ def transition(
                 revision=next_revision,
             )
         return replace(state, operation_id=None, revision=next_revision)
-    if event is ModeEvent.KEY_REFUSED:
-        if (
-            state.mode is ProgramMode.DOUBT
-            and state.operation_id == operation_id
-            and not holding
-            and not state.saw_627
-        ):
-            return ModeState(revision=next_revision)
-        return state
     raise ValueError(f"unknown event: {event}")

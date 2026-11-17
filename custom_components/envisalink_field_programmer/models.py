@@ -56,6 +56,10 @@ class PartitionState:
     """State of a single Vista partition, as reported by its keypad's icon LEDs."""
 
     number: int
+    # True once the panel has reported this partition on the current session;
+    # until then every flag below is a default or an earlier session's, and
+    # nothing may act on it.
+    fresh: bool = False
     ready: bool = False
     armed: bool = False
     arm_state: str = "disarmed"
@@ -97,7 +101,9 @@ class KeypadUse(Enum):
     EVERYDAY = "everyday"
     # A guided operation: only while closed, and its keys leave Program Mode in doubt.
     PROGRAMMING = "programming"
-    # A raw send confirmed as installer work: in any state, and its keys leave doubt.
+    # A raw send confirmed as installer work: it may start in any state and its
+    # keys leave doubt. A 627 its own keys can explain binds to it, so it types
+    # on past the report; one that nothing of ours explains stops it.
     INSTALLER = "installer"
 
 
@@ -130,6 +136,11 @@ class VistaState:
             },
             zones={n: ZoneState(number=n) for n in range(1, num_zones + 1)},
         )
+
+    def forget_partition_reports(self) -> None:
+        """A new session knows nothing: every partition is unknown until it reports."""
+        for partition in self.partitions.values():
+            partition.fresh = False
 
     def partition(self, number: int) -> PartitionState:
         return self.partitions.setdefault(number, PartitionState(number=number))

@@ -95,6 +95,10 @@ class TPICommandRefused(TPICommandError):
     """The EVL answered with a refusal, so the command never reached the panel."""
 
 
+class TPINotSent(TPIConnectionError):
+    """The command was never written: the session was down before the write."""
+
+
 @dataclass
 class TPIEvent:
     """A single parsed frame received from the Envisalink."""
@@ -444,7 +448,7 @@ class EnvisalinkClient:
             await self._settle_owed_ack()
             for attempt in range(COMMAND_RETRY_ATTEMPTS + 1):
                 if self._writer is None:
-                    raise TPIConnectionError("not connected")
+                    raise TPINotSent("not connected")
                 if guard is not None:
                     guard()
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
@@ -493,7 +497,7 @@ class EnvisalinkClient:
         if owed is not None and not owed.done():
             if not (await asyncio.wait({owed}, timeout=self._ack_timeout))[0]:
                 await self.disconnect()
-                raise TPIConnectionError(
+                raise TPINotSent(
                     "the Envisalink never acknowledged an earlier command; "
                     "the session was closed"
                 )

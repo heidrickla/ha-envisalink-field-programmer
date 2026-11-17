@@ -206,7 +206,8 @@ async def test_reconnect_restores_availability_and_logs_once(
             for _ in range(40):
                 await asyncio.sleep(0.05)
                 await hass.async_block_till_done()
-                if hass.states.get(alarm_entity_id).state != "unavailable":
+                # Available at once, unknown until the partition reports again.
+                if hass.states.get(alarm_entity_id).state == "disarmed":
                     break
             assert hass.states.get(alarm_entity_id).state == "disarmed"
             reconnected = [r for r in caplog.records if "Reconnected" in r.getMessage()]
