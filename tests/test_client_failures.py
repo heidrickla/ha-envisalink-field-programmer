@@ -7,7 +7,6 @@ tiny server that answers with exactly the bytes being tested.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from collections.abc import Awaitable, Callable
 
 import pytest
@@ -282,15 +281,19 @@ async def test_an_abandoned_command_s_ack_is_not_taken_by_the_next(abandon):
                 await first
         second = asyncio.ensure_future(client.send_keypress(1, "2"))
         await asyncio.sleep(0.05)
-        # The first key's ack arrives late; the second key's ack is held.
+        # The second key waits for the first key's ack before it is written.
+        assert ("03", "1,2") not in server.received
         await server.release_held_acks()
+        for _ in range(100):
+            if ("03", "1,2") in server.received:
+                break
+            await asyncio.sleep(0.01)
+        assert ("03", "1,2") in server.received
+        # Written now, it waits for its own ack, held back by the module.
         await asyncio.sleep(0.1)
-        assert not (second.done() and second.exception() is None), (
-            "the second key took the first key's acknowledgement"
-        )
-        second.cancel()
-        with contextlib.suppress(asyncio.CancelledError, TPIError):
-            await second
+        assert not second.done()
+        await server.release_held_acks()
+        await asyncio.wait_for(second, 1)
     finally:
         await client.disconnect()
         await server.stop()

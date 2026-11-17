@@ -92,7 +92,8 @@ async def test_send_keystrokes_sends_one_character_per_frame(fake_server):
     )
     await client.connect()
     try:
-        await client.send_keystrokes(1, "1234")
+        async with client.keypad() as type_keys:
+            await type_keys(1, "1234")
         await asyncio.sleep(0.05)
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]
@@ -161,7 +162,8 @@ async def test_keystrokes_wait_for_each_ack_before_next_send(fake_server):
     )
     await client.connect()
     try:
-        await client.send_keystrokes(1, "1234")
+        async with client.keypad() as type_keys:
+            await type_keys(1, "1234")
         # All four keypresses were delivered (none dropped)...
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]

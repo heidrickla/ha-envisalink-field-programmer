@@ -453,16 +453,14 @@ class EnvisalinkClient:
                 try:
                     self._writer.write(payload)
                     await self._writer.drain()
-                    try:
-                        # Shielded, so a caller that stops waiting leaves the
-                        # ack owed rather than free to answer the next command.
-                        response = await asyncio.wait_for(
-                            asyncio.shield(future), self._ack_timeout
-                        )
-                    except TimeoutError as err:
+                    # wait() never cancels the future, so a caller that stops
+                    # waiting leaves the ack owed rather than free to answer
+                    # the next command.
+                    if not (await asyncio.wait({future}, timeout=self._ack_timeout))[0]:
                         raise TPICommandError(
                             f"no acknowledgement for command ^{code} within {self._ack_timeout}s"
-                        ) from err
+                        )
+                    response = future.result()
                 finally:
                     if future.done():
                         self._pending_ack = None
@@ -493,16 +491,12 @@ class EnvisalinkClient:
         """
         owed = self._pending_ack
         if owed is not None and not owed.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(owed), self._ack_timeout)
-            except TimeoutError as err:
+            if not (await asyncio.wait({owed}, timeout=self._ack_timeout))[0]:
                 await self.disconnect()
                 raise TPIConnectionError(
                     "the Envisalink never acknowledged an earlier command; "
                     "the session was closed"
-                ) from err
-            except TPIError:
-                pass
+                )
         self._pending_ack = None
         self._pending_ack_code = ""
 
@@ -526,21 +520,12 @@ class EnvisalinkClient:
             raise ValueError("send_keypress sends exactly one character at a time")
         await self._send(CMD_KEYPRESS, f"{partition},{key}", guard)
 
-    async def send_keystrokes(self, partition: int, keys: str) -> None:
-        """Send an arbitrary keystroke string, one character per frame.
-
-        This is the mechanism the panel uses for everything from zone bypass
-        and arming to full installer field programming. There is no
-        error-checking of panel state on the wire; see ``programming.py`` for
-        the safety guardrails built on top of this. Waits while another
-        sequence holds the keypad.
-        """
-        async with self.keypad() as type_keys:
-            await type_keys(partition, keys)
-
     @contextlib.asynccontextmanager
     async def keypad(self) -> AsyncIterator[KeyTyper]:
-        """Hold the keypad for one sequence; the yielded sender types into it."""
+        """Hold the keypad for one sequence; the yielded sender types into it.
+
+        Only the coordinator's async_keypad takes this, after its checks.
+        """
         async with self._keypad_lock:
             yield self._type_keys
 
