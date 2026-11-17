@@ -1,13 +1,14 @@
 # Program Mode state
 
-The coordinator owns one state value. `CLOSED` permits ordinary keys. `OPEN` means Contact ID 627 was seen for the current guided operation, on its current session. `DOUBT` has a generation, the operation id if one holds the keypad, and `saw_627`, which records whether any 627 arrived since this doubt began. Neither an issue deletion nor a reconnect is evidence that the panel left Program Mode.
+The coordinator owns one state value. `CLOSED` permits ordinary keys. `OPEN` means Contact ID 627 was seen; it has the current guided operation's id only when that operation's entry caused the report. `DOUBT` has a generation, the operation id if one holds the keypad, and `saw_627`, which records whether any 627 arrived since this doubt began. Neither an issue deletion nor a reconnect is evidence that the panel left Program Mode.
 
-The state transition function takes every event. A change also advances a revision used by each key gate. An operation receives a unique id; its entry keys require its own unchanged doubt, and its menu keys require its own unchanged `OPEN`. A `627` before the final entry acknowledgement cannot bind to that operation. Every write, including an overrun retry, rechecks the gate under the command lock. A `00` acknowledgement increments the count of keys accepted by the module.
+The state transition function takes every event. A change also advances a revision used by each key gate. An operation receives a unique id; its entry keys require its own unchanged doubt, and its menu keys require its own unchanged `OPEN`. A `627` before the final entry key is sent cannot bind to that operation; the final acknowledgement may follow the report. Every write, including an overrun retry, rechecks the gate under the command lock. A `00` acknowledgement increments the count of keys accepted by the module.
 
 | Event | CLOSED | OPEN | DOUBT |
 |---|---|---|---|
 | Operation start | Guided or installer: create a new doubt generation with operation id; ordinary: unchanged | Refuse guided or ordinary; installer keeps the unsafe state and binds its id | Refuse guided or ordinary; installer keeps the unsafe state and binds its id |
-| Key write | Ordinary allowed; guided requires its own durable doubt first | Only menu keys for the operation whose 627 opened this state | Only entry keys for the operation that raised this doubt, with unchanged revision; confirmed installer keys allowed |
+| Key write | Ordinary allowed; guided requires its own durable doubt first | Guided menu keys require the operation whose 627 opened this state and an unchanged revision; confirmed installer keys require their active holder | Guided entry keys require the operation that raised this doubt and an unchanged revision; confirmed installer keys require their active holder |
+| Key refused by the module | Unchanged | Unchanged | The originating operation's first key may return to `CLOSED` only when no key was acknowledged and no 627 was seen; an acknowledged prefix keeps the doubt |
 | 627 | New `OPEN` with no operation owner | New `OPEN`, invalidating a prior binding | `OPEN` for the holder only if its entry is complete; otherwise `OPEN` without a bound owner; `saw_627=true` |
 | 628 | `CLOSED` with a new revision | `CLOSED` | `CLOSED` |
 | Armed report for a tracked partition | Unchanged | Unchanged | `CLOSED` only if `saw_627=false` and no operation holds the keypad |
@@ -16,7 +17,7 @@ The state transition function takes every event. A change also advances a revisi
 | Reconnect | Unchanged state, new revision; partitions remain unknown until their own fresh reports | Treat as disconnect before reconnect | Unchanged state, new revision; partitions remain unknown until their own fresh reports |
 | Reload or restart | Restore durable state; all partitions unknown | Restore as `DOUBT`, preserving `saw_627` | Restore generation and `saw_627`; old operation id cannot authorize new keys |
 | Repair confirm | Refused as stale | `CLOSED` only if idle and the generation matches | `CLOSED` only if no operation holds the keypad and the flow's generation equals the current generation; otherwise abort with a readable reason |
-| Operation end | Unchanged | Becomes `DOUBT` with `saw_627=true` unless 628 arrived | Clear operation id but preserve generation and `saw_627` |
+| Operation end | Unchanged | A guided or installer operation becomes `DOUBT` with `saw_627=true` unless 628 arrived; an ordinary operation leaves `OPEN` | A guided or installer operation clears its id but preserves generation and `saw_627`; an ordinary operation leaves `DOUBT` |
 
 The doubt and its generation and `saw_627` are saved in the integration's own Home Assistant storage before the first key, with that save awaited before the key phase. The repair issue mirrors them for display and carries the generation captured by its confirm flow. An active operation's doubt appears in the System trouble diagnostic as installers_mode, not as an ERROR repair; if it ends in doubt, the ERROR repair appears. The repair registry's delayed save is never the safety store. A stale flow or a flow submitted while the keypad is held aborts and leaves doubt intact.
 
