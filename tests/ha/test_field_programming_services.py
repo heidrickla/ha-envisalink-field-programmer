@@ -715,16 +715,30 @@ async def test_program_mode_closing_part_way_stops_the_next_key(hass, fake_serve
     await _unload(hass, entry)
 
 
-async def test_a_reconnect_after_the_entry_sends_nothing_more(hass, fake_server):
-    # Keys after the entry belong to the session the entry went out on.
+async def test_a_reconnect_after_the_entry_sends_nothing_more(
+    hass, fake_server, monkeypatch
+):
+    # Keys after the entry belong to the session the entry went out on: a 627
+    # on the next session is not the entry's own.
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.coordinator.RECONNECT_BACKOFF_MIN",
+        0.05,
+    )
     entry = await _setup_entry(hass, fake_server)
+    coordinator = entry.runtime_data
     fake_server.program_mode_entry = None
     call = hass.async_create_task(_program_key_a(hass, entry))
     for _ in range(100):
         if _typed(fake_server) == "4112800":
             break
         await asyncio.sleep(0.01)
-    entry.runtime_data.session_generation += 1
+    await asyncio.sleep(0.05)
+    assert fake_server._writer is not None
+    fake_server._writer.close()
+    for _ in range(300):
+        if fake_server.connections == 2 and coordinator.data.system.connected:
+            break
+        await asyncio.sleep(0.01)
     await fake_server.enter_program_mode()
     with pytest.raises(HomeAssistantError) as raised:
         await call
@@ -733,16 +747,16 @@ async def test_a_reconnect_after_the_entry_sends_nothing_more(hass, fake_server)
     await _unload(hass, entry)
 
 
-async def test_a_disconnect_starts_a_new_session(hass, fake_server):
+async def test_a_disconnect_is_a_change_a_held_sequence_sees(hass, fake_server):
     entry = await _setup_entry(hass, fake_server)
     coordinator = entry.runtime_data
-    before = coordinator.session_generation
+    before = coordinator.program_mode_changes
     await fake_server.stop()
     for _ in range(200):
-        if coordinator.session_generation != before:
+        if coordinator.program_mode_changes != before:
             break
         await asyncio.sleep(0.01)
-    assert coordinator.session_generation == before + 1
+    assert coordinator.program_mode_changes == before + 1
     await _unload(hass, entry)
 
 

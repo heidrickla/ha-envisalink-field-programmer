@@ -195,6 +195,12 @@ PROGRAM_MODE_REPORT_TIMEOUT: Final = 10
 # *56/*57 PARTITION prompt; every entry tracks partition 1, so its keypad does.
 PROGRAM_MODE_KEYPAD_PARTITION: Final = 1
 
+# The *56 and *57 menus both take a partition of 1-3, whatever the panel's own
+# maximum is; the commercial timing fields are selected per partition 1-8. The
+# device page's pickers and the actions share these, capped by the model.
+ZONE_MENU_MAX_PARTITION: Final = 3
+TIMING_MAX_PARTITION: Final = 8
+
 # CID "qualifier" digit (the first data field of a %03 event): 1 means a new
 # event/opening (e.g. a disarm), 3 means a new restore/closing (e.g. an
 # arm). 6 means "condition still present" and isn't a state transition.

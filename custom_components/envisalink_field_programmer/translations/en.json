@@ -367,6 +367,12 @@
     "partition_armed": {
       "message": "Partition {partition} is armed or arming, so nothing was sent. Program Mode needs every partition disarmed: disarm it, then try again."
     },
+    "partition_armed_part_way": {
+      "message": "The Program Mode entry stopped part-way: partition {partition} reported armed or arming. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
+    },
+    "partition_not_on_panel": {
+      "message": "Nothing was sent: the {model} takes partition 1 to {count} here, so partition {partition} cannot be programmed."
+    },
     "program_mode_not_confirmed": {
       "message": "Only the installer code and 800 were sent: the panel did not report Program Mode within {seconds} seconds. Check the installer code, and that the panel is disarmed and not locked out with *98. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
     },
@@ -425,7 +431,10 @@
       "message": "Nothing was sent: the panel reports Program Mode open, or the last programming operation ended without the panel reporting it closed. Check the keypad and leave any field number showing with *99, then confirm it under Settings, Repairs."
     },
     "program_mode_lost": {
-      "message": "The sequence stopped part-way: the panel reported Program Mode closed, or the connection dropped. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
+      "message": "The sequence stopped part-way: the panel's Program Mode report changed while it was typing (closed, opened by something else, or the connection dropped). Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
+    },
+    "program_mode_opened": {
+      "message": "The keys stopped part-way: the panel reported Program Mode open while they were being typed, so the rest was not sent. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."
     },
     "program_mode_exit_not_confirmed": {
       "message": "Every key was sent, but the panel did not report leaving Program Mode within {seconds} seconds of *99. Check the keypad, leave any field number showing with *99, then confirm it under Settings, Repairs."

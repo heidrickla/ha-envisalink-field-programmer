@@ -14,7 +14,10 @@ build_event = pure.load("client").build_event
 ICON_LED_BITS = pure.load("const").ICON_LED_BITS
 VistaState = pure.load("models").VistaState
 ProgramMode = pure.load("models").ProgramMode
-apply_event = pure.load("state_machine").apply_event
+_state_machine = pure.load("state_machine")
+apply_event = _state_machine.apply_event
+program_mode_report = _state_machine.program_mode_report
+ProgramModeReport = _state_machine.ProgramModeReport
 
 
 def _state(num_zones: int = 4) -> VistaState:
@@ -114,14 +117,47 @@ def test_zone_timer_dump_marks_recently_faulted_zones_open():
     assert state.zone(4).open is False
 
 
-def test_installers_mode_flag_set_and_cleared_via_cid_event():
-    state = _state()
-    # qualifier(1) + cid_event(627, Program Mode Entry) + partition(01) + zone_or_user(000)
-    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
-    assert state.system.installers_mode is True
+def test_program_mode_reports_are_627_628_and_a_tracked_armed_partition():
+    def report(event):
+        return program_mode_report(event, 2)
 
-    apply_event(state, build_event("%03", "1" + "628" + "01" + "000"))
-    assert state.system.installers_mode is False
+    # qualifier(1) + cid_event(627, Program Mode Entry) + partition(01) + zone_or_user(000)
+    assert report(build_event("%03", "1" + "627" + "01" + "000")) is (
+        ProgramModeReport.OPENED
+    )
+    assert report(build_event("%03", "1" + "628" + "01" + "000")) is (
+        ProgramModeReport.CLOSED
+    )
+    assert report(_keypad_update(1, "armed_away")) is ProgramModeReport.ARMED
+    assert report(_keypad_update(2, "armed_stay")) is ProgramModeReport.ARMED
+    # Untracked, garbled or missing partitions, a disarmed partition, and
+    # other CID events say nothing about Program Mode.
+    for event in (
+        _keypad_update(3, "armed_away"),
+        _keypad_update(0, "armed_away"),
+        build_event("%00", "x,4,0,00,ARMED AWAY"),
+        build_event("%00", "1,4,0,00"),
+        _keypad_update(1, "ready"),
+        build_event("%03", "1" + "110" + "01" + "000"),
+        build_event("%03", "1xxx01000"),
+        build_event("%FF", "FEFF"),
+    ):
+        assert report(event) is None, event
+
+
+def test_folding_events_leaves_the_stored_program_mode_alone():
+    # The coordinator stores Program Mode; the fold only reports it.
+    state = _state()
+    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
+    apply_event(state, _keypad_update(1, "armed_away"))
+    assert state.system.program_mode is ProgramMode.CLOSED
+
+
+def test_an_untracked_partition_changes_nothing():
+    state = _state()
+    apply_event(state, _keypad_update(3, "armed_away"))
+    apply_event(state, build_event("%03", "3" + "401" + "03" + "005"))
+    assert set(state.partitions) == {1, 2}
 
 
 def test_arm_disarm_cid_event_tracks_last_user():
@@ -197,18 +233,3 @@ def test_a_zone_timer_dump_with_a_corrupt_chunk_keeps_the_other_zones():
     apply_event(state, build_event("%FF", "zzzz" + "FEFF"))
     assert state.zone(1).open is False  # untouched, still the default
     assert state.zone(2).open is True
-
-
-def test_the_latest_program_mode_report_wins_and_an_armed_partition_closes_it():
-    # A Vista cannot arm with Program Mode open; a 627 after that reopens it.
-    state = _state()
-    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
-    assert state.system.program_mode is ProgramMode.OPEN
-    # Icon LEDs: armed away (bit 2) and AC present (bit 3).
-    apply_event(state, build_event("%00", "1,000C,0,00,ARMED AWAY"))
-    assert state.system.program_mode is ProgramMode.CLOSED
-    apply_event(state, build_event("%03", "1" + "627" + "01" + "000"))
-    assert state.system.program_mode is ProgramMode.OPEN
-    # A disarmed report says nothing about Program Mode.
-    apply_event(state, build_event("%00", "1,1008,0,00,READY"))
-    assert state.system.program_mode is ProgramMode.OPEN

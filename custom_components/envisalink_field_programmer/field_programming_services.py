@@ -34,8 +34,10 @@ from .const import (
     SERVICE_PROGRAM_FUNCTION_KEY,
     SERVICE_PROGRAM_ZONE,
     SERVICE_SET_SYSTEM_TIMING,
+    TIMING_MAX_PARTITION,
+    ZONE_MENU_MAX_PARTITION,
 )
-from .coordinator import KeypadTyper, VistaConsoleCoordinator
+from .coordinator import HeldKeypad, VistaConsoleCoordinator
 from .entity import programming_entity_display_name
 from .field_programming import (
     LIFE_SAFETY_ZONE_TYPE_CODES,
@@ -51,7 +53,7 @@ from .field_programming import (
     build_function_key_keystrokes,
     build_zone_program_keystrokes,
 )
-from .models import KeypadUse, ProgramMode
+from .models import KeypadUse
 from .panels import GuidedOp, Verification, get_zone_layout
 from .programming import (
     KeystrokeGuardError,
@@ -222,55 +224,46 @@ async def _send_program_mode_sequence(
     with keystrokes_not_accepted_as_error():
         async with coordinator.async_keypad(
             PROGRAM_MODE_KEYPAD_PARTITION, KeypadUse.PROGRAMMING
-        ) as type_keys:
-            _require_disarmed(coordinator)
+        ) as keypad:
             await _type_in_program_mode(
-                coordinator, type_keys, entry_keys, full_sequence[len(entry_keys) :]
+                coordinator, keypad, entry_keys, full_sequence[len(entry_keys) :]
             )
 
 
-def _require_disarmed(coordinator: VistaConsoleCoordinator) -> None:
-    """Refuse while any partition is armed or arming.
+def _require_partition_on_panel(
+    coordinator: VistaConsoleCoordinator, partition: int, menu_max: int
+) -> None:
+    """Refuse a programmed partition the panel model does not have.
 
-    The keypad would take the entry as a user code, and Program Mode governs
-    the whole panel, not one partition.
+    The same bound the device page's partition pickers offer: the menu's own
+    maximum, capped by the model's partition count.
     """
-    for number, state in sorted(coordinator.data.partitions.items()):
-        if state.armed or state.exit_delay:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="partition_armed",
-                translation_placeholders={"partition": str(number)},
-            )
+    count = min(menu_max, coordinator.panel_model.max_partitions)
+    if not 1 <= partition <= count:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="partition_not_on_panel",
+            translation_placeholders={
+                "partition": str(partition),
+                "count": str(count),
+                "model": coordinator.panel_model.label,
+            },
+        )
 
 
 async def _type_in_program_mode(
     coordinator: VistaConsoleCoordinator,
-    type_keys: KeypadTyper,
+    keypad: HeldKeypad,
     entry_keys: str,
     rest: str,
 ) -> None:
-    """Type the entry, then each later key only while the panel reports Program Mode.
+    """Type the entry, wait for the panel's 627, type the rest, wait for its 628.
 
-    Every key after the entry is written only while the panel's latest report
-    says Program Mode is open on the session the entry went out on. The keypad
-    leaves Program Mode in doubt from the first key written; only the panel's
-    exit report, or the user's confirmation, settles it.
+    The coordinator's gate checks each key at its write: the entry against the
+    doubt its first key raised, and the rest against the open state the panel
+    reported for this entry.
     """
-    session = coordinator.session_generation
-
-    def still_open() -> None:
-        if (
-            coordinator.data.system.program_mode is not ProgramMode.OPEN
-            or coordinator.session_generation != session
-        ):
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="program_mode_lost",
-                translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
-            )
-
-    await type_keys(entry_keys)
+    await keypad(entry_keys)
     if not await coordinator.async_wait_for_program_mode(
         True, PROGRAM_MODE_REPORT_TIMEOUT
     ):
@@ -279,7 +272,8 @@ async def _type_in_program_mode(
             translation_key="program_mode_not_confirmed",
             translation_placeholders={"seconds": str(PROGRAM_MODE_REPORT_TIMEOUT)},
         )
-    await type_keys(rest, still_open)
+    keypad.program_mode_opened()
+    await keypad(rest)
     if not await coordinator.async_wait_for_program_mode(
         False, PROGRAM_MODE_REPORT_TIMEOUT
     ):
@@ -314,6 +308,7 @@ async def async_program_zone(
 ) -> None:
     """Program one zone's *56 settings, guards and all."""
     _require_guided_support(coordinator, GuidedOp.ZONE)
+    _require_partition_on_panel(coordinator, partition, ZONE_MENU_MAX_PARTITION)
     layout = get_zone_layout(coordinator.panel_model.model_id)
     if layout is None:
         raise ServiceValidationError(
@@ -378,6 +373,7 @@ async def async_set_system_timing(
     # Guard the operation early so the error is "not available for <model>"
     # rather than an unknown-field ValueError from an empty timing table.
     _require_guided_support(coordinator, GuidedOp.TIMING)
+    _require_partition_on_panel(coordinator, partition, TIMING_MAX_PARTITION)
     valid = coordinator.dialect.timing_fields()
     if field not in valid:
         raise ServiceValidationError(
@@ -418,6 +414,8 @@ async def async_program_function_key(
     confirm_unverified_model: bool = False,
 ) -> None:
     """Assign one A/B/C/D function key, guards and all."""
+    _require_guided_support(coordinator, GuidedOp.FUNCTION_KEY)
+    _require_partition_on_panel(coordinator, partition, ZONE_MENU_MAX_PARTITION)
     keystrokes = build_function_key_keystrokes(key, partition, action)
     await _send_program_mode_sequence(
         coordinator,

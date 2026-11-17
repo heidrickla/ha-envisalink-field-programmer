@@ -418,28 +418,41 @@ async def _program_zone_2(hass, entry) -> None:
     )
 
 
-async def _timing_on_2(hass, entry) -> None:
+async def _commercial_timing_on_2(hass, entry) -> None:
+    # Commercial timing is per partition: *09 to *12 take the partition first.
     await hass.services.async_call(
         DOMAIN,
         "set_system_timing",
         {
             "entry_id": entry.entry_id,
-            "field": "34",
-            "value": 45,
+            "field": "09",
+            "value": 4,
             "partition": 2,
             "confirm": True,
+            "confirm_unverified_model": True,
         },
         blocking=True,
     )
 
 
+# Each full sequence carries partition 2 at its prompt: after the zone type in
+# *56, after the key letter in *57, and as the first digit of commercial *09.
 GUIDED_ON_PARTITION_2 = {
     "program_function_key": (
+        "vista_21ip",
         lambda hass, entry: _program_key_a(hass, entry, 2),
         "4112800*57A*2*03*0**99",
     ),
-    "program_zone": (_program_zone_2, "4112800*56"),
-    "set_system_timing": (_timing_on_2, "4112800*3445**99"),
+    "program_zone": (
+        "vista_21ip",
+        _program_zone_2,
+        "4112800*560*03**03*2*1*0*1*0*00**99",
+    ),
+    "set_system_timing": (
+        "vista_128bp",
+        _commercial_timing_on_2,
+        "41128000*912*0904*99",
+    ),
 }
 
 
@@ -449,10 +462,11 @@ async def test_a_guided_operation_programs_another_partition_from_the_entry_s_ke
 ):
     # The partition at the *56 or *57 PARTITION prompt is data; Program Mode is
     # opened and typed on the entry's keypad, partition 1.
-    entry = await _setup(hass, fake_server)
-    call, expected = GUIDED_ON_PARTITION_2[op]
+    model, call, expected = GUIDED_ON_PARTITION_2[op]
+    entry = await _setup(hass, fake_server, panel_model=model)
+    fake_server.program_mode_entry = expected[: expected.index("*")]
     await call(hass, entry)
-    assert _typed(fake_server).startswith(expected)
+    assert _typed(fake_server) == expected
     assert {d.split(",", 1)[0] for c, d in fake_server.received if c == "03"} == {"1"}
     assert _issue(hass, entry) is None
     await unload_entry(hass, entry)
@@ -551,16 +565,22 @@ async def test_an_armed_report_settles_the_doubt(hass, fake_server, monkeypatch)
     await unload_entry(hass, entry)
 
 
-async def test_a_627_after_an_armed_report_holds_writers_again(hass, fake_server):
-    # The latest report wins: a 627 that follows the armed report records open.
+async def test_a_627_after_an_armed_report_holds_writers_again(
+    hass, fake_server, monkeypatch
+):
+    # The latest report wins: the armed report settles the doubt, and a 627
+    # that follows it records open.
     entry = await _setup(hass, fake_server)
+    await _leave_in_doubt(hass, fake_server, entry, monkeypatch, "no_627")
     await fake_server.push("00", "1,000C,0,00,ARMED AWAY")
-    await _until(lambda: entry.runtime_data.data.partition(1).armed)
+    await _until(lambda: _issue(hass, entry) is None)
+    assert entry.runtime_data.data.system.program_mode is ProgramMode.CLOSED
+    before = _typed(fake_server)
     await fake_server.push("03", "1627" + "01" + "000")
     await _until(lambda: _issue(hass, entry) is not None)
     with pytest.raises(ServiceValidationError):
         await _disarm(hass, entry)
-    assert _typed(fake_server) == ""
+    assert _typed(fake_server) == before
     await unload_entry(hass, entry)
 
 

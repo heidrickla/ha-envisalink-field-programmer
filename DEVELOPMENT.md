@@ -8,7 +8,7 @@ How to build this repo's test environment from scratch, and what to check when t
 py install 3.14          # if not already installed
 py -3.14 -m venv venv
 source venv/Scripts/activate    # venv/bin/activate on Linux/Mac
-pip install "pytest-homeassistant-custom-component==0.13.357" "mypy==1.18.2" "ruff==0.15.21"
+pip install "pytest-homeassistant-custom-component==0.13.357" "mypy==1.18.2" "ruff==0.15.21" "hypothesis==6.170.10"
 ```
 
 Home Assistant 2026.x needs Python 3.14, and harness 0.13.357 pins Home Assistant 2026.8.3 and brings pytest, pytest-cov and their asyncio and aiohttp plugins with it. That is the same pin the `Tests` workflow installs, so the local venv and CI resolve to the same versions.

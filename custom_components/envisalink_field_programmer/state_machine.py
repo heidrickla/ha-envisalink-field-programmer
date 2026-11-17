@@ -23,6 +23,7 @@ only.
 from __future__ import annotations
 
 import logging
+from enum import Enum
 
 from .client import TPIEvent
 from .const import (
@@ -36,7 +37,7 @@ from .const import (
     INSTALLERS_MODE_CID_EVENT,
     INSTALLERS_MODE_EXIT_CID_EVENT,
 )
-from .models import ProgramMode, VistaState
+from .models import VistaState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,10 +85,14 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
         )
         return
 
+    partition = state.partitions.get(partition_number)
+    if partition is None:
+        # Nothing here tracks it, so nothing may act on what it says.
+        _LOGGER.debug("Keypad update for untracked partition %s", partition_number)
+        return
     flags = _decode_icon_flags(str(event.fields.get("icon_led_hex", "")))
     alpha = str(event.fields.get("alpha", ""))
 
-    partition = state.partition(partition_number)
     partition.ready = flags["ready"]
     partition.alarm = flags["alarm"]
     partition.alarm_in_memory = flags["alarm_in_memory"]
@@ -113,26 +118,52 @@ def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     armed_stay = flags["armed_stay"]
     zero_entry_delay = flags["armed_zero_entry_delay"]
     partition.armed = armed_away or armed_stay
-    if partition.armed:
-        # A Vista cannot arm with Program Mode open; the latest report wins,
-        # so a 627 that comes after this records open again.
-        state.system.program_mode = ProgramMode.CLOSED
     partition.arm_state = _arm_state_from_flags(
         armed_away, armed_stay, zero_entry_delay
     )
+
+
+class ProgramModeReport(Enum):
+    """What one event says about Program Mode, for the coordinator to store."""
+
+    OPENED = "opened"
+    CLOSED = "closed"
+    # A tracked partition reported armed.
+    ARMED = "armed"
+
+
+def program_mode_report(
+    event: TPIEvent, num_partitions: int
+) -> ProgramModeReport | None:
+    """CID 627 and 628, or an armed keypad update from a partition 1..num_partitions."""
+    if event.code == EVT_REALTIME_CID_EVENT:
+        try:
+            cid_event = int(event.fields["cid_event"])
+        except KeyError, ValueError:
+            return None
+        if cid_event == INSTALLERS_MODE_CID_EVENT:
+            return ProgramModeReport.OPENED
+        if cid_event == INSTALLERS_MODE_EXIT_CID_EVENT:
+            return ProgramModeReport.CLOSED
+        return None
+    if event.code != EVT_KEYPAD_UPDATE:
+        return None
+    try:
+        partition_number = int(event.fields["partition"])
+    except KeyError, ValueError:
+        return None
+    if not 1 <= partition_number <= num_partitions:
+        return None
+    flags = _decode_icon_flags(str(event.fields.get("icon_led_hex", "")))
+    if flags["armed_away"] or flags["armed_stay"]:
+        return ProgramModeReport.ARMED
+    return None
 
 
 def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
     try:
         cid_event = int(event.fields["cid_event"])
     except KeyError, ValueError:
-        return
-
-    if cid_event == INSTALLERS_MODE_CID_EVENT:
-        state.system.program_mode = ProgramMode.OPEN
-        return
-    if cid_event == INSTALLERS_MODE_EXIT_CID_EVENT:
-        state.system.program_mode = ProgramMode.CLOSED
         return
 
     if cid_event not in ARM_DISARM_CID_EVENTS:
@@ -145,7 +176,9 @@ def _apply_realtime_cid_event(state: VistaState, event: TPIEvent) -> None:
         partition_number = 1
     zone_or_user = str(event.fields.get("zone_or_user", ""))
 
-    partition = state.partition(partition_number)
+    partition = state.partitions.get(partition_number)
+    if partition is None:
+        return
     if qualifier == CID_QUALIFIER_OPENING:
         partition.last_disarmed_by_user = zone_or_user
     elif qualifier == CID_QUALIFIER_CLOSING:

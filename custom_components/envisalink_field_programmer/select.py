@@ -22,6 +22,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TIMING_MAX_PARTITION, ZONE_MENU_MAX_PARTITION
 from .coordinator import VistaConsoleConfigEntry, VistaConsoleCoordinator
 from .entity import ProgrammingEntity
 from .field_programming import (
@@ -36,11 +37,6 @@ from .panels import GuidedOp, get_zone_layout
 
 # Nothing here reaches the panel; a selection only writes to the form.
 PARALLEL_UPDATES = 0
-
-# The *56 and *57 menus both take a partition of 1-3, whatever the panel's own
-# maximum is; the commercial timing fields are selected per partition 1-8.
-ZONE_MENU_MAX_PARTITION = 3
-TIMING_MAX_PARTITION = 8
 
 _HARDWIRE_TYPE_OPTIONS: dict[str, HardwireType] = {
     "end_of_line": HardwireType.END_OF_LINE,

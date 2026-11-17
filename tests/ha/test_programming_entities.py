@@ -599,6 +599,8 @@ async def test_a_commercial_entry_offers_only_the_timing_form(hass, fake_server)
     # guide -- so the partition picker and the acknowledgment switch are there,
     # and the zone and function-key entities are not.
     entry = await _setup(hass, fake_server, panel_model="vista_128bp")
+    # The commercial entry is the code and 8000; the panel reports after it.
+    fake_server.program_mode_entry = "41128000"
     assert _find(hass, entry, "button", "program_zone") is None
     assert _find(hass, entry, "button", "program_function_key") is None
     assert _find(hass, entry, "select", "program_zone_type") is None
