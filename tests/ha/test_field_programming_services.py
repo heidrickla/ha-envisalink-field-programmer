@@ -482,7 +482,7 @@ async def test_guided_action_reports_device_refusal_as_device_error(
     # fake server always acknowledges, so the client is made to refuse here.
     entry = await _setup_entry(hass, fake_server)
 
-    async def _refuse(self, partition, key, guard=None):
+    async def _refuse(self, partition, key, guard=None, accepted=None, refused=None):
         raise TPICommandError("Unknown Command")
 
     monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)

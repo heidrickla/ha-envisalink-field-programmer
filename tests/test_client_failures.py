@@ -253,6 +253,14 @@ async def test_a_keypress_is_one_character_at_a_time():
         await client.send_keypress(1, "12")
 
 
+async def test_a_keypress_without_a_write_gate_is_rejected():
+    client = EnvisalinkClient(
+        "127.0.0.1", 4025, "user", event_callback=lambda event: None
+    )
+    with pytest.raises(ValueError, match="requires the write gate"):
+        await client.send_keypress(1, "1")
+
+
 @pytest.mark.parametrize("abandon", ["timeout", "cancel"])
 async def test_an_abandoned_command_s_ack_is_not_taken_by_the_next(abandon):
     # Acknowledgements carry no sequence number. A keypress given up before
@@ -270,7 +278,7 @@ async def test_an_abandoned_command_s_ack_is_not_taken_by_the_next(abandon):
     )
     try:
         await client.connect()
-        first = asyncio.ensure_future(client.send_keypress(1, "1"))
+        first = asyncio.ensure_future(client.send_keypress(1, "1", lambda: None))
         if abandon == "timeout":
             with pytest.raises(TPICommandError):
                 await first
@@ -279,7 +287,7 @@ async def test_an_abandoned_command_s_ack_is_not_taken_by_the_next(abandon):
             first.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await first
-        second = asyncio.ensure_future(client.send_keypress(1, "2"))
+        second = asyncio.ensure_future(client.send_keypress(1, "2", lambda: None))
         await asyncio.sleep(0.05)
         # The second key waits for the first key's ack before it is written.
         assert ("03", "1,2") not in server.received
@@ -317,9 +325,9 @@ async def test_an_ack_that_never_comes_ends_the_session():
     try:
         await client.connect()
         with pytest.raises(TPICommandError):
-            await client.send_keypress(1, "1")
+            await client.send_keypress(1, "1", lambda: None)
         with pytest.raises(TPIConnectionError, match="never acknowledged"):
-            await client.send_keypress(1, "2")
+            await client.send_keypress(1, "2", lambda: None)
         assert not client.connected
         assert len(lost) == 1
         assert [d for c, d in server.received if c == "03"] == ["1,1"]
@@ -352,7 +360,7 @@ async def test_an_ack_owed_on_a_lost_session_is_not_waited_for_on_the_next():
             await asyncio.sleep(0.01)
         assert len(lost) == 1
         with pytest.raises((TPIError, OSError)):
-            await client.send_keypress(1, "1")
+            await client.send_keypress(1, "1", lambda: None)
         await client.connect()
         await asyncio.wait_for(client.keep_alive(), 0.2)
         assert client.connected

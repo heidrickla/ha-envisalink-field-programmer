@@ -8,6 +8,10 @@ maps to a real keypad update.
 
 from __future__ import annotations
 
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from tests import pure
 
 build_event = pure.load("client").build_event
@@ -28,10 +32,10 @@ def _icon_hex(*flags: str) -> str:
     value = 0
     for flag in flags:
         value |= 1 << ICON_LED_BITS[flag]
-    return f"{value:x}"
+    return f"{value:04x}"
 
 
-def _keypad_update(partition: int, *flags: str, alpha: str = ""):
+def _keypad_update(partition: int, *flags: str, alpha: str = "STATUS"):
     return build_event("%00", f"{partition},{_icon_hex(*flags)},0,00,{alpha}")
 
 
@@ -185,13 +189,61 @@ def test_zone_state_and_partition_state_change_are_noops():
 
 
 def test_a_malformed_icon_field_leaves_every_flag_off():
-    # The keybus can corrupt a frame. A bad hex field must not throw away the
-    # whole update or invent flags.
+    # The keybus can corrupt a frame. A bad hex field is discarded.
     state = _state()
     apply_event(state, build_event("%00", "1,zz,0,00,READY"))
     partition = state.partition(1)
     assert partition.ready is False
     assert partition.armed is False
+    assert partition.fresh is False
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "x,1008,0,00,READY",
+        ",1008,0,00,READY",
+        "1,,0,00,READY",
+        "1,zz,0,00,READY",
+        "1,008,0,00,READY",
+        "1,1008,x,00,READY",
+        "1,1008,,00,READY",
+        "1,1008,0,zz,READY",
+        "1,1008,0,,READY",
+        "1,1008,0,00,",
+        "1,1008,0,00,READY\t",
+    ],
+)
+def test_each_malformed_keypad_field_is_discarded(raw: str) -> None:
+    state = _state()
+    partition = state.partition(1)
+    partition.armed = True
+    partition.arm_state = "armed_away"
+    event = build_event("%00", raw)
+    apply_event(state, event)
+    assert not partition.fresh
+    assert partition.armed
+    assert partition.arm_state == "armed_away"
+    assert program_mode_report(event, 2) is None
+
+
+@settings(derandomize=True, deadline=None, max_examples=80)
+@given(
+    st.text(alphabet="0123456789abcdef", min_size=1, max_size=6).filter(
+        lambda icon: len(icon) != 4
+    )
+)
+def test_non_four_digit_icon_fields_never_change_partition_state(icon: str) -> None:
+    state = _state()
+    partition = state.partition(1)
+    partition.armed = True
+    partition.arm_state = "armed_away"
+    event = build_event("%00", f"1,{icon},0,00,READY")
+    apply_event(state, event)
+    assert not partition.fresh
+    assert partition.armed
+    assert partition.arm_state == "armed_away"
+    assert program_mode_report(event, 2) is None
 
 
 def test_a_keypad_update_without_a_partition_number_is_dropped():

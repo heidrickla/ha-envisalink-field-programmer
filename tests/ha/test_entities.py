@@ -144,7 +144,7 @@ async def test_alarm_and_exit_delay_show_as_triggered_and_arming(hass, fake_serv
     entity_id = _entity_id(hass, entry, "alarm_control_panel", "partition_1")
 
     # Icon LED bits: alarm (bit 0) + ac_present (bit 3) = 0x9.
-    await fake_server.push("00", "1,9,0,00,ALARM")
+    await fake_server.push("00", "1,0009,0,00,ALARM")
     await asyncio.sleep(0.1)
     await hass.async_block_till_done()
     assert hass.states.get(entity_id).state == "triggered"
@@ -163,7 +163,7 @@ async def test_the_trouble_sensor_reports_each_partition(hass, fake_server):
     entry = await setup_entry(hass, fake_server, num_zones=2)
     entity_id = _entity_id(hass, entry, "binary_sensor", "system_trouble")
     # Icon LED bits: none set, so no AC present, which is a trouble.
-    await fake_server.push("00", "1,0,0,00,AC LOSS")
+    await fake_server.push("00", "1,0000,0,00,AC LOSS")
     await asyncio.sleep(0.1)
     await hass.async_block_till_done()
 

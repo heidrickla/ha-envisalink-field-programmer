@@ -4,6 +4,15 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.8.2] - 2026-11-17
+
+### Fixed
+
+- Every keystroke now crosses one write gate that checks the operation's session revision, a fresh report for its partition, required disarmed state, and Program Mode ownership at the instant of writing and on retries.
+- Malformed keypad reports are discarded before they can make a partition fresh or change its arm state.
+- Only acknowledged keys can explain a 627; a module refusal during retry backoff cannot claim an unrelated Program Mode entry.
+- A transition that clears Program Mode doubt becomes visible after its durable state is saved and read back.
+
 ## [0.8.1] - 2026-11-17
 
 ### Fixed

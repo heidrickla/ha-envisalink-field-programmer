@@ -8,7 +8,7 @@ DOMAIN: Final = "envisalink_field_programmer"
 
 # tools/validate_local.py pins this against manifest.json and pyproject.toml,
 # so a release bump that misses one of the three fails before the push.
-VERSION: Final = "0.8.1"
+VERSION: Final = "0.8.2"
 
 # Action names. Registered once in async_setup; tools/validate_local.py pins
 # services.yaml against this list.
@@ -158,7 +158,7 @@ COMMAND_NAMES: Final[dict[str, str]] = {
 }
 
 # Icon-LED bit flags carried in the %00 keypad update's second data field
-# (a 16-bit value, sent as up to 4 hex digits). Order matches the real
+# (a 16-bit value, sent as 4 hex digits). Order matches the real
 # device's bit layout (verified against pyenvisalink's IconLED_Bitfield),
 # not the EnvisaLink TPI PDF's unrelated LED-state command.
 ICON_LED_BITS: Final[dict[str, int]] = {

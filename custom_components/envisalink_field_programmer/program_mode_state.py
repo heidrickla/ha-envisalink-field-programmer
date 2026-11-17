@@ -50,13 +50,9 @@ class Holder:
 
     operation_id: str
     installer: bool
-    # A guided operation's entry: its length, the keys whose write has begun,
-    # and the keys the module has acknowledged.
+    # A guided operation's entry and acknowledged key count.
     entry_length: int = 0
-    entry_sent: int = 0
     written: int = 0
-    # An installer operation: the keys whose write has begun.
-    attempted: int = 0
 
 
 @dataclass(frozen=True)
@@ -95,18 +91,17 @@ def explains_open_report(state: ModeState, holder: Holder | None) -> bool:
     """Whether the holder's own keys account for a 627 that just arrived.
 
     A guided operation explains only the first 627 after its own doubt, once
-    its entry is all sent. An installer operation explains any 627 once it has
-    begun a key, since a confirmed send may type anything.
+    its entry is acknowledged. An installer operation explains a 627 only
+    after an acknowledged key, since a confirmed send may type anything.
     """
     if holder is None or state.operation_id != holder.operation_id:
         return False
     if holder.installer:
-        return holder.attempted > 0
+        return holder.written > 0
     return (
         state.mode is ProgramMode.DOUBT
         and holder.entry_length > 0
-        and holder.entry_sent == holder.entry_length
-        and holder.written >= holder.entry_length - 1
+        and holder.written >= holder.entry_length
     )
 
 

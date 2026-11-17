@@ -77,16 +77,12 @@ def bumped(state: ModeState, **changes: object) -> ModeState:
     return replace(state, revision=NEXT, **changes)  # type: ignore[arg-type]
 
 
-def guided_holder(
-    *, length: int = 7, sent: int = 7, written: int = 6, op: str = "op"
-) -> pms.Holder:
-    return pms.Holder(
-        op, installer=False, entry_length=length, entry_sent=sent, written=written
-    )
+def guided_holder(*, length: int = 7, written: int = 7, op: str = "op") -> pms.Holder:
+    return pms.Holder(op, installer=False, entry_length=length, written=written)
 
 
-def installer_holder(*, attempted: int = 1, op: str = "op") -> pms.Holder:
-    return pms.Holder(op, installer=True, attempted=attempted)
+def installer_holder(*, written: int = 1, op: str = "op") -> pms.Holder:
+    return pms.Holder(op, installer=True, written=written)
 
 
 CASES: list[Case] = [
@@ -300,31 +296,31 @@ CASES: list[Case] = [
         after=bumped(opened("op")),
     ),
     Case(
-        "627 in DOUBT after the entry's last key was sent but not yet acknowledged",
+        "627 in DOUBT before the entry's last key was acknowledged",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
-        {"holder": guided_holder(sent=7, written=6)},
-        after=bumped(opened("op")),
+        {"holder": guided_holder(written=6)},
+        after=bumped(opened()),
     ),
     Case(
         "627 in DOUBT before the guided entry's last key",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
-        {"holder": guided_holder(sent=6, written=6)},
+        {"holder": guided_holder(written=6)},
         after=bumped(opened()),
     ),
     Case(
         "627 in DOUBT with the entry not acknowledged far enough",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
-        {"holder": guided_holder(sent=7, written=3)},
+        {"holder": guided_holder(written=3)},
         after=bumped(opened()),
     ),
     Case(
         "627 in DOUBT before the guided operation has an entry length",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
-        {"holder": guided_holder(length=0, sent=0, written=0)},
+        {"holder": guided_holder(length=0, written=0)},
         after=bumped(opened()),
     ),
     Case(
@@ -341,7 +337,7 @@ CASES: list[Case] = [
         after=bumped(opened()),
     ),
     Case(
-        "627 in DOUBT after an installer key began",
+        "627 in DOUBT after an installer key was acknowledged",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
         {"holder": installer_holder()},
@@ -351,7 +347,7 @@ CASES: list[Case] = [
         "627 in DOUBT before any installer key",
         ModeEvent.OPEN_REPORT,
         doubt("op"),
-        {"holder": installer_holder(attempted=0)},
+        {"holder": installer_holder(written=0)},
         after=bumped(opened()),
     ),
     Case(

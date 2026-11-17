@@ -139,7 +139,7 @@ async def test_noisy_diagnostics_are_disabled_by_default(hass, fake_server):
 async def test_arm_event_updates_alarm_entity(hass, fake_server):
     entry = await setup_entry(hass, fake_server, num_zones=4)
     # Icon LED bits: armed_away (bit 2) + ac_present (bit 3) = 0xC.
-    await fake_server.push("00", "1,c,0,00,ARMED AWAY")
+    await fake_server.push("00", "1,000C,0,00,ARMED AWAY")
     await asyncio.sleep(0.1)
     await hass.async_block_till_done()
 

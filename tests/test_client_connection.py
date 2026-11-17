@@ -93,7 +93,7 @@ async def test_send_keystrokes_sends_one_character_per_frame(fake_server):
     await client.connect()
     try:
         async with client.keypad() as type_keys:
-            await type_keys(1, "1234")
+            await type_keys(1, "1234", lambda: None, lambda: None, lambda: None)
         await asyncio.sleep(0.05)
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]
@@ -111,7 +111,7 @@ async def test_send_retries_keypress_after_buffer_overrun(fake_server):
     )
     await client.connect()
     try:
-        await client.send_keypress(1, "4")
+        await client.send_keypress(1, "4", lambda: None)
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,4", "1,4"]
     finally:
@@ -126,7 +126,7 @@ async def test_send_raises_on_rejected_command(fake_server):
     await client.connect()
     try:
         with pytest.raises(TPICommandError, match="Unknown Command"):
-            await client.send_keypress(1, "4")
+            await client.send_keypress(1, "4", lambda: None)
     finally:
         await client.disconnect()
 
@@ -163,7 +163,7 @@ async def test_keystrokes_wait_for_each_ack_before_next_send(fake_server):
     await client.connect()
     try:
         async with client.keypad() as type_keys:
-            await type_keys(1, "1234")
+            await type_keys(1, "1234", lambda: None, lambda: None, lambda: None)
         # All four keypresses were delivered (none dropped)...
         keypress_frames = [d for c, d in fake_server.received if c == "03"]
         assert keypress_frames == ["1,1", "1,2", "1,3", "1,4"]

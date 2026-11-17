@@ -23,6 +23,7 @@ only.
 from __future__ import annotations
 
 import logging
+import re
 from enum import Enum
 
 from .client import TPIEvent
@@ -56,12 +57,32 @@ _OPEN_ZONE_TICK_THRESHOLD = 3
 
 
 def _decode_icon_flags(icon_led_hex: str) -> dict[str, bool]:
-    try:
-        value = int(icon_led_hex, 16) if icon_led_hex else 0
-    except ValueError:
-        _LOGGER.warning("Malformed icon LED field: %r", icon_led_hex)
-        value = 0
+    value = int(icon_led_hex, 16)
     return {name: bool(value & (1 << bit)) for name, bit in ICON_LED_BITS.items()}
+
+
+def valid_keypad_update(event: TPIEvent) -> bool:
+    """Accept a %00 only when every field has its expected wire shape."""
+    fields = event.fields
+    partition = fields.get("partition")
+    icon = fields.get("icon_led_hex")
+    zone = fields.get("zone_or_beep_field")
+    beep = fields.get("beep_hex")
+    alpha = fields.get("alpha")
+    return bool(
+        isinstance(partition, str)
+        and re.fullmatch(r"[1-8]", partition)
+        and isinstance(icon, str)
+        and re.fullmatch(r"[0-9A-Fa-f]{4}", icon)
+        and isinstance(zone, str)
+        and re.fullmatch(r"(?:0|[0-9]{2,3})", zone)
+        and isinstance(beep, str)
+        and re.fullmatch(r"[0-9A-Fa-f]{2}", beep)
+        and isinstance(alpha, str)
+        and alpha
+        and alpha.isascii()
+        and alpha.isprintable()
+    )
 
 
 def _arm_state_from_flags(
@@ -77,6 +98,9 @@ def _arm_state_from_flags(
 
 
 def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
+    if not valid_keypad_update(event):
+        _LOGGER.warning("Dropping malformed keypad update: %r", event.raw_data)
+        return
     try:
         partition_number = int(event.fields["partition"])
     except KeyError, ValueError:
@@ -148,6 +172,8 @@ def program_mode_report(
             return ProgramModeReport.CLOSED
         return None
     if event.code != EVT_KEYPAD_UPDATE:
+        return None
+    if not valid_keypad_update(event):
         return None
     try:
         partition_number = int(event.fields["partition"])

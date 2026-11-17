@@ -555,7 +555,7 @@ async def test_a_refused_command_is_reported_as_a_failure(
     await _fill_zone_form(hass, entry)
     await _switch(hass, _entity_id(hass, entry, "switch", "program_confirm"), True)
 
-    async def _refuse(self, partition, key, guard=None):
+    async def _refuse(self, partition, key, guard=None, accepted=None, refused=None):
         raise TPICommandError("Unknown Command")
 
     monkeypatch.setattr(EnvisalinkClient, "send_keypress", _refuse)

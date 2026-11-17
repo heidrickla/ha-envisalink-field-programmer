@@ -136,12 +136,11 @@ async def test_an_armed_report_the_entry_does_not_track_settles_nothing(
     await unload_entry(hass, entry)
 
 
-async def test_an_armed_report_mid_operation_neither_stops_it_nor_settles_it(
+async def test_an_armed_report_mid_operation_stops_keys_and_keeps_doubt(
     hass, fake_server, monkeypatch
 ):
-    # Program Mode is open on the operation's own entry; an armed report then
-    # is not the panel closing it, so the operation goes on, and without a 628
-    # the doubt stays.
+    # An armed report is not a close report, and the write gate still requires
+    # disarmed state for every guided key.
     monkeypatch.setattr(
         "custom_components.envisalink_field_programmer.field_programming_services.PROGRAM_MODE_REPORT_TIMEOUT",
         0.3,
@@ -157,12 +156,12 @@ async def test_an_armed_report_mid_operation_neither_stops_it_nor_settles_it(
     await fake_server.release_held_acks()
     with pytest.raises(HomeAssistantError) as raised:
         await operation
-    assert raised.value.translation_key == "program_mode_exit_not_confirmed"
-    assert _typed(fake_server) == COMPLETE
+    assert raised.value.translation_key == "partition_armed_part_way"
+    assert _typed(fake_server) == COMPLETE[:10]
     assert _issue(hass, entry) is not None
     with pytest.raises(ServiceValidationError):
         await _disarm(hass, entry)
-    assert _typed(fake_server) == COMPLETE
+    assert _typed(fake_server) == COMPLETE[:10]
     await unload_entry(hass, entry)
 
 

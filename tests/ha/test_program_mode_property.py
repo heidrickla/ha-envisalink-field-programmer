@@ -224,12 +224,10 @@ class Model:
             explained = False
             if h is not None and self.bound_to is h:
                 if h.use == "installer":
-                    explained = h.attempted > 0
+                    explained = h.acked > 0
                 else:
-                    explained = (
-                        self.state is ProgramMode.DOUBT
-                        and h.attempted >= len(ENTRY)
-                        and h.acked >= len(ENTRY) - 1
+                    explained = self.state is ProgramMode.DOUBT and h.acked >= len(
+                        ENTRY
                     )
             self.state = ProgramMode.OPEN
             self.saw_627 = True
@@ -328,6 +326,8 @@ class Model:
                 self.violations.append(where + " after the state changed")
         else:
             self.keys_after_entry += 1
+            if any(self.armed.values()):
+                self.violations.append(where + " with a partition armed")
             if not (
                 self.state is ProgramMode.OPEN
                 and self.bound_to is w
@@ -372,9 +372,11 @@ class Session:
             # the last of them in the same write as its acknowledgement.
             self.feed("^03,00$")
             if writer.acked == len(ENTRY) - 1:
+                self._model.ack(writer, "00")
                 self._model.report("627")
                 self.feed(REPORTS["627"])
-            self._model.ack(writer, "00")
+            else:
+                self._model.ack(writer, "00")
         else:
             self.unacked += 1
 
@@ -456,8 +458,6 @@ class Run:
             disconnect_callback=coordinator._handle_disconnect,
             open_connection=self._open,
         )
-        # Reconnects are steps of their own, not a timed loop.
-        coordinator._session_released = True
         self.coordinator = coordinator
         await coordinator.async_setup()
         await self.settle()
@@ -532,6 +532,8 @@ class Run:
                 session.feed(REPORTS[arg])
         elif kind == "drop":
             if not session.dropped:
+                # Model a deliberate release; reconnect is a later step.
+                self.coordinator._session_released = True
                 model.session_ended()
                 session.drop()
         elif kind == "reconnect":
@@ -541,7 +543,6 @@ class Run:
                 model.bump()
                 self.coordinator._session_released = False
                 await self.coordinator.async_resume_session()
-                self.coordinator._session_released = True
         elif kind in ("reload", "crash"):
             await self._cancel_writers()
             if kind == "crash":
@@ -656,6 +657,22 @@ async def _play(hass: Any, steps: list[tuple[str, Any]]) -> tuple[int, ...]:
         await run.finish()
 
 
+async def test_acknowledged_installer_key_can_own_a_627(hass) -> None:
+    counts = await _play(
+        hass,
+        [
+            ("cancel", 0),
+            ("report", "628"),
+            ("ack", "00"),
+            ("start", "installer"),
+            ("ack", "00"),
+            ("report", "627"),
+            ("ack", "00"),
+        ],
+    )
+    assert counts[5] > 0, counts
+
+
 async def test_no_key_is_written_outside_the_state_the_reports_allow(hass, monkeypatch):
     """Every interleaving keeps the keys and the stored state within the rules."""
 
@@ -681,6 +698,7 @@ async def test_no_key_is_written_outside_the_state_the_reports_allow(hass, monke
         [
             ("cancel", 0),
             ("report", "628"),
+            ("ack", "00"),
             ("start", "installer"),
             ("ack", "00"),
             ("report", "627"),

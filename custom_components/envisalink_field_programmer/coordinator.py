@@ -55,7 +55,12 @@ from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import KeypadUse, ProgramMode, VistaState
 from .panels import PanelFamily, get_dialect, get_model
 from .program_mode_state import Holder, ModeEvent, ModeRefusal, ModeState, transition
-from .state_machine import ProgramModeReport, apply_event, program_mode_report
+from .state_machine import (
+    ProgramModeReport,
+    apply_event,
+    program_mode_report,
+    valid_keypad_update,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +94,7 @@ class HeldKeypad:
         self.use = use
         self.written = 0
         self.operation_id = str(uuid4())
+        self.session_revision = coordinator._session_revision
         self.entry_length = 0
         # Keys whose write has begun. The gate passes and the write follows with
         # no await between, so each may have reached the panel whether or not
@@ -105,11 +111,19 @@ class HeldKeypad:
     async def __call__(self, keys: str) -> None:
         for key in keys:
             try:
-                await self._type_keys(self._partition, key, self._gate)
+                await self._type_keys(
+                    self._partition, key, self._gate, self._accepted, self._refused
+                )
             except TPICommandRefused, TPINotSent:
                 self.attempted = self.written
                 raise
-            self.written += 1
+
+    def _accepted(self) -> None:
+        self.written += 1
+        self.attempted = self.written
+
+    def _refused(self) -> None:
+        self.attempted = self.written
 
     def _gate(self) -> None:
         self._coordinator._before_key(self)
@@ -120,9 +134,7 @@ class HeldKeypad:
             self.operation_id,
             installer=self.use is KeypadUse.INSTALLER,
             entry_length=self.entry_length,
-            entry_sent=min(self.attempted, self.entry_length),
             written=self.written,
-            attempted=self.attempted,
         )
 
     def program_mode_opened(self) -> None:
@@ -210,6 +222,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # TPI session (the reconfigure flow's probe), so the disconnect that
         # causes does not start a reconnect that would take the session back.
         self._session_released = False
+        self._session_revision = 0
         self.last_event: TPIEvent | None = None
         self.program_mode_issue_id = f"{ISSUE_PROGRAM_MODE_UNKNOWN}_{entry.entry_id}"
         self._mode_store: Store[dict[str, object]] = Store(
@@ -219,6 +232,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self._mode_save_task: asyncio.Task[None] | None = None
         # The newest state revision the store is known to hold.
         self._durable_revision = -1
+        self._less_cautious_pending = False
         self._partition_reported = asyncio.Event()
         self._program_mode_changed: asyncio.Event | None = None
         # The sequence that has typed installer or guided keys and still holds
@@ -282,6 +296,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         closing that socket before the probe goes anywhere near the module.
         """
         self._session_released = True
+        self._session_revision += 1
+        self.data.forget_partition_reports()
         reconnect_task = self._reconnect_task
         self._reconnect_task = None
         await _cancel_and_wait(reconnect_task)
@@ -321,6 +337,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         start a reconnect; anywhere else the next timer retries it.
         """
         self.data.system.connected = True
+        self._session_revision += 1
+        self.data.forget_partition_reports()
         if fold is not None:
             self._transition(fold)
         self.async_clear_connection_issue()
@@ -487,13 +505,22 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         )
         if new == self._mode:
             return
-        self._mode = new
-        self._sync_mode()
         previous = self._mode_save_task
+        less_cautious = (
+            new.mode is ProgramMode.CLOSED and self._mode.mode is not ProgramMode.CLOSED
+        )
+        if less_cautious:
+            self._less_cautious_pending = True
+        else:
+            self._mode = new
+            self._sync_mode()
 
         async def save() -> None:
             if previous is not None:
                 await previous
+            if less_cautious and self._mode.revision >= new.revision:
+                self._less_cautious_pending = False
+                return
             # Read back here, in the chain: a later save waits for this one, so
             # the store holds this record or a newer one, and a failure never
             # blocks the saves behind it.
@@ -502,11 +529,19 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 stored = await self._mode_store.async_load()
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("Could not save the Program Mode state")
+                if less_cautious:
+                    self._less_cautious_pending = False
                 return
-            if stored is not None and (
-                stored == new.stored() or int(str(stored["revision"])) > new.revision
-            ):
+            verified = stored == new.stored() or (
+                stored is not None and int(str(stored["revision"])) > new.revision
+            )
+            if verified:
                 self._durable_revision = max(self._durable_revision, new.revision)
+            if less_cautious:
+                if verified and self._mode.revision < new.revision:
+                    self._mode = new
+                    self._sync_mode()
+                self._less_cautious_pending = False
 
         self._mode_save_task = self.hass.async_create_task(save())
 
@@ -575,8 +610,9 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 if self._typing_holder is keypad:
                     # The doubt was raised for keys about to be typed; if none
                     # was, there is nothing to doubt.
+                    await self._await_mode_saved()
                     if keypad.attempted == 0:
-                        self._no_key_sent(keypad)
+                        await self._no_key_sent(keypad)
                     self._transition(
                         ModeEvent.OPERATION_END,
                         operation_id=keypad.operation_id,
@@ -636,29 +672,31 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         revision = self._mode.revision
         await self._await_mode_saved()
         if self._durable_revision < revision:
-            self._no_key_sent(keypad)
+            await self._no_key_sent(keypad)
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="program_mode_storage_failed",
             )
 
-    def _no_key_sent(self, keypad: HeldKeypad) -> None:
+    async def _no_key_sent(self, keypad: HeldKeypad) -> None:
         self._transition(
             ModeEvent.NO_KEY_SENT,
             operation_id=keypad.operation_id,
             generation=keypad.raised_generation,
         )
+        await self._await_mode_saved()
 
     def _before_key(self, keypad: HeldKeypad) -> None:
-        """The Program Mode gate, run right before each key's write.
-
-        Everyday keys need Program Mode closed. A guided sequence's entry needs
-        it closed for the first key and every partition disarmed for each; its
-        first key raises the doubt, and every later entry key needs that doubt
-        unchanged. The keys after the entry need the open state the panel
-        reported for that entry, unchanged. An installer's keys need only that
-        the operation still holds the keypad.
-        """
+        """Check session, report and mode immediately before every key write."""
+        if (
+            self._less_cautious_pending
+            or keypad.session_revision != self._session_revision
+            or self._session_released
+            or not self.client.connected
+        ):
+            self._program_mode_lost()
+        if not self.data.partition(keypad._partition).fresh:
+            self._raise_report_pending(keypad._partition)
         mode = self.program_mode
         if keypad.use is KeypadUse.EVERYDAY:
             if mode is not ProgramMode.CLOSED:
@@ -679,13 +717,14 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 or self.program_mode_changes != keypad.raised_at
             ):
                 self._program_mode_lost()
-            self._require_disarmed(part_way=keypad.written > 0)
         elif (
             mode is not ProgramMode.OPEN
             or self.program_mode_changes != keypad.opened_at
             or self._mode.operation_id != keypad.operation_id
         ):
             self._program_mode_lost()
+        if keypad.use is KeypadUse.PROGRAMMING:
+            self._require_disarmed(part_way=keypad.written > 0)
         try:
             transition(
                 self._mode,
@@ -759,6 +798,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         await self._await_mode_saved()
 
     def _handle_event(self, event: TPIEvent) -> None:
+        if event.code == "%00" and not valid_keypad_update(event):
+            return
         self.last_event = event
         apply_event(self.data, event)
         report = program_mode_report(event, self.num_partitions)
@@ -782,6 +823,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         self.async_set_updated_data(self.data)
 
     def _handle_disconnect(self, error: Exception | None) -> None:
+        self._session_revision += 1
         self.data.system.connected = False
         self.data.forget_partition_reports()
         self._transition(ModeEvent.DISCONNECT)

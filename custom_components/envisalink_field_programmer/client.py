@@ -182,7 +182,12 @@ class KeyTyper(Protocol):
     """Types keys on a partition; ``guard`` runs before each key's write."""
 
     def __call__(
-        self, partition: int, keys: str, guard: Callable[[], None] | None = None
+        self,
+        partition: int,
+        keys: str,
+        guard: Callable[[], None],
+        accepted: Callable[[], None],
+        refused: Callable[[], None],
     ) -> Awaitable[None]: ...
 
 
@@ -226,6 +231,8 @@ class EnvisalinkClient:
         self._keypad_lock = asyncio.Lock()
         self._pending_ack: asyncio.Future[str] | None = None
         self._pending_ack_code = ""
+        self._pending_ack_accepted: Callable[[], None] | None = None
+        self._pending_ack_refused: Callable[[], None] | None = None
         self._buffer = ""
 
     @property
@@ -408,9 +415,13 @@ class EnvisalinkClient:
                 and not self._pending_ack.done()
                 and event.code == self._pending_ack_code
             ):
-                self._pending_ack.set_result(
-                    str(event.fields.get("response_code", event.raw_data))
-                )
+                response = str(event.fields.get("response_code", event.raw_data))
+                if response == RESPONSE_ACCEPTED:
+                    if self._pending_ack_accepted is not None:
+                        self._pending_ack_accepted()
+                elif self._pending_ack_refused is not None:
+                    self._pending_ack_refused()
+                self._pending_ack.set_result(response)
             self._event_callback(event)
         return remainder
 
@@ -429,7 +440,12 @@ class EnvisalinkClient:
         return raw.decode("ascii", errors="ignore").strip("\r\n")
 
     async def _send(
-        self, code: str, data: str = "", guard: Callable[[], None] | None = None
+        self,
+        code: str,
+        data: str = "",
+        guard: Callable[[], None] | None = None,
+        accepted: Callable[[], None] | None = None,
+        refused: Callable[[], None] | None = None,
     ) -> None:
         """Send one command frame and wait for the EVL's acknowledgement.
 
@@ -444,6 +460,8 @@ class EnvisalinkClient:
         with no await between, and raises to stop the command.
         """
         payload = f"^{code},{data}$\r\n".encode("ascii")
+        if code == CMD_KEYPRESS and guard is None:
+            raise ValueError("a keypress requires the write gate")
         async with self._command_lock:
             await self._settle_owed_ack()
             for attempt in range(COMMAND_RETRY_ATTEMPTS + 1):
@@ -454,6 +472,8 @@ class EnvisalinkClient:
                 future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
                 self._pending_ack_code = f"^{code}"
                 self._pending_ack = future
+                self._pending_ack_accepted = accepted
+                self._pending_ack_refused = refused
                 try:
                     self._writer.write(payload)
                     await self._writer.drain()
@@ -469,6 +489,8 @@ class EnvisalinkClient:
                     if future.done():
                         self._pending_ack = None
                         self._pending_ack_code = ""
+                        self._pending_ack_accepted = None
+                        self._pending_ack_refused = None
                     else:
                         future.add_done_callback(_retrieve_result)
                 if response == RESPONSE_ACCEPTED:
@@ -503,6 +525,8 @@ class EnvisalinkClient:
                 )
         self._pending_ack = None
         self._pending_ack_code = ""
+        self._pending_ack_accepted = None
+        self._pending_ack_refused = None
 
     # -- Outbound commands ------------------------------------------------
 
@@ -518,11 +542,16 @@ class EnvisalinkClient:
         await self._send(CMD_DUMP_ZONE_TIMERS)
 
     async def send_keypress(
-        self, partition: int, key: str, guard: Callable[[], None] | None = None
+        self,
+        partition: int,
+        key: str,
+        guard: Callable[[], None] | None = None,
+        accepted: Callable[[], None] | None = None,
+        refused: Callable[[], None] | None = None,
     ) -> None:
         if len(key) != 1:
             raise ValueError("send_keypress sends exactly one character at a time")
-        await self._send(CMD_KEYPRESS, f"{partition},{key}", guard)
+        await self._send(CMD_KEYPRESS, f"{partition},{key}", guard, accepted, refused)
 
     @contextlib.asynccontextmanager
     async def keypad(self) -> AsyncIterator[KeyTyper]:
@@ -534,7 +563,12 @@ class EnvisalinkClient:
             yield self._type_keys
 
     async def _type_keys(
-        self, partition: int, keys: str, guard: Callable[[], None] | None = None
+        self,
+        partition: int,
+        keys: str,
+        guard: Callable[[], None],
+        accepted: Callable[[], None],
+        refused: Callable[[], None],
     ) -> None:
         for key in keys:
-            await self.send_keypress(partition, key, guard)
+            await self.send_keypress(partition, key, guard, accepted, refused)
