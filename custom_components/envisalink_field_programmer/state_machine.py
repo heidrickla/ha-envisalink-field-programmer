@@ -71,7 +71,7 @@ def valid_keypad_update(event: TPIEvent) -> bool:
     alpha = fields.get("alpha")
     return bool(
         isinstance(partition, str)
-        and re.fullmatch(r"[1-8]", partition)
+        and re.fullmatch(r"0?[1-8]", partition)
         and isinstance(icon, str)
         and re.fullmatch(r"[0-9A-Fa-f]{4}", icon)
         and isinstance(zone, str)
@@ -80,6 +80,7 @@ def valid_keypad_update(event: TPIEvent) -> bool:
         and re.fullmatch(r"[0-9A-Fa-f]{2}", beep)
         and isinstance(alpha, str)
         and alpha
+        and len(alpha) <= 32
         and alpha.isascii()
         and alpha.isprintable()
     )

@@ -13,7 +13,9 @@ from custom_components.envisalink_field_programmer.models import KeypadUse, Prog
 from custom_components.envisalink_field_programmer.program_mode_state import ModeState
 
 from .conftest import unload_entry
-from .test_program_mode_recovery import _program_key_a, _setup, _typed, _until
+from .test_program_mode_recovery import _issue, _program_key_a, _setup, _typed, _until
+
+ARMED_AWAY = "000C,0,00,ARMED AWAY"
 
 
 @pytest.mark.parametrize("icon", ["", "zz"])
@@ -55,6 +57,57 @@ async def test_foreign_627_during_first_key_overrun_backoff_stops_installer(
             await send
         assert keypad.written == 0
         assert len([c for c, _ in fake_server.received if c == "03"]) == 1
+    await unload_entry(hass, entry)
+
+
+async def test_refused_first_key_then_gate_failure_counts_as_no_key_sent(
+    hass, fake_server, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "custom_components.envisalink_field_programmer.client.COMMAND_RETRY_DELAY", 0.2
+    )
+    entry = await _setup(hass, fake_server)
+    coordinator = entry.runtime_data
+    fake_server.scripted_responses["03"] = ["01", "00"]
+    async with coordinator.async_keypad(1, KeypadUse.INSTALLER) as keypad:
+        send = asyncio.create_task(keypad("1"))
+        await _until(
+            lambda: len([c for c, _ in fake_server.received if c == "03"]) == 1
+        )
+        await asyncio.sleep(0.02)
+        coordinator._less_cautious_pending = True
+        try:
+            with pytest.raises(HomeAssistantError):
+                await send
+        finally:
+            coordinator._less_cautious_pending = False
+        assert keypad.attempted == 0
+    await coordinator._await_mode_saved()
+    assert coordinator.program_mode is ProgramMode.CLOSED
+    assert _issue(hass, entry) is None
+    assert len([c for c, _ in fake_server.received if c == "03"]) == 1
+    await unload_entry(hass, entry)
+
+
+async def test_armed_report_while_keypad_held_does_not_clear_unbound_doubt(
+    hass, fake_server
+) -> None:
+    from custom_components.envisalink_field_programmer.program_mode_state import (
+        ModeEvent,
+    )
+
+    entry = await _setup(hass, fake_server)
+    coordinator = entry.runtime_data
+    async with coordinator.async_keypad(1, KeypadUse.INSTALLER) as keypad:
+        # The operation's binding ended, but its keypad context still holds
+        # the lock while cleanup waits for its state save.
+        coordinator._transition(
+            ModeEvent.OPERATION_END, operation_id=keypad.operation_id
+        )
+        assert coordinator.program_mode is ProgramMode.DOUBT
+        await fake_server.push("00", "01," + ARMED_AWAY)
+        await _until(lambda: coordinator.data.partitions[1].armed)
+        assert coordinator.program_mode is ProgramMode.DOUBT
     await unload_entry(hass, entry)
 
 

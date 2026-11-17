@@ -227,7 +227,7 @@ class FakeEnvisalinkServer:
         self.default_partition = partition
         if not self.answer_partition_requests or partition > self.panel_partitions:
             return ""
-        return f"%00,{partition},{self.partition_report}$"
+        return f"%00,{partition:02d},{self.partition_report}$"
 
     def _next_response(self, code: str) -> str | None:
         queue = self.scripted_responses.get(code)

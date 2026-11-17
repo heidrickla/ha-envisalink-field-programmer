@@ -560,7 +560,7 @@ async def test_diagnostics_redact_the_panel_address_and_zone_names(hass, fake_se
     assert diagnostics["config_entry"]["options"]["zone_names"] == "**REDACTED**"
     assert diagnostics["last_event"]["name"] == "keypad_update"
     assert diagnostics["last_event"]["fields"]["alpha"] == "**REDACTED**"
-    assert diagnostics["last_event"]["fields"]["partition"] == "1"
+    assert diagnostics["last_event"]["fields"]["partition"] == "01"
     text = str(diagnostics)
     assert "127.0.0.1" not in text
     assert "00:1c:2a:aa:bb:cc" not in text

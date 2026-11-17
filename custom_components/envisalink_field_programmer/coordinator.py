@@ -54,7 +54,14 @@ from .const import (
 from .field_programming import ProgrammingForm, ProgrammingResult
 from .models import KeypadUse, ProgramMode, VistaState
 from .panels import PanelFamily, get_dialect, get_model
-from .program_mode_state import Holder, ModeEvent, ModeRefusal, ModeState, transition
+from .program_mode_state import (
+    Holder,
+    ModeEvent,
+    ModeRefusal,
+    ModeState,
+    Refusal,
+    transition,
+)
 from .state_machine import (
     ProgramModeReport,
     apply_event,
@@ -517,7 +524,14 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
         async def save() -> None:
             if previous is not None:
-                await previous
+                try:
+                    await asyncio.shield(previous)
+                except asyncio.CancelledError:
+                    if not previous.done():
+                        raise
+                    # A cancelled predecessor cannot poison subsequent saves.
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Earlier Program Mode save failed")
             if less_cautious and self._mode.revision >= new.revision:
                 self._less_cautious_pending = False
                 return
@@ -547,7 +561,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     async def _await_mode_saved(self) -> None:
         if self._mode_save_task is not None:
-            await self._mode_save_task
+            await asyncio.shield(self._mode_save_task)
 
     def _sync_mode(self) -> None:
         """Mirror the authoritative state to the issue and entities."""
@@ -607,24 +621,40 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     await self._async_begin_typing(keypad)
                 yield keypad
             finally:
-                if self._typing_holder is keypad:
-                    # The doubt was raised for keys about to be typed; if none
-                    # was, there is nothing to doubt.
+                # Finish under the keypad lock even if the caller is cancelled
+                # again while a durable state transition is still pending.
+                cleanup = self.hass.async_create_task(self._finish_keypad(keypad))
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        if cleanup.done():
+                            break
+                cleanup.result()
+
+    async def _finish_keypad(self, keypad: HeldKeypad) -> None:
+        try:
+            if self._typing_holder is keypad:
+                try:
                     await self._await_mode_saved()
                     if keypad.attempted == 0:
                         await self._no_key_sent(keypad)
+                finally:
                     self._transition(
                         ModeEvent.OPERATION_END,
                         operation_id=keypad.operation_id,
                     )
-                    self._typing_holder = None
-                    self._sync_mode()
-                elif use is KeypadUse.EVERYDAY:
-                    self._transition(
-                        ModeEvent.OPERATION_END,
-                        operation_id=keypad.operation_id,
-                        everyday=True,
-                    )
+            elif keypad.use is KeypadUse.EVERYDAY:
+                self._transition(
+                    ModeEvent.OPERATION_END,
+                    operation_id=keypad.operation_id,
+                    everyday=True,
+                )
+        finally:
+            if self._typing_holder is keypad:
+                self._typing_holder = None
+                self._sync_mode()
+            if self._keypad_holder is keypad:
                 self._keypad_holder = None
 
     def _begin_everyday(self, keypad: HeldKeypad) -> None:
@@ -707,22 +737,20 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 raise ServiceValidationError(
                     translation_domain=DOMAIN, translation_key="program_mode_not_closed"
                 )
-        elif keypad.use is KeypadUse.INSTALLER:
-            if self._mode.operation_id != keypad.operation_id:
-                self._program_mode_lost()
-        elif keypad.opened_at is None:
+        elif keypad.use is KeypadUse.PROGRAMMING and keypad.opened_at is None:
             if (
                 mode is not ProgramMode.DOUBT
                 or self._mode.operation_id != keypad.operation_id
                 or self.program_mode_changes != keypad.raised_at
             ):
                 self._program_mode_lost()
-        elif (
+        elif keypad.use is KeypadUse.PROGRAMMING and (
             mode is not ProgramMode.OPEN
             or self.program_mode_changes != keypad.opened_at
             or self._mode.operation_id != keypad.operation_id
         ):
             self._program_mode_lost()
+        # KEY_WRITE below checks the installer's operation binding.
         if keypad.use is KeypadUse.PROGRAMMING:
             self._require_disarmed(part_way=keypad.written > 0)
         try:
@@ -745,10 +773,11 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         if (
             self.program_mode is not ProgramMode.OPEN
             or keypad.raised_at is None
-            or self.program_mode_changes != keypad.raised_at + 1
             or self._mode.operation_id != keypad.operation_id
         ):
             self._program_mode_lost()
+        # The owner can only be bound by its own complete entry; the next
+        # key gate checks the session and this OPEN revision again.
         keypad.opened_at = self.program_mode_changes
 
     @staticmethod
@@ -796,6 +825,12 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             holding=self._keypad_holder is not None,
         )
         await self._await_mode_saved()
+        if (
+            self._mode.mode is not ProgramMode.CLOSED
+            or self._mode.revision != revision + 1
+            or self._durable_revision < revision + 1
+        ):
+            raise ModeRefusal(Refusal.STALE)
 
     def _handle_event(self, event: TPIEvent) -> None:
         if event.code == "%00" and not valid_keypad_update(event):

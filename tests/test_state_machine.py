@@ -49,6 +49,53 @@ def test_ready_idle_partition():
     assert partition.arm_state == "disarmed"
 
 
+# Exact frames from pyenvisalink's Honeywell frame-parsing tests.
+HONEYWELL_KEYPAD_FRAMES = (
+    (b"%00,01,1C08,08,00,****DISARMED****  Ready to Arm  $", "disarmed"),
+    (b"%00,01,0008,30,00,FAULT 30                        $", "disarmed"),
+    (b"%00,01,0008,05,00,FAULT 05                        $", "disarmed"),
+)
+
+
+@pytest.mark.parametrize("frame,arm_state", HONEYWELL_KEYPAD_FRAMES)
+def test_real_honeywell_keypad_frame_makes_partition_fresh(frame, arm_state):
+    from custom_components.envisalink_field_programmer.client import EnvisalinkClient
+
+    state = _state()
+    client = EnvisalinkClient(
+        "unused", 0, "unused", event_callback=lambda event: apply_event(state, event)
+    )
+    assert client._consume_buffer(frame.decode("ascii")) == ""
+    assert state.partition(1).fresh
+    assert state.partition(1).arm_state == arm_state
+
+
+def test_one_digit_keypad_partition_still_works():
+    state = _state()
+    apply_event(state, _keypad_update(1, "ready"))
+    assert state.partition(1).fresh
+
+
+@pytest.mark.parametrize("partition", ["00", "09", "001", "10", "1 ", "+1"])
+def test_non_wire_partition_fields_do_not_refresh_state(partition):
+    state = _state()
+    apply_event(state, build_event("%00", f"{partition},0008,0,00,READY"))
+    assert not state.partition(1).fresh
+
+
+def test_overlength_alpha_does_not_refresh_state():
+    state = _state()
+    apply_event(state, build_event("%00", f"01,0008,0,00,{'X' * 33}"))
+    assert not state.partition(1).fresh
+
+
+def test_fake_panel_reports_two_digit_partition_by_default():
+    from tests.helpers import FakeEnvisalinkServer
+
+    fake = FakeEnvisalinkServer(password="unused")
+    assert fake._partition_answer("01", "1").startswith("%00,01,")
+
+
 def test_armed_away():
     state = _state()
     apply_event(

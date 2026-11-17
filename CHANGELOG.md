@@ -4,6 +4,14 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.8.3] - 2026-11-17
+
+### Fixed
+
+- Honeywell keypad reports with two-digit partition numbers now refresh partition state; malformed wire fields still cannot authorize a key.
+- Cancelling an operation or repair no longer cancels the shared Program Mode save or strands keypad holders.
+- A repair confirmation succeeds only after its CLOSED state is durably visible for the flow's revision.
+
 ## [0.8.2] - 2026-11-17
 
 ### Fixed
