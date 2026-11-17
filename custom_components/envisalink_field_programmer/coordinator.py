@@ -106,6 +106,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # model resolves to the VISTA-21iP (see panels/).
         self.panel_model = get_model(panel_model)
         self.dialect = get_dialect(panel_model)
+        self.num_partitions = num_partitions
         self.data = VistaState.create(num_partitions, num_zones)
         # What the device page's programming entities hold, and what became of
         # the last press of a programming button. Neither is panel state: the
@@ -319,15 +320,25 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
     @contextlib.asynccontextmanager
     async def async_keypad(
-        self, *, into_program_mode: bool = False
+        self, partition: int, *, into_program_mode: bool = False
     ) -> AsyncIterator[KeyTyper]:
-        """Hold the keypad for one sequence, refused while Program Mode is open or in doubt.
+        """Hold the keypad for one sequence on ``partition``, or refuse it.
 
-        Every keystroke writer takes the keypad here, so no key lands in a
-        programming field the panel may still be showing. Only a raw send the
-        caller acknowledged as installer work may type into Program Mode.
+        Every keystroke writer takes the keypad here. A partition above the
+        entry's count is refused: nothing reports its state. So is any sequence
+        while Program Mode is open or in doubt, where a key would land in a
+        programming field, unless the caller acknowledged installer work.
         """
         async with self.client.keypad() as type_keys:
+            if not 1 <= partition <= self.num_partitions:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="partition_not_configured",
+                    translation_placeholders={
+                        "partition": str(partition),
+                        "count": str(self.num_partitions),
+                    },
+                )
             if not into_program_mode and (
                 self.data.system.installers_mode or self.program_mode_unknown
             ):

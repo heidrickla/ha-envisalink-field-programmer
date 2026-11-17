@@ -220,7 +220,7 @@ async def _send_program_mode_sequence(
         allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
     with keystrokes_not_accepted_as_error():
-        async with coordinator.async_keypad() as type_keys:
+        async with coordinator.async_keypad(partition) as type_keys:
             _require_partition_disarmed(coordinator, partition)
             await _type_in_program_mode(
                 coordinator,

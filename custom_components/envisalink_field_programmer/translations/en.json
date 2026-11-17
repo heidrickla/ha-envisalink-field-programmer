@@ -361,6 +361,9 @@
     "opens_program_mode": {
       "message": "Refusing to send {keys}: on this panel that sequence opens installer Program Mode, which governs every data field including fire zones and UL-listing-relevant settings, and this protocol cannot read back what is on the keypad display. Set confirm_installer_risk to true if you intend it."
     },
+    "partition_not_configured": {
+      "message": "Nothing was sent: this entry tracks {count} partition(s), so partition {partition} has no reported state here. If the panel has it, raise the partition count with Reconfigure on the entry."
+    },
     "partition_armed": {
       "message": "Partition {partition} is armed or arming, so nothing was sent. Disarm it, then try again."
     },

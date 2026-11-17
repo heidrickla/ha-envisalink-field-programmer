@@ -177,7 +177,7 @@ async def async_send_guarded_keystrokes(
     )
     with keystrokes_not_accepted_as_error():
         async with coordinator.async_keypad(
-            into_program_mode=allow_installer_mode
+            partition, into_program_mode=allow_installer_mode
         ) as type_keys:
             await type_keys(partition, keys)
 

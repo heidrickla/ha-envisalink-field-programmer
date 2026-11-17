@@ -377,3 +377,76 @@ async def test_writers_queued_behind_a_failing_operation_are_refused(
     await asyncio.sleep(0.1)
     assert _typed(fake_server) == COMPLETE
     await unload_entry(hass, entry)
+
+
+async def _program_zone_2(hass, entry) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "program_zone",
+        {
+            "entry_id": entry.entry_id,
+            "zone_number": 3,
+            "zone_type": 3,
+            "partition": 2,
+            "confirm": True,
+        },
+        blocking=True,
+    )
+
+
+async def _timing_on_2(hass, entry) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "set_system_timing",
+        {
+            "entry_id": entry.entry_id,
+            "field": "34",
+            "value": 45,
+            "partition": 2,
+            "confirm": True,
+        },
+        blocking=True,
+    )
+
+
+async def _raw_send_on_2(hass, entry) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        "send_keystrokes",
+        {
+            "entry_id": entry.entry_id,
+            "partition": 2,
+            "keys": "1",
+            "confirm_installer_risk": True,
+        },
+        blocking=True,
+    )
+
+
+async def _disarm_2(hass, entry) -> None:
+    await entry.runtime_data.async_disarm(2, "1234")
+
+
+UNTRACKED_PARTITION_WRITERS = {
+    "program_function_key": lambda hass, entry: _program_key_a(hass, entry, 2),
+    "program_zone": _program_zone_2,
+    "set_system_timing": _timing_on_2,
+    "send_keystrokes": _raw_send_on_2,
+    "disarm": _disarm_2,
+}
+
+
+@pytest.mark.parametrize("writer", UNTRACKED_PARTITION_WRITERS)
+async def test_a_partition_the_entry_does_not_track_gets_nothing(
+    hass, fake_server, writer
+):
+    # Nothing reports a partition above the entry's count, so its arm state
+    # and its keypad are unknown here.
+    entry = await _setup(hass, fake_server)
+    with pytest.raises(ServiceValidationError) as raised:
+        await UNTRACKED_PARTITION_WRITERS[writer](hass, entry)
+    assert raised.value.translation_key == "partition_not_configured"
+    await asyncio.sleep(0.1)
+    assert _typed(fake_server) == ""
+    assert _issue(hass, entry) is None
+    await unload_entry(hass, entry)
