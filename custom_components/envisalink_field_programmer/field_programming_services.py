@@ -220,8 +220,7 @@ async def _send_program_mode_sequence(
         allow_function_key=op is GuidedOp.FUNCTION_KEY,
     )
     with keystrokes_not_accepted_as_error():
-        async with coordinator.client.keypad() as type_keys:
-            _require_program_mode_closed(coordinator)
+        async with coordinator.async_keypad() as type_keys:
             _require_partition_disarmed(coordinator, partition)
             await _type_in_program_mode(
                 coordinator,
@@ -230,18 +229,6 @@ async def _send_program_mode_sequence(
                 entry_keys,
                 full_sequence[len(entry_keys) :],
             )
-
-
-def _require_program_mode_closed(coordinator: VistaConsoleCoordinator) -> None:
-    """Refuse while the panel reports Program Mode, or its state is in doubt.
-
-    Keys typed into an open Program Mode land in whatever field is showing.
-    """
-    if coordinator.data.system.installers_mode or coordinator.program_mode_unknown:
-        coordinator.async_raise_program_mode_issue()
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="program_mode_not_closed"
-        )
 
 
 def _require_partition_disarmed(

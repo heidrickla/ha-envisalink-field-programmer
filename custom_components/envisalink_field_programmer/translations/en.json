@@ -136,12 +136,12 @@
     },
     "program_mode_unknown": {
       "title": "{title}: Program Mode may still be open",
-      "description": "A programming operation ended without the panel reporting that Program Mode closed, so guided programming is paused.",
+      "description": "A programming operation ended without the panel reporting that Program Mode closed, so guided programming, arming, disarming and bypass are paused.",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Check the keypad",
-            "description": "A programming operation on {title} ended without the panel reporting that Program Mode closed. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming."
+            "description": "A programming operation on {title} ended without the panel reporting that Program Mode closed. While it is open, keys typed from Home Assistant land in programming fields, and disarming is unavailable.\n\nGo to the keypad. If it shows a field number, press *99 to leave Program Mode (never *98, which locks out the installer code). When the keypad shows its normal display, submit to resume guided programming, arming, disarming and bypass."
           }
         }
       }

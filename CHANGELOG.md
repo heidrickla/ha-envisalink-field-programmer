@@ -17,6 +17,11 @@ Dates are the day the work landed on `main`, which is not the day a release was 
 
 - A repair issue, "Program Mode may still be open", raised when a guided operation ends without the panel reporting Program Mode closed. It pauses guided programming until the panel reports the exit, or until its confirm flow is submitted after a check at the keypad.
 
+### Fixed
+
+- Arm, disarm, zone bypass and `send_keystrokes` are refused while the panel reports Program Mode open or a guided operation left it in doubt. Before, the keypad was held only while the operation ran, so after a failed one their keys landed in whatever programming field the panel was showing. A `send_keystrokes` call with `confirm_installer_risk` still goes through, as the way to type `*99` from Home Assistant.
+- A command whose acknowledgement the integration stopped waiting for, after a timeout or a cancelled call, holds the next command until that acknowledgement arrives. Before, the late acknowledgement was taken as the next key's, which then counted as delivered while the Envisalink was still busy. One that never arrives closes the session, which reconnects.
+
 ## [0.6.0] - 2026-10-30
 
 ### Changed

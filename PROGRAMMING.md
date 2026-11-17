@@ -173,7 +173,7 @@ Zone-type numbers on the summary line for the types the device page offers: 00 n
 | `EE` or `ENTRY ERROR` | The field number typed does not exist. Type a valid one, or `*99` to leave. |
 | `OC` | The keypad has lost contact with the panel. Check the keypad wiring before anything else. |
 | A press fails with "did not report Program Mode" | Only the installer code and `800` were sent. The stored code is wrong, the partition is armed, or programming was last left with `*98`. Check the code with the power-up method below. If the keypad shows a field number, leave with `*99`, then submit the repair under Settings, Repairs. |
-| A press is refused because Program Mode is open or in doubt | The panel reported Program Mode open, or the last operation ended without it reporting Program Mode closed. Settings, Repairs shows "Program Mode may still be open". Type `*99` at the keypad if it shows a field number, then submit the repair and press again. |
+| A press, an arm or disarm, or a bypass is refused because Program Mode is open or in doubt | The panel reported Program Mode open, or the last operation ended without it reporting Program Mode closed. Settings, Repairs shows "Program Mode may still be open". Type `*99` at the keypad if it shows a field number, then submit the repair and press again. |
 | Installer code followed by `800` does nothing | The code is not the installer code, or programming was last left with `*98`, which locks the code out. Use the power-up method below. |
 | `Busy Standby` or `dI` for about a minute after power returns | Normal start-up while sensors settle. `#0` skips the wait. |
 

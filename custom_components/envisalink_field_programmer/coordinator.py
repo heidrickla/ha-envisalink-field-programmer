@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import override
 
 from homeassistant.config_entries import ConfigEntry
@@ -28,7 +28,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .client import EnvisalinkClient, TPIError, TPIEvent
+from .client import EnvisalinkClient, KeyTyper, TPIError, TPIEvent
 from .const import (
     DEFAULT_KEEPALIVE_INTERVAL,
     DOMAIN,
@@ -317,6 +317,26 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             translation_placeholders={"title": self.entry.title},
         )
 
+    @contextlib.asynccontextmanager
+    async def async_keypad(
+        self, *, into_program_mode: bool = False
+    ) -> AsyncIterator[KeyTyper]:
+        """Hold the keypad for one sequence, refused while Program Mode is open or in doubt.
+
+        Every keystroke writer takes the keypad here, so no key lands in a
+        programming field the panel may still be showing. Only a raw send the
+        caller acknowledged as installer work may type into Program Mode.
+        """
+        async with self.client.keypad() as type_keys:
+            if not into_program_mode and (
+                self.data.system.installers_mode or self.program_mode_unknown
+            ):
+                self.async_raise_program_mode_issue()
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="program_mode_not_closed"
+                )
+            yield type_keys
+
     def async_confirm_program_mode_closed(self) -> None:
         """The user checked the keypad and Program Mode is closed."""
         self.data.system.installers_mode = False
@@ -466,13 +486,7 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         """
         from .programming import async_send_guarded_keystrokes  # avoid import cycle
 
-        await async_send_guarded_keystrokes(
-            self.client,
-            partition,
-            keys,
-            installer_code=self.installer_code,
-            dialect=self.dialect,
-        )
+        await async_send_guarded_keystrokes(self, partition, keys)
 
     async def async_toggle_zone_bypass(self, zone_number: int) -> None:
         """Toggle bypass on a single zone via the standard *1zz# keypad sequence.
@@ -486,8 +500,6 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
 
         zone = self.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(
-            self.client, zone.partition, keys, dialect=self.dialect
-        )
+        await async_send_guarded_keystrokes(self, zone.partition, keys)
         zone.bypassed = not zone.bypassed
         self.async_set_updated_data(self.data)

@@ -23,6 +23,9 @@ goes through, so that safety logic lives in exactly one place:
     opts in via ``confirm_installer_risk``. The device page carries no
     raw-keystroke field, so the action with that flag set is the only way to
     send one.
+  * Every sequence, guided ones included, takes the keypad through the
+    coordinator, which refuses it while Program Mode is open or in doubt
+    unless the caller opted in the same way.
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
-from .client import EnvisalinkClient, TPIError
+from .client import TPIError
 from .const import DOMAIN, SERVICE_SEND_KEYSTROKES, SERVICE_TOGGLE_ZONE_BYPASS
 from .panels import PanelDialect, get_dialect
 
@@ -155,25 +158,28 @@ def validate_keystrokes(
 
 
 async def async_send_guarded_keystrokes(
-    client: EnvisalinkClient,
+    coordinator: VistaConsoleCoordinator,
     partition: int,
     keys: str,
     *,
     allow_installer_mode: bool = False,
-    installer_code: str | None = None,
-    dialect: PanelDialect | None = None,
-    allow_function_key: bool = False,
 ) -> None:
-    """Validate ``keys`` against the safety guard, then send them."""
+    """Validate ``keys`` against the entry's panel, then type them on its keypad.
+
+    ``allow_installer_mode`` is the caller's acknowledgement of installer work:
+    it lets the keys open Program Mode, or type into one already open.
+    """
     validate_keystrokes(
         keys,
         allow_installer_mode=allow_installer_mode,
-        installer_code=installer_code,
-        dialect=dialect,
-        allow_function_key=allow_function_key,
+        installer_code=coordinator.installer_code,
+        dialect=coordinator.dialect,
     )
     with keystrokes_not_accepted_as_error():
-        await client.send_keystrokes(partition, keys)
+        async with coordinator.async_keypad(
+            into_program_mode=allow_installer_mode
+        ) as type_keys:
+            await type_keys(partition, keys)
 
 
 @contextlib.contextmanager
@@ -220,16 +226,10 @@ def async_register_services(hass: HomeAssistant) -> None:
     async def _handle_send_keystrokes(call: ServiceCall) -> None:
         coordinator = get_loaded_coordinator(hass, call.data[ATTR_ENTRY_ID])
         await async_send_guarded_keystrokes(
-            coordinator.client,
+            coordinator,
             call.data[ATTR_PARTITION],
             call.data[ATTR_KEYS],
             allow_installer_mode=call.data[ATTR_CONFIRM_INSTALLER_RISK],
-            installer_code=coordinator.installer_code,
-            # Use the entry's actual dialect so the guard checks this panel's
-            # installer-mode trigger (DSC ``*8<code>`` vs. VISTA ``<code>800``).
-            # Without this the guard would default to VISTA and let a DSC
-            # installer-mode sequence through unconfirmed.
-            dialect=coordinator.dialect,
         )
 
     async def _handle_toggle_zone_bypass(call: ServiceCall) -> None:
@@ -237,9 +237,7 @@ def async_register_services(hass: HomeAssistant) -> None:
         zone_number = call.data[ATTR_ZONE]
         zone = coordinator.data.zone(zone_number)
         keys = f"*1{zone_number:02d}#"
-        await async_send_guarded_keystrokes(
-            coordinator.client, zone.partition, keys, dialect=coordinator.dialect
-        )
+        await async_send_guarded_keystrokes(coordinator, zone.partition, keys)
 
     async_register_admin_service(
         hass,
