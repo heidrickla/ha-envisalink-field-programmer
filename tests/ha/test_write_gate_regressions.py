@@ -90,7 +90,7 @@ async def test_refused_first_key_then_gate_failure_counts_as_no_key_sent(
 
 
 async def test_armed_report_while_keypad_held_does_not_clear_unbound_doubt(
-    hass, fake_server
+    hass, fake_server, monkeypatch
 ) -> None:
     from custom_components.envisalink_field_programmer.program_mode_state import (
         ModeEvent,
@@ -99,12 +99,24 @@ async def test_armed_report_while_keypad_held_does_not_clear_unbound_doubt(
     entry = await _setup(hass, fake_server)
     coordinator = entry.runtime_data
     async with coordinator.async_keypad(1, KeypadUse.INSTALLER) as keypad:
+        release = asyncio.Event()
+        next_revision = coordinator._mode.revision + 1
+        original = Store.async_save
+
+        async def hold_end(self, data):
+            if data.get("revision") == next_revision:
+                await release.wait()
+            await original(self, data)
+
+        monkeypatch.setattr(Store, "async_save", hold_end)
         # The operation's binding ended, but its keypad context still holds
         # the lock while cleanup waits for its state save.
         coordinator._transition(
             ModeEvent.OPERATION_END, operation_id=keypad.operation_id
         )
+        asyncio.get_running_loop().call_soon(release.set)
         await coordinator._await_mode_saved()
+        assert coordinator._durable_revision >= coordinator._mode.revision
         assert coordinator.program_mode is ProgramMode.DOUBT
         await fake_server.push("00", "01," + ARMED_AWAY)
         await _until(lambda: coordinator.data.partitions[1].armed)
