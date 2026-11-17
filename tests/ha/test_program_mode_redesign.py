@@ -160,6 +160,7 @@ async def test_partition_armed_during_outage_is_refused_after_reconnect(
             and not fake_server._writer.is_closing()
         )
     )
+    fake_server.drop_on = None
     before = _typed(fake_server)
     with pytest.raises(ServiceValidationError) as raised:
         await _program_key_a(hass, entry)
