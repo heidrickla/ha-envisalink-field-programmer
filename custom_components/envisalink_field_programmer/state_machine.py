@@ -61,29 +61,26 @@ def _decode_icon_flags(icon_led_hex: str) -> dict[str, bool]:
     return {name: bool(value & (1 << bit)) for name, bit in ICON_LED_BITS.items()}
 
 
+def invalid_keypad_field(event: TPIEvent) -> tuple[str, int] | None:
+    """Name the first malformed field without exposing any wire content."""
+    fields = event.fields
+    checks = (
+        ("partition", r"0?[1-8]"),
+        ("icon_led_hex", r"[0-9A-Fa-f]{4}"),
+        ("zone_or_beep_field", r"(?:0|[0-9]{2,3})"),
+        ("beep_hex", r"[0-9A-Fa-f]{2}"),
+        ("alpha", r"[\x20-\x7e]{1,32}"),
+    )
+    for name, pattern in checks:
+        value = fields.get(name)
+        if not isinstance(value, str) or re.fullmatch(pattern, value) is None:
+            return name, len(value) if isinstance(value, str) else 0
+    return None
+
+
 def valid_keypad_update(event: TPIEvent) -> bool:
     """Accept a %00 only when every field has its expected wire shape."""
-    fields = event.fields
-    partition = fields.get("partition")
-    icon = fields.get("icon_led_hex")
-    zone = fields.get("zone_or_beep_field")
-    beep = fields.get("beep_hex")
-    alpha = fields.get("alpha")
-    return bool(
-        isinstance(partition, str)
-        and re.fullmatch(r"0?[1-8]", partition)
-        and isinstance(icon, str)
-        and re.fullmatch(r"[0-9A-Fa-f]{4}", icon)
-        and isinstance(zone, str)
-        and re.fullmatch(r"(?:0|[0-9]{2,3})", zone)
-        and isinstance(beep, str)
-        and re.fullmatch(r"[0-9A-Fa-f]{2}", beep)
-        and isinstance(alpha, str)
-        and alpha
-        and len(alpha) <= 32
-        and alpha.isascii()
-        and alpha.isprintable()
-    )
+    return invalid_keypad_field(event) is None
 
 
 def _arm_state_from_flags(
@@ -100,14 +97,10 @@ def _arm_state_from_flags(
 
 def _apply_keypad_update(state: VistaState, event: TPIEvent) -> None:
     if not valid_keypad_update(event):
-        _LOGGER.warning("Dropping malformed keypad update: %r", event.raw_data)
         return
     try:
         partition_number = int(event.fields["partition"])
     except KeyError, ValueError:
-        _LOGGER.warning(
-            "Keypad update missing/invalid partition field: %r", event.fields
-        )
         return
 
     partition = state.partitions.get(partition_number)

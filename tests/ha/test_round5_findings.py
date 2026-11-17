@@ -45,12 +45,15 @@ async def test_repair_flow_aborts_if_closed_is_not_visible(
     coordinator = entry.runtime_data
     manager, flow = await _flow(hass, entry)
     original = Store.async_save
+    injected = False
 
     async def closed_save(self, data):
+        nonlocal injected
         if data.get("mode") == "closed":
-            if newer:
+            if newer and not injected:
+                injected = True
                 coordinator._transition(ModeEvent.RECONNECT)
-            else:
+            elif not newer:
                 raise OSError("disk full")
         await original(self, data)
 
@@ -58,9 +61,11 @@ async def test_repair_flow_aborts_if_closed_is_not_visible(
         patch.setattr(Store, "async_save", closed_save)
         result = await manager.async_configure(flow["flow_id"], {})
     assert result["type"] == "abort"
-    assert result["reason"] == "stale_repair"
-    assert coordinator.program_mode is ProgramMode.DOUBT
-    assert _issue(hass, entry) is not None
+    assert result["reason"] == ("stale_repair" if newer else "storage_failed")
+    assert coordinator.program_mode is (
+        ProgramMode.CLOSED if newer else ProgramMode.DOUBT
+    )
+    assert (_issue(hass, entry) is not None) is not newer
     await unload_entry(hass, entry)
 
 

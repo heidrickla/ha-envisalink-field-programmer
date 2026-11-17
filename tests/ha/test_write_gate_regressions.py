@@ -104,6 +104,7 @@ async def test_armed_report_while_keypad_held_does_not_clear_unbound_doubt(
         coordinator._transition(
             ModeEvent.OPERATION_END, operation_id=keypad.operation_id
         )
+        await coordinator._await_mode_saved()
         assert coordinator.program_mode is ProgramMode.DOUBT
         await fake_server.push("00", "01," + ARMED_AWAY)
         await _until(lambda: coordinator.data.partitions[1].armed)

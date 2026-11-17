@@ -109,6 +109,7 @@ async def async_get_config_entry_diagnostics(
             if coordinator.last_event is not None
             else None
         ),
+        "rejected_keypad_updates": dict(coordinator.rejected_keypad_updates),
         # What the device page's programming form holds and what became of the
         # last button press. Neither is panel state; both are what a report of
         # "I programmed a zone and nothing happened" needs. No code is in

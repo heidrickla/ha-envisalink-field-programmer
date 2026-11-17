@@ -142,6 +142,7 @@
           "entry_not_loaded": "The entry is not loaded. Reload it, then reopen this repair.",
           "operation_in_progress": "A keypad sequence (programming, arming, disarming or bypass) still holds the keypad. Wait for it to finish, then reopen this repair.",
           "stale_repair": "Program Mode state has changed since this repair was opened, so it was not applied. If a Program Mode repair is still listed under Settings, Repairs, open that one.",
+          "storage_failed": "Program Mode state could not be saved, so this confirmation was not applied. Check Home Assistant storage, then reopen the current repair and try again.",
           "already_settled": "Program Mode is already settled: the panel reported it closed or an earlier confirmation was applied. There is nothing to confirm."
         },
         "step": {

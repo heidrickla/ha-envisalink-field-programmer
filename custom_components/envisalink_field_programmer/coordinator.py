@@ -18,7 +18,9 @@ import asyncio
 import contextlib
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Callable, Sequence
+from dataclasses import replace
 from typing import override
 from uuid import uuid4
 
@@ -65,8 +67,8 @@ from .program_mode_state import (
 from .state_machine import (
     ProgramModeReport,
     apply_event,
+    invalid_keypad_field,
     program_mode_report,
-    valid_keypad_update,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -240,6 +242,10 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         # The newest state revision the store is known to hold.
         self._durable_revision = -1
         self._less_cautious_pending = False
+        self._pending_mode_events: list[Callable[[], None]] = []
+        self._mode_save_error_revision: int | None = None
+        self.rejected_keypad_updates: dict[str, int] = {}
+        self._last_keypad_rejection_warning: dict[str, float] = {}
         self._partition_reported = asyncio.Event()
         self._program_mode_changed: asyncio.Event | None = None
         # The sequence that has typed installer or guided keys and still holds
@@ -498,6 +504,23 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
         holder: Holder | None = None,
     ) -> None:
         """Apply the only state transition and publish its result."""
+        if self._less_cautious_pending:
+            if event is ModeEvent.REPAIR_CONFIRM:
+                raise ModeRefusal(Refusal.STALE)
+            self._pending_mode_events.append(
+                lambda: self._transition(
+                    event,
+                    operation_id=operation_id,
+                    generation=generation,
+                    revision=revision,
+                    entry_complete=entry_complete,
+                    holding=holding,
+                    installer=installer,
+                    everyday=everyday,
+                    holder=holder,
+                )
+            )
+            return
         new = transition(
             self._mode,
             event,
@@ -532,36 +555,52 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     # A cancelled predecessor cannot poison subsequent saves.
                 except Exception:  # noqa: BLE001
                     _LOGGER.exception("Earlier Program Mode save failed")
-            if less_cautious and self._mode.revision >= new.revision:
-                self._less_cautious_pending = False
-                return
             # Read back here, in the chain: a later save waits for this one, so
             # the store holds this record or a newer one, and a failure never
             # blocks the saves behind it.
             try:
                 await self._mode_store.async_save(new.stored())
                 stored = await self._mode_store.async_load()
+            except asyncio.CancelledError:
+                self._mode_save_error_revision = new.revision
+                if less_cautious:
+                    self._settle_less_cautious(new, verified=False)
+                raise
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("Could not save the Program Mode state")
+                self._mode_save_error_revision = new.revision
                 if less_cautious:
-                    self._less_cautious_pending = False
+                    self._settle_less_cautious(new, verified=False)
                 return
             verified = stored == new.stored() or (
                 stored is not None and int(str(stored["revision"])) > new.revision
             )
             if verified:
                 self._durable_revision = max(self._durable_revision, new.revision)
+                self._mode_save_error_revision = None
+            else:
+                self._mode_save_error_revision = new.revision
             if less_cautious:
-                if verified and self._mode.revision < new.revision:
-                    self._mode = new
-                    self._sync_mode()
-                self._less_cautious_pending = False
+                self._settle_less_cautious(new, verified=verified)
 
         self._mode_save_task = self.hass.async_create_task(save())
 
     async def _await_mode_saved(self) -> None:
-        if self._mode_save_task is not None:
-            await asyncio.shield(self._mode_save_task)
+        while self._mode_save_task is not None:
+            task = self._mode_save_task
+            await asyncio.shield(task)
+            if task is self._mode_save_task:
+                return
+
+    def _settle_less_cautious(self, new: ModeState, *, verified: bool) -> None:
+        # A failed save still consumes its revision; queued panel events then
+        # fold over the state that actually survived that save.
+        self._mode = new if verified else replace(self._mode, revision=new.revision)
+        self._less_cautious_pending = False
+        self._sync_mode()
+        pending, self._pending_mode_events = self._pending_mode_events, []
+        for apply_pending in pending:
+            apply_pending()
 
     def _sync_mode(self) -> None:
         """Mirror the authoritative state to the issue and entities."""
@@ -624,13 +663,15 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                 # Finish under the keypad lock even if the caller is cancelled
                 # again while a durable state transition is still pending.
                 cleanup = self.hass.async_create_task(self._finish_keypad(keypad))
+                cancelled = False
                 while not cleanup.done():
                     try:
                         await asyncio.shield(cleanup)
                     except asyncio.CancelledError:
-                        if cleanup.done():
-                            break
+                        cancelled = True
                 cleanup.result()
+                if cancelled:
+                    raise asyncio.CancelledError
 
     async def _finish_keypad(self, keypad: HeldKeypad) -> None:
         try:
@@ -651,11 +692,13 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
                     everyday=True,
                 )
         finally:
-            if self._typing_holder is keypad:
-                self._typing_holder = None
-                self._sync_mode()
-            if self._keypad_holder is keypad:
-                self._keypad_holder = None
+            try:
+                if self._typing_holder is keypad:
+                    self._typing_holder = None
+                    self._sync_mode()
+            finally:
+                if self._keypad_holder is keypad:
+                    self._keypad_holder = None
 
     def _begin_everyday(self, keypad: HeldKeypad) -> None:
         try:
@@ -825,6 +868,8 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             holding=self._keypad_holder is not None,
         )
         await self._await_mode_saved()
+        if self._mode_save_error_revision == revision + 1:
+            raise ModeRefusal(Refusal.STORAGE_FAILED)
         if (
             self._mode.mode is not ProgramMode.CLOSED
             or self._mode.revision != revision + 1
@@ -833,8 +878,23 @@ class VistaConsoleCoordinator(DataUpdateCoordinator[VistaState]):
             raise ModeRefusal(Refusal.STALE)
 
     def _handle_event(self, event: TPIEvent) -> None:
-        if event.code == "%00" and not valid_keypad_update(event):
-            return
+        if event.code == "%00":
+            invalid = invalid_keypad_field(event)
+            if invalid is not None:
+                field, length = invalid
+                self.rejected_keypad_updates[field] = (
+                    self.rejected_keypad_updates.get(field, 0) + 1
+                )
+                now = time.monotonic()
+                last = self._last_keypad_rejection_warning.get(field)
+                if last is None or now - last >= 60:
+                    _LOGGER.warning(
+                        "Rejected %%00 keypad update: invalid %s (length %d)",
+                        field,
+                        length,
+                    )
+                    self._last_keypad_rejection_warning[field] = now
+                return
         self.last_event = event
         apply_event(self.data, event)
         report = program_mode_report(event, self.num_partitions)

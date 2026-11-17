@@ -34,6 +34,7 @@ class Refusal(Enum):
     MENU_BEFORE_OPEN = "menu_before_open"
     SETTLED = "settled"
     STALE = "stale"
+    STORAGE_FAILED = "storage_failed"
 
 
 class ModeRefusal(ValueError):

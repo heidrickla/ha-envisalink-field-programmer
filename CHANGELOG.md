@@ -4,6 +4,15 @@ Notable changes to this integration, newest first. The format follows [Keep a Ch
 
 Dates are the day the work landed on `main`, which is not the day a release was cut.
 
+## [0.8.4] - 2026-11-17
+
+### Fixed
+
+- Rejected keypad reports now log the invalid field and length without exposing panel text, and diagnostics count rejections by field.
+- Panel reports received during a pending Program Mode save are applied in order after it settles, without reusing a failed save's revision.
+- Cancelling a keypad caller now waits for cleanup and then propagates cancellation; holder cleanup survives issue-sync failures.
+- A repair whose Program Mode state could not be saved now gives a storage-specific reason and guidance.
+
 ## [0.8.3] - 2026-11-17
 
 ### Fixed

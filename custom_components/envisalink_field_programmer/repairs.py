@@ -21,6 +21,7 @@ _ABORT_REASONS = {
     Refusal.HELD: "operation_in_progress",
     Refusal.SETTLED: "already_settled",
     Refusal.STALE: "stale_repair",
+    Refusal.STORAGE_FAILED: "storage_failed",
 }
 
 
