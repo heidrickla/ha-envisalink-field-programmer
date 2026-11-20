@@ -24,3 +24,4 @@ config/home-assistant.log
 
 # Local task list
 TASKS.md
+settings.local.json
