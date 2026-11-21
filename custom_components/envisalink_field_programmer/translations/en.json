@@ -136,7 +136,6 @@
     },
     "program_mode_unknown": {
       "title": "{title}: Program Mode may still be open",
-      "description": "The panel reported Program Mode open, or keys that open it may have gone out, and the panel has not reported it closed since, so guided programming, arming, disarming and bypass are paused.",
       "fix_flow": {
         "abort": {
           "entry_not_loaded": "The entry is not loaded. Reload it, then reopen this repair.",

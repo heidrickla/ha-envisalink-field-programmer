@@ -445,6 +445,16 @@ def test_the_wordings_say_what_is_true_and_what_to_do() -> None:
     assert "arm" in held and "bypass" in held
     exceptions = en["exceptions"]
     assert "opened by something else" not in exceptions["program_mode_lost"]["message"]
-    description = en["issues"]["program_mode_unknown"]["description"]
+    # A fixable issue shows its fix flow's text, not a description of its own.
+    description = en["issues"]["program_mode_unknown"]["fix_flow"]["step"]["confirm"][
+        "description"
+    ]
     assert "went out" not in description
     assert "may have" in description
+
+
+def test_a_fixable_issue_has_a_fix_flow_and_no_description() -> None:
+    # hassfest puts description and fix_flow in one exclusion group: a
+    # translation with both fails validation, and CI with it.
+    for key, issue in _en()["issues"].items():
+        assert not ("fix_flow" in issue and "description" in issue), key
